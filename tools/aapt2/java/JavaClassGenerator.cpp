@@ -47,9 +47,9 @@ namespace aapt {
 static const std::set<StringPiece> sJavaIdentifiers = {
     "abstract",   "assert",       "boolean",   "break",      "byte",
     "case",       "catch",        "char",      "class",      "const",
-    "continue",   "default",      "double",     "else",
+    "continue",   "default",      "do",        "double",     "else",
     "enum",       "extends",      "final",     "finally",    "float",
-    "for",        "goto",         "implements", "import",
+    "for",        "goto",         "if",        "implements", "import",
     "instanceof", "int",          "interface", "long",       "native",
     "new",        "package",      "private",   "protected",  "public",
     "return",     "short",        "static",    "strictfp",   "super",
@@ -58,6 +58,13 @@ static const std::set<StringPiece> sJavaIdentifiers = {
     "true",       "false",        "null"};
 
 static bool IsValidSymbol(const StringPiece& symbol) {
+  // We are skipping all reserved keywords. This is beyond a bad idea, but some
+  // applications abuse this knowing the true limitation and thus the build no
+  // longer works. Since Apktool isnt used for initial builds, just re-builds
+  // we can safely skip this.s
+  return true;
+  
+  // ignored 
   return sJavaIdentifiers.find(symbol) == sJavaIdentifiers.end();
 }
 
