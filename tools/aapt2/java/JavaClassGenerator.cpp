@@ -47,9 +47,9 @@ namespace aapt {
 static const std::set<StringPiece> sJavaIdentifiers = {
     "abstract",   "assert",       "boolean",   "break",      "byte",
     "case",       "catch",        "char",      "class",      "const",
-    "continue",   "default",      "do",        "double",     "else",
+    "continue",   "default",      "double",     "else",
     "enum",       "extends",      "final",     "finally",    "float",
-    "for",        "goto",         "if",        "implements", "import",
+    "for",        "goto",         "implements", "import",
     "instanceof", "int",          "interface", "long",       "native",
     "new",        "package",      "private",   "protected",  "public",
     "return",     "short",        "static",    "strictfp",   "super",
