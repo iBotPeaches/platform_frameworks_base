@@ -61,7 +61,7 @@ static bool IsValidSymbol(const StringPiece& symbol) {
   // We are skipping all reserved keywords. This is beyond a bad idea, but some
   // applications abuse this knowing the true limitation and thus the build no
   // longer works. Since Apktool isnt used for initial builds, just re-builds
-  // we can safely skip this.s
+  // we can safely skip this.
   return true;
   
   // ignored 
