@@ -110,6 +110,23 @@ LOCAL_STATIC_LIBRARIES_windows := $(aaptHostStaticLibs_windows)
 include $(BUILD_HOST_EXECUTABLE)
 
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := libaapt
+LOCAL_CFLAGS := -Wno-format-y2k -DSTATIC_ANDROIDFW_FOR_TOOLS $(aaptCFlags)
+LOCAL_CPPFLAGS := $(aaptCppFlags)
+LOCAL_SRC_FILES := $(aaptSources)
+LOCAL_STATIC_LIBRARIES := $(aaptHostStaticLibs) libz
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := aapt_target
+LOCAL_FORCE_STATIC_EXECUTABLE := true
+LOCAL_CFLAGS := $(aaptCFlags)
+LOCAL_CPPFLAGS := $(aaptCppFlags)
+LOCAL_SRC_FILES := $(aaptMain)
+LOCAL_STATIC_LIBRARIES := libaapt $(aaptHostStaticLibs) libz
+include $(BUILD_EXECUTABLE) 
+
 # ==========================================================
 # Build the host tests: libaapt_tests
 # ==========================================================

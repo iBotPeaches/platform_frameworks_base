@@ -63,7 +63,7 @@ cc_library {
                 "libz",
             ],
             static: {
-                enabled: false,
+                enabled: true,
             },
         },
         host: {
