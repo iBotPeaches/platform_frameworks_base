@@ -109,45 +109,22 @@ LOCAL_STATIC_LIBRARIES_windows := $(aaptHostStaticLibs_windows)
 
 include $(BUILD_HOST_EXECUTABLE)
 
-# ==========================================================
-# Build the host static library: libaapt
-# ==========================================================
-include $(CLEAR_VARS)
 
+include $(CLEAR_VARS)
 LOCAL_MODULE := libaapt
-#LOCAL_MODULE_HOST_OS := darwin linux windows
-#USE_CLANG_PLATFORM_BUILD := false
-#LOCAL_CC := /run/media/gentoo/sda5/buildroot/x86_64-glibc/host/usr/bin/x86_64-linux-gcc
-#LOCAL_CXX := /run/media/gentoo/sda5/buildroot/x86_64-glibc/host/usr/bin/x86_64-linux-g++
 LOCAL_CFLAGS := -Wno-format-y2k -DSTATIC_ANDROIDFW_FOR_TOOLS $(aaptCFlags)
 LOCAL_CPPFLAGS := $(aaptCppFlags)
-#LOCAL_CFLAGS_darwin := -D_DARWIN_UNLIMITED_STREAMS
 LOCAL_SRC_FILES := $(aaptSources)
 LOCAL_STATIC_LIBRARIES := $(aaptHostStaticLibs) libz
-#LOCAL_STATIC_LIBRARIES_windows := $(aaptHostStaticLibs_windows)
-
 include $(BUILD_STATIC_LIBRARY)
 
-# ==========================================================
-# Build the host executable: aapt
-# ==========================================================
 include $(CLEAR_VARS)
-
 LOCAL_MODULE := aapt_target
 LOCAL_FORCE_STATIC_EXECUTABLE := true
-#LOCAL_MODULE_HOST_OS := darwin linux windows
-#USE_CLANG_PLATFORM_BUILD := false
-#LOCAL_CC := /run/media/gentoo/sda5/buildroot/x86_64-glibc/host/usr/bin/x86_64-linux-gcc
-#LOCAL_CXX := /run/media/gentoo/sda5/buildroot/x86_64-glibc/host/usr/bin/x86_64-linux-g++
 LOCAL_CFLAGS := $(aaptCFlags)
 LOCAL_CPPFLAGS := $(aaptCppFlags)
-#LOCAL_LDLIBS_darwin := $(aaptHostLdLibs_darwin)
-#LOCAL_LDLIBS := $(aaptHostLdLibs_linux)
 LOCAL_SRC_FILES := $(aaptMain)
 LOCAL_STATIC_LIBRARIES := libaapt $(aaptHostStaticLibs) libz
-#LOCAL_SHARED_LIBRARIES := $(aaptHostStaticLibs) libz
-#LOCAL_STATIC_LIBRARIES_windows := $(aaptHostStaticLibs_windows)
-
 include $(BUILD_EXECUTABLE) 
 
 # ==========================================================
