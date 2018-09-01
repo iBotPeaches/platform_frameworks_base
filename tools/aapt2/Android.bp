@@ -59,7 +59,6 @@ cc_defaults {
         },
         linux: {
             static_libs: ["libc++_static"],
-            host_ldlibs: ["-lz"],
         },
     },
     header_libs: ["jni_headers"],
