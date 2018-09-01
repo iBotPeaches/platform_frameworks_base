@@ -2656,9 +2656,6 @@ status_t ResourceTable::assignResourceIds()
             const size_t N = t->getOrderedConfigs().size();
             t->setIndex(ti + 1 + typeIdOffset);
 
-            LOG_ALWAYS_FATAL_IF(ti == 0 && attr != t,
-                                "First type is not attr!");
-
             for (size_t ei=0; ei<N; ei++) {
                 sp<ConfigList> c = t->getOrderedConfigs().itemAt(ei);
                 if (c == NULL) {
