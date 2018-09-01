@@ -315,7 +315,7 @@ bool parseMcc(const char* name, ResTable_config* out) {
         c++;
     }
     if (*c != 0) return false;
-    if (c-val != 3) return false;
+    if (c-val != 3 && c-val != 4) return false;
 
     int d = atoi(val);
     if (d != 0) {
@@ -345,7 +345,7 @@ bool parseMnc(const char* name, ResTable_config* out) {
         c++;
     }
     if (*c != 0) return false;
-    if (c-val == 0 || c-val > 3) return false;
+    if (c-val == 0 || c-val > 4) return false;
 
     if (out) {
         out->mnc = atoi(val);
