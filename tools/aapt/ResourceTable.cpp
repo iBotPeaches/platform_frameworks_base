@@ -1763,8 +1763,8 @@ ResourceTable::ResourceTable(Bundle* bundle, const String16& assetsPackage, Reso
     , mNumLocal(0)
     , mBundle(bundle)
 {
-    ssize_t packageId = -1;
-    switch (mPackageType) {
+    ssize_t packageId = mBundle.getForcedPackageId();
+    if (packageId == -1) {
         case App:
         case AppFeature:
             packageId = 0x7f;
