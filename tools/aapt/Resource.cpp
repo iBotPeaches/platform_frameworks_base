@@ -1138,8 +1138,7 @@ static ssize_t extractPlatformBuildVersion(AssetManager& assets, Bundle* bundle)
 
     Asset* asset = assets.openNonAsset(cookie, "AndroidManifest.xml", Asset::ACCESS_STREAMING);
     if (asset == NULL) {
-        fprintf(stderr, "ERROR: Platform AndroidManifest.xml not found\n");
-        return UNKNOWN_ERROR;
+        return NO_ERROR;
     }
 
     ssize_t result = NO_ERROR;
