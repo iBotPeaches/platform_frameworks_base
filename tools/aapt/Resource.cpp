@@ -314,8 +314,9 @@ static status_t makeFileResources(Bundle* bundle, const sp<AaptAssets>& assets,
             if (!((*str >= 'a' && *str <= 'z')
                     || (*str >= 'A' && *str <= 'Z')
                     || (*str >= '0' && *str <= '9')
-                    || *str == '_' || *str == '.')) {
-                fprintf(stderr, "%s: Invalid file name: must contain only [a-zA-Z0-9_.]\n",
+                    || *str == '_' || *str == '.')
+                    || *str == '$')) {
+                fprintf(stderr, "%s: Invalid file name: must contain only [a-zA-Z0-9$_.]. Ignoring...\n",
                         it.getPath().string());
                 hasErrors = true;
             }
@@ -496,7 +497,7 @@ static int validateAttr(const String8& path, const ResTable& table,
                         value.data);
                 return ATTR_NOT_FOUND;
             }
-            
+
             pool = table.getTableStringBlock(strIdx);
             #if 0
             if (pool != NULL) {
@@ -736,7 +737,7 @@ bool addTagAttribute(const sp<XMLNode>& node, const char* ns8,
         // don't stop the build.
         return true;
     }
-    
+
     node->addAttribute(ns, attr, String16(value));
     return true;
 }
@@ -887,7 +888,7 @@ status_t massageManifest(Bundle* bundle, ResourceTable* table, sp<XMLNode> root)
             bundle->setVersionName(strdup(String8(attr->string).string()));
         }
     }
-    
+
     sp<XMLNode> vers = root->getChildElement(String16(), String16("uses-sdk"));
     if (bundle->getMinSdkVersion() != NULL
             || bundle->getTargetSdkVersion() != NULL
@@ -896,7 +897,7 @@ status_t massageManifest(Bundle* bundle, ResourceTable* table, sp<XMLNode> root)
             vers = XMLNode::newElement(root->getFilename(), String16(), String16("uses-sdk"));
             root->insertChildAt(vers, 0);
         }
-        
+
         if (!addTagAttribute(vers, RESOURCES_ANDROID_NAMESPACE, "minSdkVersion",
                 bundle->getMinSdkVersion(), errorOnFailedInsert)) {
             return UNKNOWN_ERROR;
@@ -1012,7 +1013,7 @@ status_t massageManifest(Bundle* bundle, ResourceTable* table, sp<XMLNode> root)
             }
         }
     }
-    
+
     sp<XMLNode> application = root->getChildElement(String16(), String16("application"));
     if (application != NULL) {
         XMLNode::attribute_entry* icon_attr = application->editAttribute(
@@ -1314,7 +1315,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
     // --------------------------------------------------------------
 
     // resType -> leafName -> group
-    KeyedVector<String8, sp<ResourceTypeSet> > *resources = 
+    KeyedVector<String8, sp<ResourceTypeSet> > *resources =
             new KeyedVector<String8, sp<ResourceTypeSet> >;
     collect_files(assets, resources);
 
@@ -1348,7 +1349,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
     // now go through any resource overlays and collect their files
     sp<AaptAssets> current = assets->getOverlay();
     while(current.get()) {
-        KeyedVector<String8, sp<ResourceTypeSet> > *resources = 
+        KeyedVector<String8, sp<ResourceTypeSet> > *resources =
                 new KeyedVector<String8, sp<ResourceTypeSet> >;
         current->setResources(resources);
         collect_files(current, resources);
@@ -1459,7 +1460,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
     // compile resources
     current = assets;
     while(current.get()) {
-        KeyedVector<String8, sp<ResourceTypeSet> > *resources = 
+        KeyedVector<String8, sp<ResourceTypeSet> > *resources =
                 current->getResources();
 
         ssize_t index = resources->indexOfKey(String8("values"));
@@ -1468,7 +1469,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
             ssize_t res;
             while ((res=it.next()) == NO_ERROR) {
                 const sp<AaptFile>& file = it.getFile();
-                res = compileResourceFile(bundle, assets, file, it.getParams(), 
+                res = compileResourceFile(bundle, assets, file, it.getParams(),
                                           (current!=assets), &table);
                 if (res != NO_ERROR) {
                     hasErrors = true;
@@ -1728,7 +1729,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
     if (table.validateLocalizations()) {
         hasErrors = true;
     }
-    
+
     if (hasErrors) {
         return UNKNOWN_ERROR;
     }
@@ -1779,7 +1780,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
 
     ResTable finalResTable;
     sp<AaptFile> resFile;
-    
+
     if (table.hasResources()) {
         sp<AaptSymbols> symbols = assets->getSymbolsFor(String8("R"));
         err = table.addSymbols(symbols, bundle->getSkipSymbolsWithoutDefaultLocalization());
@@ -2001,7 +2002,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
                 ssize_t index = block.indexOfAttribute(RESOURCES_ANDROID_NAMESPACE, "name");
                 const char16_t* id = block.getAttributeStringValue(index, &len);
                 if (id == NULL) {
-                    fprintf(stderr, "%s:%d: missing name attribute in element <%s>.\n", 
+                    fprintf(stderr, "%s:%d: missing name attribute in element <%s>.\n",
                             manifestPath.string(), block.getLineNumber(),
                             String8(block.getElementName(&len)).string());
                     hasErrors = true;
@@ -2190,7 +2191,7 @@ status_t buildResources(Bundle* bundle, const sp<AaptAssets>& assets, sp<ApkBuil
             return err;
         }
     }
-    
+
     return err;
 }
 
@@ -2464,7 +2465,7 @@ static status_t writeLayoutClasses(
         fprintf(fp, "%s */\n", getIndentSpace(indent));
 
         ann.printAnnotations(fp, indentStr);
-        
+
         fprintf(fp,
                 "%spublic static final int[] %s = {\n"
                 "%s",
