@@ -543,6 +543,27 @@ bool parseUiModeType(const char* name, ResTable_config* out) {
               (out->uiMode&~ResTable_config::MASK_UI_MODE_TYPE)
               | ResTable_config::UI_MODE_TYPE_VR_HEADSET;
         return true;
+    } else if (strcmp(name, "smallui") == 0) {
+        if (out) out->uiMode =
+                (out->uiMode&~ResTable_config::MASK_UI_MODE_TYPE)
+                | 0xC;
+        return true;
+    } else if (strcmp(name, "mediumui") == 0) {
+        if (out) out->uiMode =
+                (out->uiMode&ResTable_config::MASK_UI_MODE_TYPE)
+                | 0xD;
+        return true;
+    } else if (strcmp(name, "largeui") == 0) {
+        if (out) out->uiMode =
+                (out->uiMode&ResTable_config::MASK_UI_MODE_TYPE)
+                | 0xE;
+        return true;
+    } else if (strcmp(name, "hugeui") == 0) {
+        if (out) out->uiMode = 0xF;
+        return true;
+    } else if (strcmp(name, "godzillaui") == 0) {
+        if (out) out->uiMode = 0xB;
+        return true;
     }
 
     return false;
