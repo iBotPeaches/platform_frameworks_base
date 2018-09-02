@@ -54,8 +54,7 @@ cc_defaults {
         },
         darwin: {
             cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
-            static_libs: ["libc++_static"],
-            host_ldlibs: ["-lz"],
+            static_libs: ["libc++_static"]
         },
         linux: {
             static_libs: ["libc++_static"],
