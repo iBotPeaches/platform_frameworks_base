@@ -61,4 +61,12 @@ LOCAL_CXX_STL := libc++_static
 
 include $(BUILD_HOST_EXECUTABLE)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := aapt_target
+LOCAL_FORCE_STATIC_EXECUTABLE := true
+LOCAL_CFLAGS := -DAAPT_VERSION=\"$(BUILD_NUMBER_FROM_FILE)\" $(aaptCFlags)
+LOCAL_SRC_FILES := Main.cpp
+LOCAL_STATIC_LIBRARIES := libaapt_target $(aaptHostStaticLibs)
+include $(BUILD_EXECUTABLE) 
+
 endif # No TARGET_BUILD_APPS or TARGET_BUILD_PDK
