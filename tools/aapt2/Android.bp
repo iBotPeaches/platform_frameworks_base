@@ -291,9 +291,6 @@ cc_library_static {
     defaults: ["aapt2_defaults"],
 }
 
-// ==========================================================
-// Build the host shared library: aapt2_jni
-// ==========================================================
 cc_library_shared {
     name: "libaapt2_jni_target",
     srcs: toolSources + ["jni/aapt2_jni.cpp"],
@@ -301,9 +298,6 @@ cc_library_shared {
     defaults: ["aapt2_defaults"],
 }
 
-// ==========================================================
-// Build the host tests: aapt2_tests
-// ==========================================================
 cc_test {
     name: "aapt2_tests_target",
     srcs: [
@@ -319,9 +313,6 @@ cc_test {
     data: ["integration-tests/CompileTest/**/*"],
 }
 
-// ==========================================================
-// Build the host executable: aapt2
-// ==========================================================
 cc_binary {
     name: "aapt2_target",
     srcs: ["Main.cpp"] + toolSources,
