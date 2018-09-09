@@ -44,6 +44,9 @@ cc_defaults {
         windows: {
             enabled: true,
         },
+        android: {
+            enabled: true,
+        },
     },
 
     // This tool is prebuilt if we're doing an app-only build.
@@ -112,4 +115,43 @@ cc_test_host {
         "tests/ResourceTable_test.cpp",
     ],
     static_libs: ["libaapt"],
+}
+
+
+cc_library_static {
+    name: "libaapt_target",
+    defaults: ["aapt_defaults"],
+    target: {
+        darwin: {
+            cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
+        },
+    },
+    cflags: [
+        "-Wno-format-y2k",
+        "-DSTATIC_ANDROIDFW_FOR_TOOLS",
+    ],
+
+    srcs: [
+        "AaptAssets.cpp",
+        "AaptConfig.cpp",
+        "AaptUtil.cpp",
+        "AaptXml.cpp",
+        "ApkBuilder.cpp",
+        "Command.cpp",
+        "CrunchCache.cpp",
+        "FileFinder.cpp",
+        "Images.cpp",
+        "Package.cpp",
+        "pseudolocalize.cpp",
+        "Resource.cpp",
+        "ResourceFilter.cpp",
+        "ResourceIdCache.cpp",
+        "ResourceTable.cpp",
+        "SourcePos.cpp",
+        "StringPool.cpp",
+        "WorkQueue.cpp",
+        "XMLNode.cpp",
+        "ZipEntry.cpp",
+        "ZipFile.cpp",
+    ],
 }
