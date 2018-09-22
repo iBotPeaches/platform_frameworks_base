@@ -61,6 +61,13 @@ cc_defaults {
         windows: {
             enabled: true,
         },
+        darwin: {
+            cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
+            static_libs: ["libc++_static"]
+        },
+        linux: {
+            static_libs: ["libc++_static"],
+        },
     },
 
     // This tool is prebuilt if we're doing an app-only build.
@@ -123,7 +130,14 @@ cc_binary_host {
     defaults: ["aapt_defaults"],
     srcs: ["Main.cpp"],
     use_version_lib: true,
+    static_executable: true,
     static_libs: ["libaapt"],
+    compile_multilib: "both",
+    multilib: {
+        lib64: {
+            suffix: "_64",
+        },
+    },
 }
 
 // ==========================================================

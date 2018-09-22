@@ -214,8 +214,15 @@ cc_binary_host {
     srcs: ["Main.cpp"] + toolSources,
     use_version_lib: true,
     stl: "libc++_static",
+    static_executable: true,
     static_libs: ["libaapt2"],
     defaults: ["aapt2_defaults"],
+    compile_multilib: "both",
+    multilib: {
+        lib64: {
+            suffix: "_64",
+        },
+    },
 }
 
 // ==========================================================
