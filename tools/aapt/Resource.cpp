@@ -267,6 +267,19 @@ static status_t parsePackage(Bundle* bundle, const sp<AaptAssets>& assets,
         bundle->setRevisionCode(String8(block.getAttributeStringValue(revisionCodeIndex, &len)).string());
     }
 
+    //Extract platformBuild info from current AndroidManifest.xml
+    ssize_t platformBuildVersionCodeIndex = block.indexOfAttribute(NULL, "platformBuildVersionCode");
+    if (platformBuildVersionCodeIndex >= 0) {
+      const char16_t* platformBuildVersionCode16 = block.getAttributeStringValue(platformBuildVersionCodeIndex, &len);
+      bundle->setPlatformBuildVersionCode(String8(platformBuildVersionCode16));
+    }
+
+    ssize_t platformBuildVersionNameIndex = block.indexOfAttribute(NULL, "platformBuildVersionName");
+    if (platformBuildVersionNameIndex >= 0) {
+      const char16_t* platformBuildVersionName16 = block.getAttributeStringValue(platformBuildVersionNameIndex, &len);
+      bundle->setPlatformBuildVersionName(String8(platformBuildVersionName16));
+    }
+    
     String16 uses_sdk16("uses-sdk");
     while ((code=block.next()) != ResXMLTree::END_DOCUMENT
            && code != ResXMLTree::BAD_DOCUMENT) {
