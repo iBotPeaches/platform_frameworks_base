@@ -6,7 +6,6 @@
 #include "Main.h"
 #include "Bundle.h"
 
-#include <build/version.h>
 #include <utils/Compat.h>
 #include <utils/Log.h>
 #include <utils/threads.h>
@@ -21,6 +20,10 @@ using namespace android;
 
 static const char* gProgName = "aapt";
 
+#ifndef AAPT_VERSION
+    #define AAPT_VERSION ""
+#endif
+
 /*
  * Show version info.  All the cool kids do it.
  */
@@ -29,7 +32,7 @@ int doVersion(Bundle* bundle)
     if (bundle->getFileSpecCount() != 0) {
         printf("(ignoring extra arguments)\n");
     }
-    printf("Android Asset Packaging Tool, v0.2-%s\n", android::build::GetBuildNumber().c_str());
+    printf("Android Asset Packaging Tool, v0.2-" AAPT_VERSION "\n");
 
     return 0;
 }
