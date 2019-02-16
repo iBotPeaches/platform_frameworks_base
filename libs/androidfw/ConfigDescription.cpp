@@ -854,11 +854,6 @@ success:
 
 void ConfigDescription::ApplyVersionForCompatibility(
     ConfigDescription* config) {
-
-  // We are skipping this entirely in apktool, because the application has
-  // already been built once. Doing this changes the application with implicit
-  // version information, which may not have been in the original.
-  return;
   uint16_t min_sdk = 0;
   if ((config->uiMode & ResTable_config::MASK_UI_MODE_TYPE)
                 == ResTable_config::UI_MODE_TYPE_VR_HEADSET ||
@@ -887,9 +882,11 @@ void ConfigDescription::ApplyVersionForCompatibility(
     min_sdk = SDK_DONUT;
   }
 
-  if (min_sdk > config->sdkVersion) {
-    config->sdkVersion = min_sdk;
-  }
+
+  // We are skipping this entirely in apktool, because the application has
+  // already been built once. Doing this changes the application with implicit
+  // version information, which may not have been in the original.
+  return;
 }
 
 ConfigDescription ConfigDescription::CopyWithoutSdkVersion() const {
