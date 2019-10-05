@@ -2333,6 +2333,23 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
       ".mpg", ".mpeg", ".mp4", ".m4a", ".m4v", ".3gp", ".3gpp", ".3g2", ".3gpp2", ".wma", ".wmv",
       ".webm", ".mkv"});
 
+  // Populate no compress extensions specified in the extensions file.
+  if (options.extensions_to_not_compress_path) {
+    std::ifstream extensionsFile(options.extensions_to_not_compress_path.value());
+
+    if (extensionsFile.fail()) {
+      context.GetDiagnostics()->Error(
+          DiagMessage() << "could not open extensions file "
+              << options.extensions_to_not_compress_path.value()
+              << " for reading");
+      return 1;
+    }
+    
+    for (std::string line; getline(extensionsFile, line);) {
+        options.extensions_to_not_compress.insert(line);
+    }
+  }
+
   // Turn off auto versioning for static-libs.
   if (context.GetPackageType() == PackageType::kStaticLib) {
     options_.no_auto_version = true;
