@@ -60,6 +60,7 @@ cc_defaults {
     target: {
         windows: {
             enabled: true,
+            ldflags: ["-static"],
         },
         darwin: {
             cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
