@@ -271,7 +271,7 @@ class LinkCommand : public Command {
     AddOptionalFlagList("-0", "File suffix not to compress.",
         &options_.extensions_to_not_compress);
     AddOptionalFlagList("-e", "File containing list of extensions not to compress.",
-        &options.extensions_to_not_compress_path);
+        &options_.extensions_to_not_compress_path);
     AddOptionalSwitch("--no-compress", "Do not compress any resources.",
         &options_.do_not_compress_anything);
     AddOptionalSwitch("--keep-raw-values", "Preserve raw attribute values in xml files.",
