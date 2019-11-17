@@ -17,6 +17,8 @@
 #include <getopt.h>
 #include <cassert>
 
+#include <fstream>
+
 using namespace android;
 
 static const char* gProgName = "aapt";
@@ -72,7 +74,7 @@ void usage(void)
         "   xmlstrings       Print the strings of the given compiled xml assets.\n\n", gProgName);
     fprintf(stderr,
         " %s p[ackage] [-d][-f][-m][-u][-v][-x][-z][-M AndroidManifest.xml] \\\n"
-        "        [-0 extension [-0 extension ...]] [-g tolerance] [-j jarfile] \\\n"
+        "        [-0 extension [-0 extension ...]] [-e extensions_file] [-g tolerance] [-j jarfile] \\\n"
         "        [--debug-mode] [--forced-package-id VAL] [--min-sdk-version VAL] [--target-sdk-version VAL] \\\n"
         "        [--app-version VAL] [--app-version-name TEXT] [--custom-package VAL] \\\n"
         "        [--rename-manifest-package PACKAGE] \\\n"
@@ -146,6 +148,8 @@ void usage(void)
         "   -0  specifies an additional extension for which such files will not\n"
         "       be stored compressed in the .apk.  An empty string means to not\n"
         "       compress any files at all.\n"
+        "   -e  specifies path to a file containing a list of additional extensions for which such files will not\n"
+        "       be stored compressed in the .apk."
         "   --debug-mode\n"
         "       inserts android:debuggable=\"true\" in to the application node of the\n"
         "       manifest, making the application debuggable even on production devices.\n"
@@ -524,7 +528,7 @@ int main(int argc, char* const argv[])
                 argc--;
                 argv++;
                 if (!argc) {
-                    fprintf(stderr, "ERROR: No argument supplied for '-e' option\n");
+                    fprintf(stderr, "ERROR: No argument supplied for '-0' option\n");
                     wantUsage = true;
                     goto bail;
                 }
@@ -534,6 +538,27 @@ int main(int argc, char* const argv[])
                     bundle.setCompressionMethod(ZipEntry::kCompressStored);
                 }
                 break;
+            case 'e': {
+                argc--;
+                argv++;
+                if (!argc) {
+                    fprintf(stderr, "ERROR: No argument supplied for '-e' option\n");
+                    wantUsage = true;
+                    goto bail;
+                }
+
+                std::ifstream extensionsFile(argv[0]);
+
+                if (extensionsFile.fail()) {
+                    fprintf(stderr, "ERROR: Could not open extensions file %s for reading\n", argv[0]);
+                    goto bail;
+                }
+
+                for (std::string line; getline(extensionsFile, line);) {
+                    bundle.addNoCompressExtension(line.c_str());
+                }
+                break;
+            }
             case '-':
                 if (strcmp(cp, "-debug-mode") == 0) {
                     bundle.setDebugMode(true);

@@ -108,6 +108,7 @@ struct LinkOptions {
   bool no_xml_namespaces = false;
   bool do_not_compress_anything = false;
   std::unordered_set<std::string> extensions_to_not_compress;
+  Maybe<std::string> extensions_to_not_compress_path;
 
   // Static lib options.
   bool no_static_lib_packages = false;
@@ -2180,6 +2181,8 @@ int Link(const std::vector<StringPiece>& args, IDiagnostics* diagnostics) {
                         &options.manifest_fixer_options.rename_instrumentation_target_package)
           .OptionalFlagList("-0", "File extensions not to compress.",
                             &options.extensions_to_not_compress)
+          .OptionalFlag("-e", "File containing list of extensions not to compress.",
+                            &options.extensions_to_not_compress_path)
           .OptionalSwitch("--warn-manifest-validation",
                           "Treat manifest validation errors as warnings.",
                           &options.manifest_fixer_options.warn_validation)
@@ -2335,6 +2338,23 @@ int Link(const std::vector<StringPiece>& args, IDiagnostics* diagnostics) {
        ".aac",   ".mpg",  ".mpeg", ".mid", ".midi", ".smf",  ".jet",  ".rtttl",
        ".imy",   ".xmf",  ".mp4",  ".m4a", ".m4v",  ".3gp",  ".3gpp", ".3g2",
        ".3gpp2", ".amr",  ".awb",  ".wma", ".wmv",  ".webm", ".mkv"});
+
+  // Populate no compress extensions specified in the extensions file.
+  if (options.extensions_to_not_compress_path) {
+    std::ifstream extensionsFile(options.extensions_to_not_compress_path.value());
+
+    if (extensionsFile.fail()) {
+      context.GetDiagnostics()->Error(
+          DiagMessage() << "could not open extensions file "
+              << options.extensions_to_not_compress_path.value()
+              << " for reading");
+      return 1;
+    }
+    
+    for (std::string line; getline(extensionsFile, line);) {
+        options.extensions_to_not_compress.insert(line);
+    }
+  }
 
   // Turn off auto versioning for static-libs.
   if (context.GetPackageType() == PackageType::kStaticLib) {
