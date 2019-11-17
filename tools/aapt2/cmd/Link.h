@@ -270,7 +270,7 @@ class LinkCommand : public Command {
         &options_.manifest_fixer_options.rename_overlay_target_package);
     AddOptionalFlagList("-0", "File suffix not to compress.",
         &options_.extensions_to_not_compress);
-    AddOptionalFlagList("-e", "File containing list of extensions not to compress.",
+    AddOptionalFlag("-e", "File containing list of extensions not to compress.",
         &options_.extensions_to_not_compress_path);
     AddOptionalSwitch("--no-compress", "Do not compress any resources.",
         &options_.do_not_compress_anything);
