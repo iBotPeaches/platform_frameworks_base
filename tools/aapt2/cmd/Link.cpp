@@ -2334,19 +2334,19 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
       ".webm", ".mkv"});
 
   // Populate no compress extensions specified in the extensions file.
-  if (options.extensions_to_not_compress_path) {
-    std::ifstream extensionsFile(options.extensions_to_not_compress_path.value());
+  if (options_.extensions_to_not_compress_path) {
+    std::ifstream extensionsFile(options_.extensions_to_not_compress_path.value());
 
     if (extensionsFile.fail()) {
       context.GetDiagnostics()->Error(
           DiagMessage() << "could not open extensions file "
-              << options.extensions_to_not_compress_path.value()
+              << options_.extensions_to_not_compress_path.value()
               << " for reading");
       return 1;
     }
-    
+
     for (std::string line; getline(extensionsFile, line);) {
-        options.extensions_to_not_compress.insert(line);
+        options_.extensions_to_not_compress.insert(line);
     }
   }
 
