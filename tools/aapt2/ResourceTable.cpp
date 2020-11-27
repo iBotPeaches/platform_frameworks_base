@@ -376,9 +376,7 @@ bool ResourceTable::ValidateName(NameValidator name_validator, const ResourceNam
                                  const Source& source, IDiagnostics* diag) {
   const StringPiece bad_char = name_validator(name.entry);
   if (!bad_char.empty()) {
-    diag->Error(DiagMessage(source) << "resource '" << name << "' has invalid entry name '"
-                                    << name.entry << "'. Invalid character '" << bad_char << "'");
-    return false;
+    return true;
   }
   return true;
 }

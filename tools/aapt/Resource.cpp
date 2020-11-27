@@ -279,7 +279,7 @@ static status_t parsePackage(Bundle* bundle, const sp<AaptAssets>& assets,
         const char16_t* platformBuildVersionName16 = block.getAttributeStringValue(platformBuildVersionNameIndex, &len);
         bundle->setPlatformBuildVersionName(String8(platformBuildVersionName16));
     }
-    
+
     String16 uses_sdk16("uses-sdk");
     while ((code=block.next()) != ResXMLTree::END_DOCUMENT
            && code != ResXMLTree::BAD_DOCUMENT) {
@@ -563,7 +563,6 @@ static int validateAttr(const String8& path, const ResTable& table,
                     fprintf(stderr, "%s:%d: Tag <%s> attribute %s has invalid character '%c'.\n",
                             path.string(), parser.getLineNumber(),
                             String8(parser.getElementName(&len)).string(), attr, (char)str[i]);
-                    return (int)i;
                 }
             }
         }
