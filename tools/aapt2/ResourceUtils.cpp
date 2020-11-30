@@ -221,9 +221,13 @@ bool ParseAttributeReference(const StringPiece& str, ResourceNameRef* out_ref) {
       return false;
     }
 
+    //add support private attributes
+    //ignore
+    /*
     if (!type.empty() && type != "attr") {
       return false;
     }
+    */
 
     if (entry.empty()) {
       return false;
