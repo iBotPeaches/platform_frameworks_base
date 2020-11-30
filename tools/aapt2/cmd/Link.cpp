@@ -2246,6 +2246,8 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
     }
 
     const uint32_t package_id_int = maybe_package_id_int.value();
+    //ignore reserved package(Framework)
+    /*
     if (package_id_int > std::numeric_limits<uint8_t>::max()
         || package_id_int == kFrameworkPackageId
         || (!options_.allow_reserved_package_id && package_id_int < kAppPackageId)) {
@@ -2254,6 +2256,7 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
               "invalid package ID 0x%02x. Must be in the range 0x7f-0xff.", package_id_int));
       return 1;
     }
+    */
     context.SetPackageId(static_cast<uint8_t>(package_id_int));
   }
 
