@@ -51,6 +51,7 @@ cc_defaults {
         "libz",
     ],
     group_static_libs: true,
+    static_executable: true,
 
     cflags: [
         "-Wall",
@@ -61,10 +62,6 @@ cc_defaults {
         windows: {
             enabled: true,
             ldflags: ["-static"],
-        },
-        darwin: {
-            cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
-            static_libs: ["libc++_static"]
         },
         linux: {
             static_libs: ["libc++_static"],
@@ -130,6 +127,7 @@ cc_binary_host {
     name: "aapt",
     defaults: ["aapt_defaults"],
     srcs: ["Main.cpp"],
+    stl: "libc++_static",
     use_version_lib: true,
     static_executable: true,
     static_libs: ["libaapt"],
