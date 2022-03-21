@@ -58,7 +58,7 @@ public:
           mNoVersionTransitions(false),
           mCrunchedOutputDir(NULL), mProguardFile(NULL), mMainDexProguardFile(NULL),
           mAndroidManifestFile(NULL), mPublicOutputFile(NULL),
-          mRClassDir(NULL), mResourceIntermediatesDir(NULL), mManifestMinSdkVersion(NULL),
+          mRClassDir(NULL), mResourceIntermediatesDir(NULL), mForcedPackageId(-1), mManifestMinSdkVersion(NULL),
           mMinSdkVersion(NULL), mTargetSdkVersion(NULL), mMaxSdkVersion(NULL),
           mVersionCode(NULL), mVersionName(NULL), mReplaceVersion(false), mCustomPackage(NULL),
           mExtraPackages(NULL), mMaxResVersion(NULL), mDebugMode(false), mNonConstantId(false),
@@ -180,6 +180,8 @@ public:
     const android::String8& getFeatureOfPackage() const { return mFeatureOfPackage; }
     void setFeatureAfterPackage(const char* str) { mFeatureAfterPackage = str; }
     const android::String8& getFeatureAfterPackage() const { return mFeatureAfterPackage; }
+    int getForcedPackageId() const { return mForcedPackageId; }
+    void setForcedPackageId(int val) { mForcedPackageId = val; }
 
     const char*  getManifestMinSdkVersion() const { return mManifestMinSdkVersion; }
     void setManifestMinSdkVersion(const char*  val) { mManifestMinSdkVersion = val; }
@@ -327,6 +329,7 @@ private:
     android::String8 mFeatureOfPackage;
     android::String8 mFeatureAfterPackage;
     android::String8 mRevisionCode;
+    int         mForcedPackageId;
     const char* mManifestMinSdkVersion;
     const char* mMinSdkVersion;
     const char* mTargetSdkVersion;

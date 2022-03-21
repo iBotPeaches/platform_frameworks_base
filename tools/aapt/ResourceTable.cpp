@@ -63,7 +63,7 @@ status_t compileXmlFile(const Bundle* bundle,
     if (root == NULL) {
         return UNKNOWN_ERROR;
     }
-    
+
     return compileXmlFile(bundle, assets, resourceName, root, outTarget, table, options);
 }
 
@@ -99,7 +99,7 @@ status_t compileXmlFile(const Bundle* bundle,
     if (table->processBundleFormat(bundle, resourceName, target, root) != NO_ERROR) {
         return UNKNOWN_ERROR;
     }
-    
+
     bool hasErrors = false;
     if ((options&XML_COMPILE_ASSIGN_ATTRIBUTE_IDS) != 0) {
         status_t err = root->assignResourceIds(assets, table);
@@ -109,7 +109,7 @@ status_t compileXmlFile(const Bundle* bundle,
     }
 
     if ((options&XML_COMPILE_PARSE_VALUES) != 0) {
-        status_t err = root->parseValues(assets, table);
+        status_t err = root->parseValues(bundle, assets, table);
         if (err != NO_ERROR) {
             hasErrors = true;
         }
@@ -142,7 +142,7 @@ status_t compileXmlFile(const Bundle* bundle,
     }
 
     target->setCompressionMethod(ZipEntry::kCompressDeflated);
-    
+
     return err;
 }
 
@@ -258,7 +258,7 @@ static String16 mayOrMust(int type, int flags)
     if ((type&(~flags)) == 0) {
         return String16("<p>Must");
     }
-    
+
     return String16("<p>May");
 }
 
@@ -297,7 +297,7 @@ struct PendingAttribute
     String16 comment;
     bool hasErrors;
     bool added;
-    
+
     PendingAttribute(String16 _package, const sp<AaptFile>& in,
             ResXMLTree& block, bool _appendComment)
         : myPackage(_package)
@@ -308,7 +308,7 @@ struct PendingAttribute
         , added(false)
     {
     }
-    
+
     status_t createIfNeeded(ResourceTable* outTable)
     {
         if (added || hasErrors) {
@@ -332,7 +332,7 @@ static status_t compileAttribute(const sp<AaptFile>& in,
                                  bool inStyleable = false)
 {
     PendingAttribute attr(myPackage, in, block, inStyleable);
-    
+
     const String16 attr16("attr");
     const String16 id16("id");
 
@@ -343,7 +343,7 @@ static status_t compileAttribute(const sp<AaptFile>& in,
     ResXMLTree::event_code_t code;
     size_t len;
     status_t err;
-    
+
     ssize_t identIdx = block.indexOfAttribute(NULL, "name");
     if (identIdx >= 0) {
         attr.ident = String16(block.getAttributeStringValue(identIdx, &len));
@@ -438,7 +438,7 @@ static status_t compileAttribute(const sp<AaptFile>& in,
     }
 
     String16 enumOrFlagsComment;
-    
+
     while ((code=block.next()) != ResXMLTree::END_DOCUMENT && code != ResXMLTree::BAD_DOCUMENT) {
         if (code == ResXMLTree::START_TAG) {
             uint32_t localType = 0;
@@ -454,7 +454,7 @@ static status_t compileAttribute(const sp<AaptFile>& in,
             }
 
             attr.createIfNeeded(outTable);
-            
+
             if (attr.type == ResTable_map::TYPE_ANY) {
                 // No type was explicitly stated, so supplying enum tags
                 // implicitly creates an enum or flag.
@@ -526,7 +526,7 @@ static status_t compileAttribute(const sp<AaptFile>& in,
                                                 "<colgroup align=\"left\" />\n"
                                                 "<tr><th>Constant</th><th>Value</th><th>Description</th></tr>"));
                 }
-                
+
                 enumOrFlagsComment.append(String16("\n<tr><td><code>"));
                 enumOrFlagsComment.append(itemIdent);
                 enumOrFlagsComment.append(String16("</code></td><td>"));
@@ -536,7 +536,7 @@ static status_t compileAttribute(const sp<AaptFile>& in,
                     enumOrFlagsComment.append(String16(block.getComment(&len)));
                 }
                 enumOrFlagsComment.append(String16("</td></tr>"));
-                
+
                 err = outTable->addBag(SourcePos(in->getPrintableSource(), block.getLineNumber()),
                                        myPackage,
                                        attr16, attr.ident, String16(""),
@@ -566,11 +566,11 @@ static status_t compileAttribute(const sp<AaptFile>& in,
             }
         }
     }
-    
+
     if (!attr.hasErrors && attr.added) {
         appendTypeInfo(outTable, myPackage, attr16, attr.ident, attr.type, gFormatFlags);
     }
-    
+
     if (!attr.hasErrors && enumOrFlagsComment.size() > 0) {
         enumOrFlagsComment.append(String16("\n</table>"));
         outTable->appendTypeComment(myPackage, attr16, attr.ident, enumOrFlagsComment);
@@ -707,7 +707,7 @@ status_t parseAndAddEntry(Bundle* bundle,
                             curTag, &str, curIsStyled ? &spans : NULL,
                             isFormatted, pseudolocalize);
 
-    if (err < NO_ERROR) { 
+    if (err < NO_ERROR) {
         return err;
     }
 
@@ -941,7 +941,7 @@ status_t compileResourceFile(Bundle* bundle,
 
             } else if (strcmp16(block.getElementName(&len), public16.string()) == 0) {
                 SourcePos srcPos(in->getPrintableSource(), block.getLineNumber());
-            
+
                 String16 type;
                 ssize_t typeIdx = block.indexOfAttribute(NULL, "type");
                 if (typeIdx < 0) {
@@ -1013,7 +1013,7 @@ status_t compileResourceFile(Bundle* bundle,
 
             } else if (strcmp16(block.getElementName(&len), public_padding16.string()) == 0) {
                 SourcePos srcPos(in->getPrintableSource(), block.getLineNumber());
-            
+
                 String16 type;
                 ssize_t typeIdx = block.indexOfAttribute(NULL, "type");
                 if (typeIdx < 0) {
@@ -1074,7 +1074,7 @@ status_t compileResourceFile(Bundle* bundle,
                             start, end);
                     hasErrors = localHasErrors = true;
                 }
-                
+
                 String16 comment(
                     block.getComment(&len) ? block.getComment(&len) : nulStr);
                 for (uint32_t curIdent=start; curIdent<=end; curIdent++) {
@@ -1085,7 +1085,7 @@ status_t compileResourceFile(Bundle* bundle,
                     char buf[64];
                     sprintf(buf, "%d", (int)(end-curIdent+1));
                     curName.append(String16(buf));
-                    
+
                     err = outTable->addEntry(srcPos, myPackage, type, curName,
                                              String16("padding"), NULL, &curParams, false,
                                              ResTable_map::TYPE_STRING, overwrite);
@@ -1153,7 +1153,7 @@ status_t compileResourceFile(Bundle* bundle,
 
             } else if (strcmp16(block.getElementName(&len), java_symbol16.string()) == 0) {
                 SourcePos srcPos(in->getPrintableSource(), block.getLineNumber());
-            
+
                 String16 type;
                 ssize_t typeIdx = block.indexOfAttribute(NULL, "type");
                 if (typeIdx < 0) {
@@ -1196,7 +1196,7 @@ status_t compileResourceFile(Bundle* bundle,
 
             } else if (strcmp16(block.getElementName(&len), add_resource16.string()) == 0) {
                 SourcePos srcPos(in->getPrintableSource(), block.getLineNumber());
-            
+
                 String16 typeName;
                 ssize_t typeIdx = block.indexOfAttribute(NULL, "type");
                 if (typeIdx < 0) {
@@ -1223,10 +1223,10 @@ status_t compileResourceFile(Bundle* bundle,
                     }
                 }
                 continue;
-                
+
             } else if (strcmp16(block.getElementName(&len), declare_styleable16.string()) == 0) {
                 SourcePos srcPos(in->getPrintableSource(), block.getLineNumber());
-                                
+
                 String16 ident;
                 ssize_t identIdx = block.indexOfAttribute(NULL, "name");
                 if (identIdx < 0) {
@@ -1248,7 +1248,7 @@ status_t compileResourceFile(Bundle* bundle,
                         srcPos.error("Unable to create symbols!\n");
                         return UNKNOWN_ERROR;
                     }
-                    
+
                     String16 comment(
                         block.getComment(&len) ? block.getComment(&len) : nulStr);
                     styleSymbols->appendComment(String8(ident), comment, srcPos);
@@ -1369,7 +1369,7 @@ status_t compileResourceFile(Bundle* bundle,
                         formatted.setTo(block.getAttributeStringValue(i, &length));
                     }
                 }
-                
+
                 if (name.size() > 0) {
                     if (locale.size() == 0) {
                         outTable->addDefaultLocalization(name);
@@ -1530,7 +1530,7 @@ status_t compileResourceFile(Bundle* bundle,
             }
 
             String16 comment(block.getComment(&len) ? block.getComment(&len) : nulStr);
-            
+
             if (curIsBag) {
                 // Figure out the parent of this bag...
                 String16 parentIdent;
@@ -1553,7 +1553,7 @@ status_t compileResourceFile(Bundle* bundle,
                         hasErrors = localHasErrors = true;
                     }
                 }
-                
+
                 ssize_t elmIndex = 0;
                 char elmIndexStr[14];
                 while ((code=block.next()) != ResXMLTree::END_DOCUMENT
@@ -1763,24 +1763,26 @@ ResourceTable::ResourceTable(Bundle* bundle, const String16& assetsPackage, Reso
     , mNumLocal(0)
     , mBundle(bundle)
 {
-    ssize_t packageId = -1;
-    switch (mPackageType) {
-        case App:
-        case AppFeature:
-            packageId = 0x7f;
-            break;
+    ssize_t packageId = mBundle->getForcedPackageId();
+    if (packageId == -1) {
+        switch (mPackageType) {
+            case App:
+            case AppFeature:
+                packageId = 0x7f;
+                break;
 
-        case System:
-            packageId = 0x01;
-            break;
+            case System:
+                packageId = 0x01;
+                break;
 
-        case SharedLibrary:
-            packageId = 0x00;
-            break;
+            case SharedLibrary:
+                packageId = 0x00;
+                break;
 
-        default:
-            assert(0);
-            break;
+            default:
+                assert(0);
+                break;
+        }
     }
     sp<Package> package = new Package(mAssetsPackage, packageId);
     mPackages.add(assetsPackage, package);
@@ -1822,7 +1824,7 @@ status_t ResourceTable::addIncludedResources(Bundle* bundle, const sp<AaptAssets
 
         const ResTable& featureTable = featureAssetManager.getResources(false);
         mTypeIdOffset = std::max(mTypeIdOffset,
-                findLargestTypeIdForPackage(featureTable, mAssetsPackage)); 
+                findLargestTypeIdForPackage(featureTable, mAssetsPackage));
     }
 
     return NO_ERROR;
@@ -1872,7 +1874,7 @@ status_t ResourceTable::addEntry(const SourcePos& sourcePos,
                 String8(type).string(), String8(name).string(), String8(package).string());
         return UNKNOWN_ERROR;
     }
-    
+
     sp<Entry> e = getEntry(package, type, name, sourcePos, overwrite,
                            params, doSetIndex);
     if (e == NULL) {
@@ -1929,7 +1931,7 @@ status_t ResourceTable::startBag(const SourcePos& sourcePos,
     if (e == NULL) {
         return UNKNOWN_ERROR;
     }
-    
+
     // If a parent is explicitly specified, set it.
     if (bagParent.size() > 0) {
         e->setParent(bagParent);
@@ -1939,7 +1941,7 @@ status_t ResourceTable::startBag(const SourcePos& sourcePos,
         return result;
     }
 
-    if (overlay && replace) { 
+    if (overlay && replace) {
         return e->emptyBag(sourcePos);
     }
     return result;
@@ -2090,7 +2092,7 @@ bool ResourceTable::appendTypeComment(const String16& package,
     if (comment.size() <= 0) {
         return true;
     }
-    
+
     sp<Package> p = mPackages.valueFor(package);
     if (p != NULL) {
         sp<Type> t = p->getTypes().valueFor(type);
@@ -2219,7 +2221,7 @@ uint32_t ResourceTable::getResId(const String16& package,
                 return 0;
             }
         }
-        
+
         return ResourceIdCache::store(package, type, name, onlyPublic, rid);
     }
 
@@ -2315,7 +2317,7 @@ bool ResourceTable::stringToValue(Res_value* outValue, StringPool* pool,
     if (style == NULL || style->size() == 0) {
         // Text is not styled so it can be any type...  let's figure it out.
         res = mAssets->getIncludedResources()
-            .stringToValue(outValue, &finalStr, str.string(), str.size(), preserveSpaces,
+            .stringToValue(mBundle->getForcedPackageId(), outValue, &finalStr, str.string(), str.size(), preserveSpaces,
                             coerceType, attrID, NULL, &mAssetsPackage, this,
                            accessorCookie, attrType);
     } else {
@@ -2355,7 +2357,7 @@ bool ResourceTable::stringToValue(Res_value* outValue, StringPool* pool,
             // Caller will fill this in later.
             outValue->data = 0;
         }
-    
+
         if (outStr) {
             *outStr = finalStr;
         }
@@ -2656,9 +2658,6 @@ status_t ResourceTable::assignResourceIds()
             const size_t N = t->getOrderedConfigs().size();
             t->setIndex(ti + 1 + typeIdOffset);
 
-            LOG_ALWAYS_FATAL_IF(ti == 0 && attr != t,
-                                "First type is not attr!");
-
             for (size_t ei=0; ei<N; ei++) {
                 sp<ConfigList> c = t->getOrderedConfigs().itemAt(ei);
                 if (c == NULL) {
@@ -2759,7 +2758,7 @@ status_t ResourceTable::addSymbols(const sp<AaptSymbols>& outSymbols,
                     }
 
                     typeSymbols->addSymbol(String8(c->getName()), rid, c->getPos());
-                    
+
                     String16 comment(c->getComment());
                     typeSymbols->appendComment(String8(c->getName()), comment, c->getPos());
                     //printf("Type symbol [%08x] %s comment: %s\n", rid,
@@ -3075,7 +3074,7 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
             // the item at t->getOrderedConfigs().itemAt(i).
             Vector<bool> validResources;
             validResources.insertAt(false, 0, N);
-            
+
             // First write the typeSpec chunk, containing information about
             // each resource entry in this type.
             {
@@ -3093,7 +3092,7 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
                 tsHeader->header.size = htodl(typeSpecSize);
                 tsHeader->id = ti+1;
                 tsHeader->entryCount = htodl(N);
-                
+
                 uint32_t* typeSpecFlags = (uint32_t*)
                     (((uint8_t*)data->editData())
                         + typeSpecStart + sizeof(ResTable_typeSpec));
@@ -3128,7 +3127,7 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
                     }
                 }
             }
-            
+
             if (skipEntireType) {
                 continue;
             }
@@ -3139,9 +3138,9 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
             if (t != NULL) {
                 uniqueConfigs = t->getUniqueConfigs();
             }
-            
+
             const size_t typeSize = sizeof(ResTable_type) + sizeof(uint32_t)*N;
-            
+
             const size_t NC = uniqueConfigs.size();
             for (size_t ci=0; ci<NC; ci++) {
                 const ConfigDescription& config = uniqueConfigs[ci];
@@ -3170,11 +3169,11 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
                         config.screenHeightDp,
                         config.screenLayout);
                 }
-                      
+
                 if (filterable && !filter->match(config)) {
                     continue;
                 }
-                
+
                 const size_t typeStart = data->getSize();
 
                 ResTable_type* tHeader = (ResTable_type*)
@@ -3300,7 +3299,7 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
             return err;
         }
     }
-    
+
     ssize_t strStart = dest->getSize();
     status_t err = valueStrings.writeStringBlock(dest);
     if (err != NO_ERROR) {
@@ -3331,7 +3330,7 @@ status_t ResourceTable::flatten(Bundle* bundle, const sp<const ResourceFilter>& 
         fprintf(stderr, "**** total resource table size: %zu / %zu%% strings\n",
                 dest->getSize(), (size_t)(strAmt*100)/dest->getSize());
     }
-    
+
     return NO_ERROR;
 }
 
@@ -3552,7 +3551,7 @@ status_t ResourceTable::Entry::addToBag(const SourcePos& sourcePos,
     }
 
     Item item(sourcePos, isId, value, style, format);
-    
+
     // XXX NOTE: there is an error if you try to have a bag with two keys,
     // one an attr and one an id, with the same name.  Not something we
     // currently ever have to worry about.
@@ -3649,7 +3648,7 @@ status_t ResourceTable::Entry::assignResourceIds(ResourceTable* table,
                                                  const String16& /* package */)
 {
     bool hasErrors = false;
-    
+
     if (mType == TYPE_BAG) {
         const char* errorMsg;
         const String16 style16("style");
@@ -3787,7 +3786,7 @@ ssize_t ResourceTable::Entry::flatten(Bundle* /* bundle */, const sp<AaptFile>& 
             items.add(it.bagKeyId, &it);
         }
         N = items.size();
-        
+
         ResTable_map_entry mapHeader;
         memcpy(&mapHeader, &header, sizeof(header));
         mapHeader.size = htods(sizeof(mapHeader));
@@ -3920,10 +3919,10 @@ sp<ResourceTable::Entry> ResourceTable::Type::getEntry(const String16& entry,
             c->setEntryIndex(pos);
         }
     }
-    
+
     ConfigDescription cdesc;
     if (config) cdesc = *config;
-    
+
     sp<Entry> e = c->getEntries().valueFor(cdesc);
     if (e == NULL) {
         if (kIsDebug) {
@@ -3973,7 +3972,7 @@ sp<ResourceTable::Entry> ResourceTable::Type::getEntry(const String16& entry,
         }
         */
     }
-    
+
     return e;
 }
 
@@ -4074,12 +4073,12 @@ status_t ResourceTable::Type::applyPublicEntryOrder()
     }
 
     //printf("Copying back in %d non-public configs, have %d\n", N, origOrder.size());
-    
+
     if (N != origOrder.size()) {
         printf("Internal error: remaining private symbol count mismatch\n");
         N = origOrder.size();
     }
-    
+
     j = 0;
     for (i=0; i<N; i++) {
         const sp<ConfigList>& e = origOrder.itemAt(i);
@@ -4375,7 +4374,7 @@ sp<const ResourceTable::Entry> ResourceTable::getEntry(uint32_t resID,
         fprintf(stderr, "warning: Entry not found for resource #%08x\n", resID);
         return NULL;
     }
-    
+
     ConfigDescription cdesc;
     if (config) cdesc = *config;
     sp<Entry> e = c->getEntries().valueFor(cdesc);
@@ -4383,7 +4382,7 @@ sp<const ResourceTable::Entry> ResourceTable::getEntry(uint32_t resID,
         fprintf(stderr, "warning: Entry configuration not found for resource #%08x\n", resID);
         return NULL;
     }
-    
+
     return e;
 }
 
@@ -4601,6 +4600,8 @@ bool ResourceTable::shouldGenerateVersionedResource(
  * attribute will be respected.
  */
 status_t ResourceTable::modifyForCompat(const Bundle* bundle) {
+    // Apktool: Don't modify for compatibility.
+    return NO_ERROR;
     const int minSdk = getMinSdkVersion(bundle);
     if (minSdk >= SDK_LOLLIPOP_MR1) {
         // Lollipop MR1 and up handles public attributes differently, no
@@ -4831,6 +4832,8 @@ status_t ResourceTable::modifyForCompat(const Bundle* bundle,
                                         const String16& resourceName,
                                         const sp<AaptFile>& target,
                                         const sp<XMLNode>& root) {
+    // Apktool: Skip compatibility checks
+    return NO_ERROR;
     const String16 vector16("vector");
     const String16 animatedVector16("animated-vector");
     const String16 pathInterpolator16("pathInterpolator");
