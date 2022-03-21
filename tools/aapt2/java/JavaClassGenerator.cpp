@@ -58,6 +58,8 @@ static const std::set<StringPiece> sJavaIdentifiers = {
     "true",       "false",        "null"};
 
 static bool IsValidSymbol(const StringPiece& symbol) {
+  // Apktool: Everything is a valid symbol
+  return true;
   return sJavaIdentifiers.find(symbol) == sJavaIdentifiers.end();
 }
 
