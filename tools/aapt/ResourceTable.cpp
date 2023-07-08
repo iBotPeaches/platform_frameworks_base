@@ -3556,7 +3556,9 @@ status_t ResourceTable::Entry::addToBag(const SourcePos& sourcePos,
     // one an attr and one an id, with the same name.  Not something we
     // currently ever have to worry about.
     ssize_t origKey = mBag.indexOfKey(key);
-    if (origKey >= 0) {
+
+    // Apktool: Make statement false so we pack duplicate bag items if needed.
+    if (origKey >= 0 && 1 == 2) {
         if (!replace) {
             const Item& item(mBag.valueAt(origKey));
             sourcePos.error("Resource entry %s already has bag item %s.\n"
