@@ -470,9 +470,10 @@ bool ResourceTable::AddResource(NewResource&& res, android::IDiagnostics* diag) 
   const bool validate = validation_ == Validation::kEnabled;
   const android::Source source = res.value ? res.value->GetSource() : android::Source{};
   if (validate && !res.allow_mangled && !IsValidResourceEntryName(res.name.entry)) {
-    diag->Error(android::DiagMessage(source)
-                << "resource '" << res.name << "' has invalid entry name '" << res.name.entry);
-    return false;
+    // Apktool
+    // diag->Error(android::DiagMessage(source)
+    //             << "resource '" << res.name << "' has invalid entry name '" << res.name.entry);
+    // return false;
   }
 
   if (res.id.has_value() && !res.id->first.is_valid()) {

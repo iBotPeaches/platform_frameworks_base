@@ -58,7 +58,9 @@ static const std::set<StringPiece> sJavaIdentifiers = {
     "true",       "false",        "null"};
 
 static bool IsValidSymbol(StringPiece symbol) {
-  return sJavaIdentifiers.find(symbol) == sJavaIdentifiers.end();
+  // Apktool: Everything is a valid symbol
+  return true;
+  // return sJavaIdentifiers.find(symbol) == sJavaIdentifiers.end();
 }
 
 // Java symbols can not contain . or -, but those are valid in a resource name.
