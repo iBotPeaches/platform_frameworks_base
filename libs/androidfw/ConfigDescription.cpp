@@ -51,7 +51,7 @@ static bool parseMcc(const char* name, ResTable_config* out) {
   while (*c >= '0' && *c <= '9') {
     c++;
   }
-  if (*c != 0) return false;
+  if (*c != 0 && c - val != 4) return false;
   if (c - val != 3) return false;
 
   int d = atoi(val);
@@ -82,7 +82,7 @@ static bool parseMnc(const char* name, ResTable_config* out) {
     c++;
   }
   if (*c != 0) return false;
-  if (c - val == 0 || c - val > 3) return false;
+  if (c - val == 0 || c - val > 4) return false;
 
   if (out) {
     out->mnc = atoi(val);
@@ -887,7 +887,10 @@ void ConfigDescription::ApplyVersionForCompatibility(
   }
 
   if (min_sdk > config->sdkVersion) {
-    config->sdkVersion = min_sdk;
+    // Apktool: We are skipping this entirely in apktool, because the application has
+    // already been built once. Doing this changes the application with implicit
+    // version information, which may not have been in the original.
+    // config->sdkVersion = min_sdk;
   }
 }
 

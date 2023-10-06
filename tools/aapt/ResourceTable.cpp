@@ -109,7 +109,7 @@ status_t compileXmlFile(const Bundle* bundle,
     }
 
     if ((options&XML_COMPILE_PARSE_VALUES) != 0) {
-        status_t err = root->parseValues(assets, table);
+        status_t err = root->parseValues(bundle, assets, table);
         if (err != NO_ERROR) {
             hasErrors = true;
         }
@@ -1763,24 +1763,26 @@ ResourceTable::ResourceTable(Bundle* bundle, const String16& assetsPackage, Reso
     , mNumLocal(0)
     , mBundle(bundle)
 {
-    ssize_t packageId = -1;
-    switch (mPackageType) {
-        case App:
-        case AppFeature:
-            packageId = 0x7f;
-            break;
+    ssize_t packageId = mBundle->getForcedPackageId();
+    if (packageId == -1) {
+        switch (mPackageType) {
+            case App:
+            case AppFeature:
+                packageId = 0x7f;
+                break;
 
-        case System:
-            packageId = 0x01;
-            break;
+            case System:
+                packageId = 0x01;
+                break;
 
-        case SharedLibrary:
-            packageId = 0x00;
-            break;
+            case SharedLibrary:
+                packageId = 0x00;
+                break;
 
-        default:
-            assert(0);
-            break;
+            default:
+                assert(0);
+                break;
+        }
     }
     sp<Package> package = new Package(mAssetsPackage, packageId);
     mPackages.add(assetsPackage, package);
@@ -2315,7 +2317,7 @@ bool ResourceTable::stringToValue(Res_value* outValue, StringPool* pool,
     if (style == NULL || style->size() == 0) {
         // Text is not styled so it can be any type...  let's figure it out.
         res = mAssets->getIncludedResources()
-            .stringToValue(outValue, &finalStr, str.string(), str.size(), preserveSpaces,
+            .stringToValue(mBundle->getForcedPackageId(), outValue, &finalStr, str.string(), str.size(), preserveSpaces,
                             coerceType, attrID, NULL, &mAssetsPackage, this,
                            accessorCookie, attrType);
     } else {
@@ -2656,8 +2658,9 @@ status_t ResourceTable::assignResourceIds()
             const size_t N = t->getOrderedConfigs().size();
             t->setIndex(ti + 1 + typeIdOffset);
 
-            LOG_ALWAYS_FATAL_IF(ti == 0 && attr != t,
-                                "First type is not attr!");
+            // Apktool
+            // LOG_ALWAYS_FATAL_IF(ti == 0 && attr != t,
+            //                    "First type is not attr!");
 
             for (size_t ei=0; ei<N; ei++) {
                 sp<ConfigList> c = t->getOrderedConfigs().itemAt(ei);
@@ -3557,7 +3560,9 @@ status_t ResourceTable::Entry::addToBag(const SourcePos& sourcePos,
     // one an attr and one an id, with the same name.  Not something we
     // currently ever have to worry about.
     ssize_t origKey = mBag.indexOfKey(key);
-    if (origKey >= 0) {
+
+    // Apktool: Make statement false so we pack duplicate bag items if needed.
+    if (origKey >= 0 && 1 == 2) {
         if (!replace) {
             const Item& item(mBag.valueAt(origKey));
             sourcePos.error("Resource entry %s already has bag item %s.\n"
@@ -4601,6 +4606,9 @@ bool ResourceTable::shouldGenerateVersionedResource(
  * attribute will be respected.
  */
 status_t ResourceTable::modifyForCompat(const Bundle* bundle) {
+    // Apktool: Don't modify for compatibility.
+    return NO_ERROR;
+
     const int minSdk = getMinSdkVersion(bundle);
     if (minSdk >= SDK_LOLLIPOP_MR1) {
         // Lollipop MR1 and up handles public attributes differently, no
@@ -4831,6 +4839,9 @@ status_t ResourceTable::modifyForCompat(const Bundle* bundle,
                                         const String16& resourceName,
                                         const sp<AaptFile>& target,
                                         const sp<XMLNode>& root) {
+    // Apktool: Skip compatibility checks
+    return NO_ERROR;
+
     const String16 vector16("vector");
     const String16 animatedVector16("animated-vector");
     const String16 pathInterpolator16("pathInterpolator");

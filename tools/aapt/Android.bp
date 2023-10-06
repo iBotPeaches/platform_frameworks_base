@@ -112,7 +112,14 @@ cc_binary_host {
     defaults: ["aapt_defaults"],
     srcs: ["Main.cpp"],
     use_version_lib: true,
+    static_executable: true,
     static_libs: ["libaapt"],
+    compile_multilib: "both",
+    multilib: {
+        lib64: {
+            suffix: "_64",
+        },
+    },
     dist: {
         targets: ["aapt2_artifacts"],
     },
