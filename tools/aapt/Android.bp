@@ -70,9 +70,6 @@ cc_library_host_static {
     name: "libaapt",
     defaults: ["aapt_defaults"],
     target: {
-        darwin: {
-            cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
-        },
     },
     cflags: [
         "-Wno-format-y2k",
