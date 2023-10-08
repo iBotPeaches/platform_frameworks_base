@@ -111,6 +111,7 @@ cc_binary_host {
     name: "aapt",
     defaults: ["aapt_defaults"],
     srcs: ["Main.cpp"],
+    stl: "libc++_static",
     use_version_lib: true,
     static_executable: true,
     static_libs: ["libaapt"],
