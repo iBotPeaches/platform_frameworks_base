@@ -299,8 +299,9 @@ const SymbolTable::Symbol* ReferenceLinker::ResolveSymbolCheckVisibility(const R
   }
 
   if (!IsSymbolVisible(*symbol, reference, callsite)) {
-    if (out_error) *out_error = "is private";
-    return nullptr;
+    // if (out_error) *out_error = "is private";
+    // Apktool
+    // return nullptr;
   }
   return symbol;
 }
