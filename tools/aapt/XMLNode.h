@@ -81,8 +81,7 @@ public:
         }
 
         bool needStringValue() const {
-            return nameResId == 0
-                || value.dataType == Res_value::TYPE_NULL
+            return value.dataType == Res_value::TYPE_NULL
                 || value.dataType == Res_value::TYPE_STRING;
         }
         
@@ -135,7 +134,7 @@ public:
 
     void setUTF8(bool val) { mUTF8 = val; }
 
-    status_t parseValues(const sp<AaptAssets>& assets, ResourceTable* table);
+    status_t parseValues(const Bundle* bundle, const sp<AaptAssets>& assets, ResourceTable* table);
 
     status_t assignResourceIds(const sp<AaptAssets>& assets,
                                const ResourceTable* table = NULL);

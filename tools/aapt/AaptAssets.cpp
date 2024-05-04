@@ -38,6 +38,9 @@ static const String8 kResString(kResourceDir);
  */
 static bool validateFileName(const char* fileName)
 {
+    // Apktool: Don't validate filename.
+    return true;
+
     const char* cp = fileName;
     size_t len = 0;
 
@@ -1620,6 +1623,9 @@ sp<AaptDir> AaptAssets::resDir(const String8& name) const
 bool
 valid_symbol_name(const String8& symbol)
 {
+    // Apktool: Don't validate symbol name.
+    return true;
+
     static char const * const KEYWORDS[] = {
         "abstract", "assert", "boolean", "break",
         "byte", "case", "catch", "char", "class", "const", "continue",

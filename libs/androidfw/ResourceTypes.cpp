@@ -5593,7 +5593,7 @@ bool ResTable::stringToFloat(const char16_t* s, size_t len, Res_value* outValue)
     return false;
 }
 
-bool ResTable::stringToValue(Res_value* outValue, String16* outString,
+bool ResTable::stringToValue(const ssize_t FORCED_PACKAGE_ID, Res_value* outValue, String16* outString,
                              const char16_t* s, size_t len,
                              bool preserveSpaces, bool coerceType,
                              uint32_t attrID,
@@ -5747,7 +5747,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                 }
 
                 uint32_t packageId = Res_GETPACKAGE(rid) + 1;
-                if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID) {
+                if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID && packageId != (uint32_t)FORCED_PACKAGE_ID) {
                     outValue->dataType = Res_value::TYPE_DYNAMIC_REFERENCE;
                 }
                 outValue->data = rid;
@@ -5768,7 +5768,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                         outValue->data = rid;
                         outValue->dataType = Res_value::TYPE_DYNAMIC_REFERENCE;
                         return true;
-                    } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID) {
+                    } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID || packageId == (uint32_t)FORCED_PACKAGE_ID) {
                         // We accept packageId's generated as 0x01 in order to support
                         // building the android system resources
                         outValue->data = rid;
@@ -5914,7 +5914,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
             }
 
             uint32_t packageId = Res_GETPACKAGE(rid) + 1;
-            if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID) {
+            if (packageId != APP_PACKAGE_ID && packageId != SYS_PACKAGE_ID && packageId != (uint32_t)FORCED_PACKAGE_ID) {
                 outValue->dataType = Res_value::TYPE_DYNAMIC_ATTRIBUTE;
             }
             outValue->data = rid;
@@ -5929,7 +5929,7 @@ bool ResTable::stringToValue(Res_value* outValue, String16* outString,
                     outValue->data = rid;
                     outValue->dataType = Res_value::TYPE_DYNAMIC_ATTRIBUTE;
                     return true;
-                } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID) {
+                } else if (packageId == APP_PACKAGE_ID || packageId == SYS_PACKAGE_ID || packageId == (uint32_t)FORCED_PACKAGE_ID) {
                     // We accept packageId's generated as 0x01 in order to support
                     // building the android system resources
                     outValue->data = rid;

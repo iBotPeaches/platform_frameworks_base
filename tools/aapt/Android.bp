@@ -51,6 +51,8 @@ cc_defaults {
         "libz",
     ],
 
+    static_executable: true,
+
     whole_static_libs: [
         "libandroidfw_pathutils",
     ],
@@ -63,6 +65,10 @@ cc_defaults {
     target: {
         windows: {
             enabled: true,
+            ldflags: ["-static"],
+        },
+        linux: {
+            static_libs: ["libc++_static"],
         },
     },
 }
@@ -116,8 +122,16 @@ cc_binary_host {
     name: "aapt",
     defaults: ["aapt_defaults"],
     srcs: ["Main.cpp"],
+    stl: "libc++_static",
     use_version_lib: true,
+    static_executable: true,
     static_libs: ["libaapt"],
+    compile_multilib: "both",
+    multilib: {
+        lib64: {
+            suffix: "_64",
+        },
+    },
     dist: {
         targets: ["aapt2_artifacts"],
     },

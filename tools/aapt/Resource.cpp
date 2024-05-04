@@ -270,6 +270,19 @@ static status_t parsePackage(Bundle* bundle, const sp<AaptAssets>& assets,
         bundle->setRevisionCode(String8(block.getAttributeStringValue(revisionCodeIndex, &len)).c_str());
     }
 
+    // Extract platformBuild info from current AndroidManifest.xml
+    ssize_t platformBuildVersionCodeIndex = block.indexOfAttribute(NULL, "platformBuildVersionCode");
+    if (platformBuildVersionCodeIndex >= 0) {
+        const char16_t* platformBuildVersionCode16 = block.getAttributeStringValue(platformBuildVersionCodeIndex, &len);
+        bundle->setPlatformBuildVersionCode(String8(platformBuildVersionCode16));
+    }
+
+    ssize_t platformBuildVersionNameIndex = block.indexOfAttribute(NULL, "platformBuildVersionName");
+    if (platformBuildVersionNameIndex >= 0) {
+        const char16_t* platformBuildVersionName16 = block.getAttributeStringValue(platformBuildVersionNameIndex, &len);
+        bundle->setPlatformBuildVersionName(String8(platformBuildVersionName16));
+    }
+
     String16 uses_sdk16("uses-sdk");
     while ((code=block.next()) != ResXMLTree::END_DOCUMENT
            && code != ResXMLTree::BAD_DOCUMENT) {
@@ -315,9 +328,10 @@ static status_t makeFileResources(Bundle* bundle, const sp<AaptAssets>& assets,
         const char16_t* const end = str + baseName.size();
         while (str < end) {
             if (!((*str >= 'a' && *str <= 'z')
+                    || (*str >= 'A' && *str <= 'Z')
                     || (*str >= '0' && *str <= '9')
-                    || *str == '_' || *str == '.')) {
-                fprintf(stderr, "%s: Invalid file name: must contain only [a-z0-9_.]\n",
+                    || *str == '_' || *str == '.' || *str == '$')) {
+                fprintf(stderr, "%s: Invalid file name: must contain only [a-zA-Z0-9$_.]\n",
                         it.getPath().c_str());
                 hasErrors = true;
             }
@@ -551,7 +565,7 @@ static int validateAttr(const String8& path, const ResTable& table,
                     fprintf(stderr, "%s:%d: Tag <%s> attribute %s has invalid character '%c'.\n",
                             path.c_str(), parser.getLineNumber(),
                             String8(parser.getElementName(&len)).c_str(), attr, (char)str[i]);
-                    return (int)i;
+                    // Apktool: return (int)i;
                 }
             }
         }
@@ -1140,8 +1154,7 @@ static ssize_t extractPlatformBuildVersion(AssetManager& assets, Bundle* bundle)
 
     Asset* asset = assets.openNonAsset(cookie, "AndroidManifest.xml", Asset::ACCESS_STREAMING);
     if (asset == NULL) {
-        fprintf(stderr, "ERROR: Platform AndroidManifest.xml not found\n");
-        return UNKNOWN_ERROR;
+        return NO_ERROR;
     }
 
     ssize_t result = NO_ERROR;

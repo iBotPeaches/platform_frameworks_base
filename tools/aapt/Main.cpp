@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <getopt.h>
 #include <cassert>
+#include <fstream>
 
 using namespace android;
 
@@ -72,8 +73,8 @@ void usage(void)
         "   xmlstrings       Print the strings of the given compiled xml assets.\n\n", gProgName);
     fprintf(stderr,
         " %s p[ackage] [-d][-f][-m][-u][-v][-x][-z][-M AndroidManifest.xml] \\\n"
-        "        [-0 extension [-0 extension ...]] [-g tolerance] [-j jarfile] \\\n"
-        "        [--debug-mode] [--min-sdk-version VAL] [--target-sdk-version VAL] \\\n"
+        "        [-0 extension [-0 extension ...]] [-e extensions_file] [-g tolerance] [-j jarfile] \\\n"
+        "        [--debug-mode] [--forced-package-id VAL] [--min-sdk-version VAL] [--target-sdk-version VAL] \\\n"
         "        [--app-version VAL] [--app-version-name TEXT] [--custom-package VAL] \\\n"
         "        [--rename-manifest-package PACKAGE] \\\n"
         "        [--rename-instrumentation-target-package PACKAGE] \\\n"
@@ -146,6 +147,8 @@ void usage(void)
         "   -0  specifies an additional extension for which such files will not\n"
         "       be stored compressed in the .apk.  An empty string means to not\n"
         "       compress any files at all.\n"
+        "   -e  specifies path to a file containing a list of additional extensions for which such files will not\n"
+        "       be stored compressed in the .apk.\n"
         "   --debug-mode\n"
         "       inserts android:debuggable=\"true\" in to the application node of the\n"
         "       manifest, making the application debuggable even on production devices.\n"
@@ -153,6 +156,8 @@ void usage(void)
         "       when used with \"dump badging\" also includes meta-data tags.\n"
         "   --pseudo-localize\n"
         "       generate resources for pseudo-locales (en-XA and ar-XB).\n"
+        "   --forced-package-id\n"
+        "       forces value as package-id\n"
         "   --min-sdk-version\n"
         "       inserts android:minSdkVersion in to manifest.  If the version is 7 or\n"
         "       higher, the default encoding for resources will be in UTF-8.\n"
@@ -522,7 +527,7 @@ int main(int argc, char* const argv[])
                 argc--;
                 argv++;
                 if (!argc) {
-                    fprintf(stderr, "ERROR: No argument supplied for '-e' option\n");
+                    fprintf(stderr, "ERROR: No argument supplied for '-0' option\n");
                     wantUsage = true;
                     goto bail;
                 }
@@ -532,9 +537,38 @@ int main(int argc, char* const argv[])
                     bundle.setCompressionMethod(ZipEntry::kCompressStored);
                 }
                 break;
+            case 'e': {
+                argc--;
+                argv++;
+                if (!argc) {
+                    fprintf(stderr, "ERROR: No argument supplied for '-e' option\n");
+                    wantUsage = true;
+                    goto bail;
+                }
+                std::ifstream extensionsFile(argv[0]);
+
+                if (extensionsFile.fail()) {
+                    fprintf(stderr, "ERROR: Could not open extensions file %s for reading\n", argv[0]);
+                    goto bail;
+                }
+
+                for (std::string line; getline(extensionsFile, line);) {
+                    bundle.addNoCompressExtension(line.c_str());
+                }
+                break;
+            }
             case '-':
                 if (strcmp(cp, "-debug-mode") == 0) {
                     bundle.setDebugMode(true);
+                } else if (strcmp(cp, "-forced-package-id") == 0) {
+                    argc--;
+                    argv++;
+                    if (!argc) {
+                        fprintf(stderr, "ERROR: No argument supplied for '--forced-package-id' option\n");
+                        wantUsage = true;
+                        goto bail;
+                    }
+                    bundle.setForcedPackageId(atoi(argv[0]));
                 } else if (strcmp(cp, "-min-sdk-version") == 0) {
                     argc--;
                     argv++;

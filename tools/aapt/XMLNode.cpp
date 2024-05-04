@@ -985,7 +985,7 @@ status_t XMLNode::parseValues(const sp<AaptAssets>& assets,
                     String8(e.string));
             table->setCurrentXmlPos(SourcePos(mFilename, getStartLineNumber()));
             if (!assets->getIncludedResources()
-                    .stringToValue(&e.value, &e.string,
+                    .stringToValue(bundle->getForcedPackageId(), &e.value, &e.string,
                                   e.string.c_str(), e.string.size(), true, true,
                                   e.nameResId, NULL, &defPackage, table, &ac)) {
                 hasErrors = true;
@@ -999,7 +999,7 @@ status_t XMLNode::parseValues(const sp<AaptAssets>& assets,
     }
     const size_t N = mChildren.size();
     for (size_t i=0; i<N; i++) {
-        status_t err = mChildren.itemAt(i)->parseValues(assets, table);
+        status_t err = mChildren.itemAt(i)->parseValues(bundle, assets, table);
         if (err != NO_ERROR) {
             hasErrors = true;
         }
@@ -1007,7 +1007,7 @@ status_t XMLNode::parseValues(const sp<AaptAssets>& assets,
     return hasErrors ? STATUST(UNKNOWN_ERROR) : NO_ERROR;
 }
 
-status_t XMLNode::assignResourceIds(const sp<AaptAssets>& assets,
+status_t XMLNode::assignResourceIds(const Bundle* bundle, const sp<AaptAssets>& assets,
                                     const ResourceTable* table)
 {
     bool hasErrors = false;
