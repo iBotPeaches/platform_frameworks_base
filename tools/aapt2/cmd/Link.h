@@ -78,6 +78,7 @@ struct LinkOptions {
   bool use_sparse_encoding = false;
   std::unordered_set<std::string> extensions_to_not_compress;
   std::optional<std::regex> regex_to_not_compress;
+  std::optional<std::string> extensions_to_not_compress_path;
   FeatureFlagValues feature_flag_values;
 
   // Static lib options.
@@ -291,6 +292,8 @@ class LinkCommand : public Command {
                     &options_.manifest_fixer_options.rename_overlay_category);
     AddOptionalFlagList("-0", "File suffix not to compress.",
         &options_.extensions_to_not_compress);
+    AddOptionalFlag("-e", "File containing list of extensions not to compress.",
+        &options_.extensions_to_not_compress_path);
     AddOptionalSwitch("--no-compress", "Do not compress any resources.",
         &options_.do_not_compress_anything);
     AddOptionalSwitch("--keep-raw-values", "Preserve raw attribute values in xml files.",

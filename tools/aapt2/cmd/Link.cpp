@@ -2483,10 +2483,9 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
     if (package_id_int > std::numeric_limits<uint8_t>::max()
         || package_id_int == kFrameworkPackageId
         || (!options_.allow_reserved_package_id && package_id_int < kAppPackageId)) {
-      context.GetDiagnostics()->Error(
+      context.GetDiagnostics()->Warn(
           android::DiagMessage() << StringPrintf(
-              "invalid package ID 0x%02x. Must be in the range 0x7f-0xff.", package_id_int));
-      return 1;
+              "invalid package ID 0x%02x. Must be in the range 0x7f-0xff. Ignoring...", package_id_int));
     }
     context.SetPackageId(static_cast<uint8_t>(package_id_int));
   }
@@ -2588,6 +2587,23 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
       // Audio/video extensions
       ".mpg", ".mpeg", ".mp4", ".m4a", ".m4v", ".3gp", ".3gpp", ".3g2", ".3gpp2", ".wma", ".wmv",
       ".webm", ".mkv"});
+
+  // Populate no compress extensions specified in the extensions file.
+  if (options_.extensions_to_not_compress_path) {
+    std::ifstream extensionsFile(options_.extensions_to_not_compress_path.value());
+
+    if (extensionsFile.fail()) {
+      context.GetDiagnostics()->Error(
+        DiagMessage() << "could not open extensions file "
+          << options_.extensions_to_not_compress_path.value()
+          << " for reading");
+      return 1;
+    }
+
+    for (std::string line; getline(extensionsFile, line);) {
+      options_.extensions_to_not_compress.insert(line);
+    }
+  }
 
   // Turn off auto versioning for static-libs.
   if (context.GetPackageType() == PackageType::kStaticLib) {

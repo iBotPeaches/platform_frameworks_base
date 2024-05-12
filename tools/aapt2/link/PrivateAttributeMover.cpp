@@ -82,7 +82,6 @@ bool PrivateAttributeMover::Consume(IAaptContext* context, ResourceTable* table)
 
     auto attr_private_type = ResourceNamedTypeWithDefaultName(ResourceType::kAttrPrivate);
     ResourceTableType* priv_attr_type = package->FindOrCreateType(attr_private_type);
-    CHECK(priv_attr_type->entries.empty());
     priv_attr_type->entries = std::move(private_attr_entries);
   }
   return true;
