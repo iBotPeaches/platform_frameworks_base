@@ -38,19 +38,22 @@ non_updatable_exportable_droidstubs {
         "android-non-updatable-stubs-defaults",
         "module-classpath-stubs-defaults",
     ],
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.public.latest",
     check_api: {
         current: {
             api_file: ":non-updatable-current.txt",
             removed_api_file: ":non-updatable-removed.txt",
         },
         last_released: {
-            api_file: ":android-non-updatable.api.public.latest",
-            removed_api_file: ":android-non-updatable-removed.api.public.latest",
+            api_file: ":android-non-updatable.api.combined.public.latest",
+            removed_api_file: ":android-non-updatable-removed.api.combined.public.latest",
             baseline_file: ":android-non-updatable-incompatibilities.api.public.latest",
         },
         api_lint: {
             enabled: true,
-            new_since: ":android.api.public.latest",
+            new_since: ":android.api.combined.public.latest",
             baseline_file: ":non-updatable-lint-baseline.txt",
         },
     },
@@ -118,19 +121,22 @@ non_updatable_exportable_droidstubs {
         "module-classpath-stubs-defaults",
     ],
     flags: priv_apps,
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.system.latest",
     check_api: {
         current: {
             api_file: ":non-updatable-system-current.txt",
             removed_api_file: ":non-updatable-system-removed.txt",
         },
         last_released: {
-            api_file: ":android-non-updatable.api.system.latest",
-            removed_api_file: ":android-non-updatable-removed.api.system.latest",
+            api_file: ":android-non-updatable.api.combined.system.latest",
+            removed_api_file: ":android-non-updatable-removed.api.combined.system.latest",
             baseline_file: ":android-non-updatable-incompatibilities.api.system.latest",
         },
         api_lint: {
             enabled: true,
-            new_since: ":android.api.system.latest",
+            new_since: ":android.api.combined.system.latest",
             baseline_file: ":non-updatable-system-lint-baseline.txt",
         },
     },
@@ -178,6 +184,9 @@ non_updatable_exportable_droidstubs {
         "module-classpath-stubs-defaults",
     ],
     flags: test + priv_apps_in_stubs,
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.test.latest",
     check_api: {
         current: {
             api_file: ":non-updatable-test-current.txt",
@@ -185,7 +194,7 @@ non_updatable_exportable_droidstubs {
         },
         api_lint: {
             enabled: true,
-            new_since: ":android.api.test.latest",
+            new_since: ":android.api.combined.test.latest",
             baseline_file: ":non-updatable-test-lint-baseline.txt",
         },
     },
@@ -257,19 +266,22 @@ non_updatable_exportable_droidstubs {
         "module-classpath-stubs-defaults",
     ],
     flags: priv_apps_in_stubs + module_libs,
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.module-lib.latest",
     check_api: {
         current: {
             api_file: ":non-updatable-module-lib-current.txt",
             removed_api_file: ":non-updatable-module-lib-removed.txt",
         },
         last_released: {
-            api_file: ":android-non-updatable.api.module-lib.latest",
-            removed_api_file: ":android-non-updatable-removed.api.module-lib.latest",
+            api_file: ":android-non-updatable.api.combined.module-lib.latest",
+            removed_api_file: ":android-non-updatable-removed.api.combined.module-lib.latest",
             baseline_file: ":android-non-updatable-incompatibilities.api.module-lib.latest",
         },
         api_lint: {
             enabled: true,
-            new_since: ":android.api.module-lib.latest",
+            new_since: ":android.api.combined.module-lib.latest",
             baseline_file: ":non-updatable-module-lib-lint-baseline.txt",
         },
     },
@@ -571,6 +583,9 @@ java_api_library {
     ],
     defaults: ["android-non-updatable_everything_from_text_defaults"],
     full_api_surface_stub: "android_stubs_current.from-text",
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.public.latest",
 }
 
 java_api_library {
@@ -582,6 +597,9 @@ java_api_library {
     ],
     defaults: ["android-non-updatable_everything_from_text_defaults"],
     full_api_surface_stub: "android_system_stubs_current.from-text",
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.system.latest",
 }
 
 java_api_library {
@@ -594,6 +612,9 @@ java_api_library {
     ],
     defaults: ["android-non-updatable_everything_from_text_defaults"],
     full_api_surface_stub: "android_test_stubs_current.from-text",
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.test.latest",
 }
 
 java_api_library {
@@ -606,6 +627,9 @@ java_api_library {
     ],
     defaults: ["android-non-updatable_everything_from_text_defaults"],
     full_api_surface_stub: "android_module_lib_stubs_current_full.from-text",
+    // Use full Android API not just the non-updatable API as the latter is incomplete
+    // and can result in incorrect behavior.
+    previous_api: ":android.api.combined.module-lib.latest",
 }
 
 // This module generates a stub jar that is a union of the test and module lib
@@ -622,6 +646,8 @@ java_api_library {
     ],
     defaults: ["android-non-updatable_everything_from_text_defaults"],
     full_api_surface_stub: "android_test_module_lib_stubs_current.from-text",
+
+    // No need to specify previous_api as this is not used for compiling against.
 
     // This module is only used for hiddenapi, and other modules should not
     // depend on this module.
@@ -840,6 +866,10 @@ java_library {
     system_modules: "none",
     static_libs: ["android_stubs_private_hjar"],
     dist: {
+        // Add to private_api_stubs dist target for easier packaging by scripts. This module is
+        // useful for creating a platform SDK, which can be packaged in ANDROID_HOME and used from
+        // Gradle, allowing for development of platform apps that make use of hidden APIs.
+        targets: ["private_api_stubs"],
         dir: "apistubs/android/private",
     },
 }
@@ -857,7 +887,12 @@ java_genrule {
         "done && " +
         "sort -u $(genDir)/framework.aidl.merged > $(out)",
     dist: {
-        targets: ["sdk"],
+        targets: [
+            "sdk",
+            // Add to private_api_stubs dist target for easier packaging by scripts.
+            // See explanation in the "android_stubs_private" module above.
+            "private_api_stubs",
+        ],
         dir: "apistubs/android/private",
     },
 }
@@ -913,6 +948,7 @@ java_defaults {
         "i18n.module.public.api.stubs.source.system.api.contribution",
         "i18n.module.public.api.stubs.source.module_lib.api.contribution",
     ],
+    previous_api: ":android.api.combined.module-lib.latest",
 }
 
 // Java API library definitions per API surface

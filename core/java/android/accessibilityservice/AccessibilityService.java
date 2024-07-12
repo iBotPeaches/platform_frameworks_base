@@ -67,8 +67,10 @@ import android.view.accessibility.AccessibilityInteractionClient;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction;
 import android.view.accessibility.AccessibilityWindowInfo;
+import android.view.accessibility.Flags;
 import android.view.inputmethod.EditorInfo;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.inputmethod.CancellationGroup;
 import com.android.internal.inputmethod.IAccessibilityInputMethodSession;
 import com.android.internal.inputmethod.IAccessibilityInputMethodSessionCallback;
@@ -364,12 +366,12 @@ public abstract class AccessibilityService extends Service {
     public static final int GESTURE_SWIPE_UP_AND_RIGHT = 14;
 
     /**
-     * The user has performed an down and left gesture on the touch screen.
+     * The user has performed a down and left gesture on the touch screen.
      */
     public static final int GESTURE_SWIPE_DOWN_AND_LEFT = 15;
 
     /**
-     * The user has performed an down and right gesture on the touch screen.
+     * The user has performed a down and right gesture on the touch screen.
      */
     public static final int GESTURE_SWIPE_DOWN_AND_RIGHT = 16;
 
@@ -624,6 +626,18 @@ public abstract class AccessibilityService extends Service {
      */
     public static final int GLOBAL_ACTION_DPAD_CENTER = 20;
 
+    /**
+     * Action to trigger menu key event.
+     */
+    @FlaggedApi(Flags.FLAG_GLOBAL_ACTION_MENU)
+    public static final int GLOBAL_ACTION_MENU = 21;
+
+    /**
+     * Action to trigger media play/pause key event.
+     */
+    @FlaggedApi(Flags.FLAG_GLOBAL_ACTION_MEDIA_PLAY_PAUSE)
+    public static final int GLOBAL_ACTION_MEDIA_PLAY_PAUSE = 22;
+
     private static final String LOG_TAG = "AccessibilityService";
 
     /**
@@ -850,6 +864,7 @@ public abstract class AccessibilityService extends Service {
     private boolean mInputMethodInitialized = false;
     private final SparseArray<AccessibilityButtonController> mAccessibilityButtonControllers =
             new SparseArray<>(0);
+    private BrailleDisplayController mBrailleDisplayController;
 
     private int mGestureStatusCallbackSequence;
 
@@ -1385,7 +1400,9 @@ public abstract class AccessibilityService extends Service {
         getFingerprintGestureController().onGesture(gesture);
     }
 
-    int getConnectionId() {
+    /** @hide */
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PACKAGE)
+    public int getConnectionId() {
         return mConnectionId;
     }
 
@@ -3633,5 +3650,21 @@ public abstract class AccessibilityService extends Service {
         AccessibilityInteractionClient.getInstance(this)
                 .attachAccessibilityOverlayToWindow(
                         mConnectionId, accessibilityWindowId, sc, executor, callback);
+    }
+
+    /**
+     * Returns the {@link BrailleDisplayController} which may be used to communicate with
+     * refreshable Braille displays that provide USB or Bluetooth Braille display HID support.
+     */
+    @FlaggedApi(android.view.accessibility.Flags.FLAG_BRAILLE_DISPLAY_HID)
+    @NonNull
+    public BrailleDisplayController getBrailleDisplayController() {
+        BrailleDisplayController.checkApiFlagIsEnabled();
+        synchronized (mLock) {
+            if (mBrailleDisplayController == null) {
+                mBrailleDisplayController = new BrailleDisplayControllerImpl(this, mLock);
+            }
+            return mBrailleDisplayController;
+        }
     }
 }

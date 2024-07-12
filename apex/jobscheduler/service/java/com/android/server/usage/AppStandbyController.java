@@ -59,6 +59,7 @@ import static com.android.server.SystemService.PHASE_SYSTEM_SERVICES_READY;
 import static com.android.server.usage.AppIdleHistory.STANDBY_BUCKET_UNKNOWN;
 
 import android.annotation.CurrentTimeMillisLong;
+import android.annotation.DurationMillisLong;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -129,6 +130,8 @@ import com.android.server.AppSchedulingModuleThread;
 import com.android.server.LocalServices;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.usage.AppIdleHistory.AppUsageHistory;
+import com.android.tools.r8.keepanno.annotations.KeepItemKind;
+import com.android.tools.r8.keepanno.annotations.UsedByReflection;
 
 import libcore.util.EmptyArray;
 
@@ -587,6 +590,8 @@ public class AppStandbyController
         }
     }
 
+    // This constructor is reflectively invoked from framework code in AppStandbyInternal.
+    @UsedByReflection(kind = KeepItemKind.CLASS_AND_METHODS)
     public AppStandbyController(Context context) {
         this(new Injector(context, AppSchedulingModuleThread.get().getLooper()));
     }
@@ -670,7 +675,8 @@ public class AppStandbyController
                         /*packageName=*/ null,
                         new IAppOpsCallback.Stub() {
                             @Override
-                            public void opChanged(int op, int uid, String packageName) {
+                            public void opChanged(int op, int uid, String packageName,
+                                    String persistentDeviceId) {
                                 final int userId = UserHandle.getUserId(uid);
                                 synchronized (mSystemExemptionAppOpMode) {
                                     mSystemExemptionAppOpMode.delete(uid);
@@ -2146,6 +2152,15 @@ public class AppStandbyController
         }
     }
 
+    /**
+     * Flush the handler.
+     * Returns true if successfully flushed within the timeout, otherwise return false.
+     */
+    @VisibleForTesting
+    boolean flushHandler(@DurationMillisLong long timeoutMillis) {
+        return mHandler.runWithScissors(() -> {}, timeoutMillis);
+    }
+
     @Override
     public void flushToDisk() {
         synchronized (mAppIdleLock) {
@@ -2258,7 +2273,8 @@ public class AppStandbyController
             }
             synchronized (mSystemExemptionAppOpMode) {
                 if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
-                    mSystemExemptionAppOpMode.delete(UserHandle.getUid(userId, getAppId(pkgName)));
+                    final int uid = intent.getIntExtra(Intent.EXTRA_UID, Process.INVALID_UID);
+                    mSystemExemptionAppOpMode.delete(uid);
                 }
             }
 

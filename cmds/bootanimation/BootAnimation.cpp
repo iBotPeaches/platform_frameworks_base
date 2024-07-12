@@ -707,11 +707,11 @@ void BootAnimation::resizeSurface(int newWidth, int newHeight) {
     eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(mDisplay, mSurface);
 
-    mFlingerSurfaceControl->updateDefaultBufferSize(newWidth, newHeight);
     const auto limitedSize = limitSurfaceSize(newWidth, newHeight);
     mWidth = limitedSize.width;
     mHeight = limitedSize.height;
 
+    mFlingerSurfaceControl->updateDefaultBufferSize(mWidth, mHeight);
     EGLConfig config = getEglConfig(mDisplay);
     EGLSurface surface = eglCreateWindowSurface(mDisplay, config, mFlingerSurface.get(), nullptr);
     if (eglMakeCurrent(mDisplay, surface, surface, mContext) == EGL_FALSE) {
@@ -1335,7 +1335,8 @@ bool BootAnimation::preloadZip(Animation& animation) {
                 if (path.string() == animation.parts[j].path.c_str()) {
                     uint16_t method;
                     // supports only stored png files
-                    if (zip->getEntryInfo(entry, &method, nullptr, nullptr, nullptr, nullptr, nullptr)) {
+                    if (zip->getEntryInfo(entry, &method, nullptr, nullptr, nullptr, nullptr,
+                            nullptr, nullptr)) {
                         if (method == ZipFileRO::kCompressStored) {
                             FileMap* map = zip->createEntryFileMap(entry);
                             if (map) {

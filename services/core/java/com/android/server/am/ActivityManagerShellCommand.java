@@ -30,6 +30,7 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.app.usage.UsageStatsManager.REASON_MAIN_FORCED_BY_USER;
 import static android.app.usage.UsageStatsManager.REASON_SUB_FORCED_SYSTEM_FLAG_UNDEFINED;
 import static android.content.pm.PackageManager.MATCH_ANY_USER;
+import static android.os.PowerWhitelistManager.TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED;
 import static android.os.Process.INVALID_UID;
 import static android.view.Display.INVALID_DISPLAY;
 import static android.window.DisplayAreaOrganizer.FEATURE_UNDEFINED;
@@ -127,6 +128,7 @@ import com.android.server.am.nano.Capabilities;
 import com.android.server.am.nano.Capability;
 import com.android.server.am.nano.FrameworkCapability;
 import com.android.server.am.nano.VMCapability;
+import com.android.server.am.nano.VMInfo;
 import com.android.server.compat.PlatformCompat;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.utils.Slogf;
@@ -438,6 +440,8 @@ final class ActivityManagerShellCommand extends ShellCommand {
                 return -1;
             }
         }
+        String vmName = System.getProperty("java.vm.name", "?");
+        String vmVersion = System.getProperty("java.vm.version", "?");
 
         if (outputAsProtobuf) {
             Capabilities capabilities = new Capabilities();
@@ -464,6 +468,11 @@ final class ActivityManagerShellCommand extends ShellCommand {
                 capabilities.frameworkCapabilities[i] = cap;
             }
 
+            VMInfo vmInfo = new VMInfo();
+            vmInfo.name = vmName;
+            vmInfo.version = vmVersion;
+            capabilities.vmInfo = vmInfo;
+
             try {
                 getRawOutputStream().write(Capabilities.toByteArray(capabilities));
             } catch (IOException e) {
@@ -483,6 +492,8 @@ final class ActivityManagerShellCommand extends ShellCommand {
             for (String capability : Debug.getFeatureList()) {
                 pw.println("framework:" + capability);
             }
+            pw.println("vm_name:" + vmName);
+            pw.println("vm_version:" + vmVersion);
         }
         return 0;
     }
@@ -585,6 +596,13 @@ final class ActivityManagerShellCommand extends ShellCommand {
                 } else if (opt.equals("--dismiss-keyguard-if-insecure")
                         || opt.equals("--dismiss-keyguard")) {
                     mDismissKeyguardIfInsecure = true;
+                } else if (opt.equals("--allow-fgs-start-reason")) {
+                    final int reasonCode = Integer.parseInt(getNextArgRequired());
+                    mBroadcastOptions = BroadcastOptions.makeBasic();
+                    mBroadcastOptions.setTemporaryAppAllowlist(10_000,
+                            TEMPORARY_ALLOWLIST_TYPE_FOREGROUND_SERVICE_ALLOWED,
+                            reasonCode,
+                            "");
                 } else {
                     return false;
                 }
@@ -2278,6 +2296,7 @@ final class ActivityManagerShellCommand extends ShellCommand {
 
         pw.println("Performing idle maintenance...");
         mInterface.sendIdleJobTrigger();
+        mInternal.performIdleMaintenance();
         return 0;
     }
 
@@ -3782,6 +3801,11 @@ final class ActivityManagerShellCommand extends ShellCommand {
                     mPw.flush();
                 }
             }
+        }
+
+        @Override
+        public void onProcessStarted(int pid, int processUid, int packageUid, String packageName,
+                String processName) {
         }
 
         @Override

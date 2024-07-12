@@ -17,6 +17,7 @@
 package android.graphics.text;
 
 import static com.android.text.flags.Flags.FLAG_USE_BOUNDS_FOR_WIDTH;
+import static com.android.text.flags.Flags.FLAG_LETTER_SPACING_JUSTIFICATION;
 
 import android.annotation.FlaggedApi;
 import android.annotation.FloatRange;
@@ -163,7 +164,8 @@ public class LineBreaker {
     /** @hide */
     @IntDef(prefix = { "JUSTIFICATION_MODE_" }, value = {
             JUSTIFICATION_MODE_NONE,
-            JUSTIFICATION_MODE_INTER_WORD
+            JUSTIFICATION_MODE_INTER_WORD,
+            JUSTIFICATION_MODE_INTER_CHARACTER,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface JustificationMode {}
@@ -177,6 +179,12 @@ public class LineBreaker {
      * Value for justification mode indicating the text is justified by stretching word spacing.
      */
     public static final int JUSTIFICATION_MODE_INTER_WORD = 1;
+
+    /**
+     * Value for justification mode indicating the text is justified by stretching letter spacing.
+     */
+    @FlaggedApi(FLAG_LETTER_SPACING_JUSTIFICATION)
+    public static final int JUSTIFICATION_MODE_INTER_CHARACTER = 2;
 
     /**
      * Helper class for creating a {@link LineBreaker}.
@@ -368,8 +376,8 @@ public class LineBreaker {
      * @see LineBreaker#computeLineBreaks
      */
     public static class Result {
-        // Following two contstant must be synced with minikin's line breaker.
-        // TODO(nona): Remove these constatns by introducing native methods.
+        // Following two constants must be synced with minikin's line breaker.
+        // TODO(nona): Remove these constants by introducing native methods.
         private static final int TAB_MASK = 0x20000000;
         private static final int HYPHEN_MASK = 0xFF;
         private static final int START_HYPHEN_MASK = 0x18;  // 0b11000

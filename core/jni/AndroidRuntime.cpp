@@ -148,6 +148,7 @@ extern int register_android_os_HwParcel(JNIEnv *env);
 extern int register_android_os_HwRemoteBinder(JNIEnv *env);
 extern int register_android_os_NativeHandle(JNIEnv *env);
 extern int register_android_os_ServiceManager(JNIEnv *env);
+extern int register_android_os_ServiceManagerNative(JNIEnv* env);
 extern int register_android_os_MessageQueue(JNIEnv* env);
 extern int register_android_os_Parcel(JNIEnv* env);
 extern int register_android_os_PerformanceHintManager(JNIEnv* env);
@@ -218,6 +219,9 @@ extern int register_com_android_internal_util_VirtualRefBasePtr(JNIEnv *env);
 extern int register_android_window_WindowInfosListener(JNIEnv* env);
 extern int register_android_window_ScreenCapture(JNIEnv* env);
 extern int register_jni_common(JNIEnv* env);
+extern int register_android_tracing_PerfettoDataSource(JNIEnv* env);
+extern int register_android_tracing_PerfettoDataSourceInstance(JNIEnv* env);
+extern int register_android_tracing_PerfettoProducer(JNIEnv* env);
 
 // Namespace for Android Runtime flags applied during boot time.
 static const char* RUNTIME_NATIVE_BOOT_NAMESPACE = "runtime_native_boot";
@@ -1539,6 +1543,7 @@ static const RegJNIRec gRegJNI[] = {
         REG_JNI(register_android_os_HwRemoteBinder),
         REG_JNI(register_android_os_NativeHandle),
         REG_JNI(register_android_os_ServiceManager),
+        REG_JNI(register_android_os_ServiceManagerNative),
         REG_JNI(register_android_os_storage_StorageManager),
         REG_JNI(register_android_service_DataLoaderService),
         REG_JNI(register_android_view_DisplayEventReceiver),
@@ -1671,6 +1676,10 @@ static const RegJNIRec gRegJNI[] = {
         REG_JNI(register_android_window_WindowInfosListener),
         REG_JNI(register_android_window_ScreenCapture),
         REG_JNI(register_jni_common),
+
+        REG_JNI(register_android_tracing_PerfettoDataSource),
+        REG_JNI(register_android_tracing_PerfettoDataSourceInstance),
+        REG_JNI(register_android_tracing_PerfettoProducer),
 };
 
 /*

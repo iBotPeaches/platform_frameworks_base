@@ -86,6 +86,8 @@ public class SystemSensorManager extends SensorManager {
     private static native long nativeCreate(String opPackageName);
     private static native boolean nativeGetSensorAtIndex(long nativeInstance,
             Sensor sensor, int index);
+    private static native boolean nativeGetDefaultDeviceSensorAtIndex(long nativeInstance,
+            Sensor sensor, int index);
     private static native void nativeGetDynamicSensors(long nativeInstance, List<Sensor> list);
     private static native void nativeGetRuntimeSensors(
             long nativeInstance, int deviceId, List<Sensor> list);
@@ -162,11 +164,14 @@ public class SystemSensorManager extends SensorManager {
         // initialize the sensor list
         for (int index = 0;; ++index) {
             Sensor sensor = new Sensor();
-            if (!nativeGetSensorAtIndex(mNativeInstance, sensor, index)) break;
+            if (android.companion.virtual.flags.Flags.enableNativeVdm()) {
+                if (!nativeGetDefaultDeviceSensorAtIndex(mNativeInstance, sensor, index)) break;
+            } else {
+                if (!nativeGetSensorAtIndex(mNativeInstance, sensor, index)) break;
+            }
             mFullSensorsList.add(sensor);
             mHandleToSensor.put(sensor.getHandle(), sensor);
         }
-
     }
 
     /** @hide */
@@ -518,23 +523,25 @@ public class SystemSensorManager extends SensorManager {
 
                     Handler mainHandler = new Handler(mContext.getMainLooper());
 
-                    for (Map.Entry<DynamicSensorCallback, Handler> entry :
-                            mDynamicSensorCallbacks.entrySet()) {
-                        final DynamicSensorCallback callback = entry.getKey();
-                        Handler handler =
-                                entry.getValue() == null ? mainHandler : entry.getValue();
+                    synchronized (mDynamicSensorCallbacks) {
+                        for (Map.Entry<DynamicSensorCallback, Handler> entry :
+                                mDynamicSensorCallbacks.entrySet()) {
+                            final DynamicSensorCallback callback = entry.getKey();
+                            Handler handler =
+                                    entry.getValue() == null ? mainHandler : entry.getValue();
 
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                for (Sensor s: addedList) {
-                                    callback.onDynamicSensorConnected(s);
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    for (Sensor s: addedList) {
+                                        callback.onDynamicSensorConnected(s);
+                                    }
+                                    for (Sensor s: removedList) {
+                                        callback.onDynamicSensorDisconnected(s);
+                                    }
                                 }
-                                for (Sensor s: removedList) {
-                                    callback.onDynamicSensorDisconnected(s);
-                                }
-                            }
-                        });
+                            });
+                        }
                     }
 
                     for (Sensor s: removedList) {
@@ -653,13 +660,15 @@ public class SystemSensorManager extends SensorManager {
         if (callback == null) {
             throw new IllegalArgumentException("callback cannot be null");
         }
-        if (mDynamicSensorCallbacks.containsKey(callback)) {
-            // has been already registered, ignore
-            return;
-        }
+        synchronized (mDynamicSensorCallbacks) {
+            if (mDynamicSensorCallbacks.containsKey(callback)) {
+                // has been already registered, ignore
+                return;
+            }
 
-        setupDynamicSensorBroadcastReceiver();
-        mDynamicSensorCallbacks.put(callback, handler);
+            setupDynamicSensorBroadcastReceiver();
+            mDynamicSensorCallbacks.put(callback, handler);
+        }
     }
 
     /** @hide */
@@ -668,7 +677,9 @@ public class SystemSensorManager extends SensorManager {
         if (DEBUG_DYNAMIC_SENSOR) {
             Log.i(TAG, "Removing dynamic sensor listener");
         }
-        mDynamicSensorCallbacks.remove(callback);
+        synchronized (mDynamicSensorCallbacks) {
+            mDynamicSensorCallbacks.remove(callback);
+        }
     }
 
     /*

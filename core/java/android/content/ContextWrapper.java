@@ -17,6 +17,7 @@
 package android.content;
 
 import android.annotation.CallbackExecutor;
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
@@ -931,7 +932,8 @@ public class ContextWrapper extends Context {
     }
 
     @Override
-    public @Nullable Object getSystemService(String name) {
+    // TODO(b/347269120): Re-add @Nullable
+    public Object getSystemService(String name) {
         return mBase.getSystemService(name);
     }
 
@@ -1001,6 +1003,12 @@ public class ContextWrapper extends Context {
     @Override
     public int checkUriPermission(Uri uri, int pid, int uid, int modeFlags) {
         return mBase.checkUriPermission(uri, pid, uid, modeFlags);
+    }
+
+    @FlaggedApi(android.security.Flags.FLAG_CONTENT_URI_PERMISSION_APIS)
+    @Override
+    public int checkContentUriPermissionFull(@NonNull Uri uri, int pid, int uid, int modeFlags) {
+        return mBase.checkContentUriPermissionFull(uri, pid, uid, modeFlags);
     }
 
     @NonNull

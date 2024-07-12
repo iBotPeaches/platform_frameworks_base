@@ -580,6 +580,8 @@ public final class FileUtils {
                            ", copied:" + progress +
                            ", read:" + (count - countToRead) +
                            ", in pipe: " + countInPipe);
+                    Os.close(pipes[0]);
+                    Os.close(pipes[1]);
                     throw new ErrnoException("splice, pipe --> fdOut", EIO);
                 } else {
                     progress += t;
@@ -607,6 +609,8 @@ public final class FileUtils {
                 listener.onProgress(progressSnapshot);
             });
         }
+        Os.close(pipes[0]);
+        Os.close(pipes[1]);
         return progress;
     }
 
@@ -800,7 +804,6 @@ public final class FileUtils {
      *
      * @hide
      */
-    @android.ravenwood.annotation.RavenwoodReplace
     public static void bytesToFile(String filename, byte[] content) throws IOException {
         if (filename.startsWith("/proc/")) {
             final int oldMask = StrictMode.allowThreadDiskWritesMask();
@@ -813,14 +816,6 @@ public final class FileUtils {
             try (FileOutputStream fos = new FileOutputStream(filename)) {
                 fos.write(content);
             }
-        }
-    }
-
-    /** @hide */
-    public static void bytesToFile$ravenwood(String filename, byte[] content) throws IOException {
-        // No StrictMode support, so we can just directly write
-        try (FileOutputStream fos = new FileOutputStream(filename)) {
-            fos.write(content);
         }
     }
 

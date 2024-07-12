@@ -618,6 +618,7 @@ public class DeviceIdleController extends SystemService
      * List of end times for app-IDs that are temporarily marked as being allowed to access
      * the network and acquire wakelocks. Times are in milliseconds.
      */
+    @GuardedBy("this")
     private final SparseArray<Pair<MutableLong, String>> mTempWhitelistAppIdEndTimes
             = new SparseArray<>();
 
@@ -893,8 +894,9 @@ public class DeviceIdleController extends SystemService
             }
             // Fall through when quick doze is not requested.
 
-            if (!mIsOffBody) {
-                // Quick doze was not requested and device is on body so turn the device active.
+            if (!mIsOffBody && !mForceIdle) {
+                // Quick doze wasn't requested, doze wasn't forced and device is on body
+                // so turn the device active.
                 mActiveReason = ACTIVE_REASON_ONBODY;
                 becomeActiveLocked("on_body", Process.myUid());
             }
@@ -2374,6 +2376,11 @@ public class DeviceIdleController extends SystemService
             return DeviceIdleController.this.isAppOnWhitelistInternal(appid);
         }
 
+        @Override
+        public String[] getFullPowerWhitelistExceptIdle() {
+            return DeviceIdleController.this.getFullPowerWhitelistInternalUnchecked();
+        }
+
         /**
          * Returns the array of app ids whitelisted by user. Take care not to
          * modify this, as it is a reference to the original copy. But the reference
@@ -3100,10 +3107,14 @@ public class DeviceIdleController extends SystemService
     }
 
     private String[] getFullPowerWhitelistInternal(final int callingUid, final int callingUserId) {
-        final String[] apps;
+        return ArrayUtils.filter(getFullPowerWhitelistInternalUnchecked(), String[]::new,
+                (pkg) -> !mPackageManagerInternal.filterAppAccess(pkg, callingUid, callingUserId));
+    }
+
+    private String[] getFullPowerWhitelistInternalUnchecked() {
         synchronized (this) {
             int size = mPowerSaveWhitelistApps.size() + mPowerSaveWhitelistUserApps.size();
-            apps = new String[size];
+            final String[] apps = new String[size];
             int cur = 0;
             for (int i = 0; i < mPowerSaveWhitelistApps.size(); i++) {
                 apps[cur] = mPowerSaveWhitelistApps.keyAt(i);
@@ -3113,9 +3124,8 @@ public class DeviceIdleController extends SystemService
                 apps[cur] = mPowerSaveWhitelistUserApps.keyAt(i);
                 cur++;
             }
+            return apps;
         }
-        return ArrayUtils.filter(apps, String[]::new,
-                (pkg) -> !mPackageManagerInternal.filterAppAccess(pkg, callingUid, callingUserId));
     }
 
     public boolean isPowerSaveWhitelistExceptIdleAppInternal(String packageName) {
@@ -3911,6 +3921,7 @@ public class DeviceIdleController extends SystemService
                     if (locationManager != null
                             && locationManager.getProvider(LocationManager.FUSED_PROVIDER)
                                     != null) {
+                        mHasFusedLocation = true;
                         locationManager.requestLocationUpdates(LocationManager.FUSED_PROVIDER,
                                 mLocationRequest,
                                 AppSchedulingModuleThread.getExecutor(),
@@ -4999,7 +5010,9 @@ public class DeviceIdleController extends SystemService
                 if (!DumpUtils.checkDumpPermission(getContext(), TAG, pw)) {
                     return -1;
                 }
-                dumpTempWhitelistSchedule(pw, false);
+                synchronized (this) {
+                    dumpTempWhitelistScheduleLocked(pw, false);
+                }
             }
         } else if ("except-idle-whitelist".equals(cmd)) {
             getContext().enforceCallingOrSelfPermission(
@@ -5283,7 +5296,7 @@ public class DeviceIdleController extends SystemService
                     pw.println();
                 }
             }
-            dumpTempWhitelistSchedule(pw, true);
+            dumpTempWhitelistScheduleLocked(pw, true);
 
             size = mTempWhitelistAppIdArray != null ? mTempWhitelistAppIdArray.length : 0;
             if (size > 0) {
@@ -5411,7 +5424,8 @@ public class DeviceIdleController extends SystemService
         }
     }
 
-    void dumpTempWhitelistSchedule(PrintWriter pw, boolean printTitle) {
+    @GuardedBy("this")
+    void dumpTempWhitelistScheduleLocked(PrintWriter pw, boolean printTitle) {
         final int size = mTempWhitelistAppIdEndTimes.size();
         if (size > 0) {
             String prefix = "";
