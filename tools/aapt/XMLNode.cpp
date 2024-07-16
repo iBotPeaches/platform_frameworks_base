@@ -971,7 +971,7 @@ void XMLNode::removeWhitespace(bool stripAll, const char** cDataTags)
     }
 }
 
-status_t XMLNode::parseValues(const sp<AaptAssets>& assets,
+status_t XMLNode::parseValues(const Bundle* bundle, const sp<AaptAssets>& assets,
                               ResourceTable* table)
 {
     bool hasErrors = false;
@@ -1007,7 +1007,7 @@ status_t XMLNode::parseValues(const sp<AaptAssets>& assets,
     return hasErrors ? STATUST(UNKNOWN_ERROR) : NO_ERROR;
 }
 
-status_t XMLNode::assignResourceIds(const Bundle* bundle, const sp<AaptAssets>& assets,
+status_t XMLNode::assignResourceIds(const sp<AaptAssets>& assets,
                                     const ResourceTable* table)
 {
     bool hasErrors = false;
