@@ -2594,7 +2594,7 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
 
     if (extensionsFile.fail()) {
       context.GetDiagnostics()->Error(
-        DiagMessage() << "could not open extensions file "
+        android::DiagMessage() << "could not open extensions file "
           << options_.extensions_to_not_compress_path.value()
           << " for reading");
       return 1;
