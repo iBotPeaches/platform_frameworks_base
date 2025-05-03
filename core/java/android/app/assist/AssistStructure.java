@@ -1,5 +1,8 @@
 package android.app.assist;
 
+import static android.app.assist.flags.Flags.addPlaceholderViewForNullChild;
+import static android.credentials.Constants.FAILURE_CREDMAN_SELECTOR;
+import static android.credentials.Constants.SUCCESS_CREDMAN_SELECTOR;
 import static android.service.autofill.Flags.FLAG_AUTOFILL_CREDMAN_DEV_INTEGRATION;
 
 import android.annotation.FlaggedApi;
@@ -20,14 +23,17 @@ import android.net.Uri;
 import android.os.BadParcelableException;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.LocaleList;
+import android.os.Looper;
 import android.os.OutcomeReceiver;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.PooledStringReader;
 import android.os.PooledStringWriter;
 import android.os.RemoteException;
+import android.os.ResultReceiver;
 import android.os.SystemClock;
 import android.service.autofill.FillRequest;
 import android.service.credentials.CredentialProviderService;
@@ -37,6 +43,7 @@ import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Pair;
+import android.util.Slog;
 import android.view.View;
 import android.view.View.AutofillImportance;
 import android.view.ViewRootImpl;
@@ -278,12 +285,18 @@ public class AssistStructure implements Parcelable {
             mCurViewStackEntry = entry;
         }
 
-        void writeView(ViewNode child, Parcel out, PooledStringWriter pwriter, int levelAdj) {
+        void writeView(@Nullable ViewNode child, Parcel out, PooledStringWriter pwriter,
+            int levelAdj) {
             if (DEBUG_PARCEL) Log.d(TAG, "write view: at " + out.dataPosition()
                     + ", windows=" + mNumWrittenWindows
                     + ", views=" + mNumWrittenViews
                     + ", level=" + (mCurViewStackPos+levelAdj));
             out.writeInt(VALIDATE_VIEW_TOKEN);
+            if (addPlaceholderViewForNullChild() && child == null) {
+                if (DEBUG_PARCEL_TREE) Log.d(TAG, "Detected an empty child"
+                            + "; writing a placeholder for the child.");
+                child = new ViewNode();
+            }
             int flags = child.writeSelfToParcel(out, pwriter, mSanitizeOnWrite,
                     mTmpMatrix, /*willWriteChildren=*/true);
             mNumWrittenViews++;
@@ -652,6 +665,9 @@ public class AssistStructure implements Parcelable {
         @Nullable OutcomeReceiver<GetCredentialResponse, GetCredentialException>
                 mGetCredentialCallback;
 
+        @Nullable ResultReceiver mGetCredentialResultReceiver;
+
+
         AutofillValue mAutofillValue;
         CharSequence[] mAutofillOptions;
         boolean mSanitized;
@@ -916,6 +932,7 @@ public class AssistStructure implements Parcelable {
                 mExtras = in.readBundle();
             }
             mGetCredentialRequest = in.readTypedObject(GetCredentialRequest.CREATOR);
+            mGetCredentialResultReceiver = in.readTypedObject(ResultReceiver.CREATOR);
         }
 
         /**
@@ -1153,6 +1170,7 @@ public class AssistStructure implements Parcelable {
                 out.writeBundle(mExtras);
             }
             out.writeTypedObject(mGetCredentialRequest, flags);
+            out.writeTypedObject(mGetCredentialResultReceiver, flags);
             return flags;
         }
 
@@ -1286,7 +1304,7 @@ public class AssistStructure implements Parcelable {
          */
         @FlaggedApi(FLAG_AUTOFILL_CREDMAN_DEV_INTEGRATION)
         @Nullable
-        public GetCredentialRequest getCredentialManagerRequest() {
+        public GetCredentialRequest getPendingCredentialRequest() {
             return mGetCredentialRequest;
         }
 
@@ -1295,9 +1313,8 @@ public class AssistStructure implements Parcelable {
          */
         @FlaggedApi(FLAG_AUTOFILL_CREDMAN_DEV_INTEGRATION)
         @Nullable
-        public OutcomeReceiver<GetCredentialResponse,
-                GetCredentialException> getCredentialManagerCallback() {
-            return mGetCredentialCallback;
+        public ResultReceiver getPendingCredentialCallback() {
+            return mGetCredentialResultReceiver;
         }
 
         /**
@@ -1894,6 +1911,7 @@ public class AssistStructure implements Parcelable {
         final AssistStructure mAssist;
         final ViewNode mNode;
         final boolean mAsync;
+        private Handler mHandler;
 
         /**
          * Used to instantiate a builder for a stand-alone {@link ViewNode} which is not associated
@@ -2180,14 +2198,14 @@ public class AssistStructure implements Parcelable {
 
         @Nullable
         @Override
-        public GetCredentialRequest getCredentialManagerRequest() {
+        public GetCredentialRequest getPendingCredentialRequest() {
             return mNode.mGetCredentialRequest;
         }
 
         @Nullable
         @Override
         public OutcomeReceiver<
-                GetCredentialResponse, GetCredentialException> getCredentialManagerCallback() {
+                GetCredentialResponse, GetCredentialException> getPendingCredentialCallback() {
             return mNode.mGetCredentialCallback;
         }
 
@@ -2256,7 +2274,7 @@ public class AssistStructure implements Parcelable {
         }
 
         @Override
-        public void setCredentialManagerRequest(@NonNull GetCredentialRequest request,
+        public void setPendingCredentialRequest(@NonNull GetCredentialRequest request,
                 @NonNull OutcomeReceiver<GetCredentialResponse, GetCredentialException> callback) {
             mNode.mGetCredentialRequest = request;
             mNode.mGetCredentialCallback = callback;
@@ -2271,6 +2289,56 @@ public class AssistStructure implements Parcelable {
                 option.getCandidateQueryData()
                         .putParcelableArrayList(CredentialProviderService.EXTRA_AUTOFILL_ID, ids);
             }
+            setUpResultReceiver(callback);
+        }
+
+        private void setUpResultReceiver(
+                OutcomeReceiver<GetCredentialResponse, GetCredentialException> callback) {
+
+            if (mHandler == null) {
+                mHandler = new Handler(Looper.getMainLooper(), null, true);
+            }
+            final ResultReceiver resultReceiver = new ResultReceiver(mHandler) {
+                @Override
+                protected void onReceiveResult(int resultCode, Bundle resultData) {
+                    if (resultCode == SUCCESS_CREDMAN_SELECTOR) {
+                        Slog.d(TAG, "onReceiveResult from Credential Manager");
+                        GetCredentialResponse getCredentialResponse =
+                                resultData.getParcelable(
+                                        CredentialProviderService.EXTRA_GET_CREDENTIAL_RESPONSE,
+                                        GetCredentialResponse.class);
+
+                        callback.onResult(getCredentialResponse);
+                    } else if (resultCode == FAILURE_CREDMAN_SELECTOR) {
+                        String[] exception =  resultData.getStringArray(
+                                CredentialProviderService.EXTRA_GET_CREDENTIAL_EXCEPTION);
+                        if (exception != null && exception.length >= 2) {
+                            Slog.w(TAG, "Credman bottom sheet from pinned "
+                                    + "entry failed with: + " + exception[0] + " , "
+                                    + exception[1]);
+                            callback.onError(new GetCredentialException(
+                                    exception[0], exception[1]));
+                        }
+                    } else {
+                        Slog.d(TAG, "Unknown resultCode from credential "
+                                + "manager bottom sheet: " + resultCode);
+                    }
+                }
+            };
+            ResultReceiver ipcFriendlyResultReceiver =
+                    toIpcFriendlyResultReceiver(resultReceiver);
+            mNode.mGetCredentialResultReceiver = ipcFriendlyResultReceiver;
+        }
+
+        private ResultReceiver toIpcFriendlyResultReceiver(ResultReceiver resultReceiver) {
+            final Parcel parcel = Parcel.obtain();
+            resultReceiver.writeToParcel(parcel, 0);
+            parcel.setDataPosition(0);
+
+            final ResultReceiver ipcFriendly = ResultReceiver.CREATOR.createFromParcel(parcel);
+            parcel.recycle();
+
+            return ipcFriendly;
         }
 
         @Override
@@ -2484,7 +2552,7 @@ public class AssistStructure implements Parcelable {
             ensureData();
         }
         Log.i(TAG, "Task id: " + mTaskId);
-        Log.i(TAG, "Activity: " + (mActivityComponent != null 
+        Log.i(TAG, "Activity: " + (mActivityComponent != null
                 ? mActivityComponent.flattenToShortString()
                 : null));
         Log.i(TAG, "Sanitize on write: " + mSanitizeOnWrite);
@@ -2593,14 +2661,13 @@ public class AssistStructure implements Parcelable {
                     + ", isCredential=" + node.isCredential()
             );
         }
-        GetCredentialRequest getCredentialRequest = node.getCredentialManagerRequest();
-        if (getCredentialRequest == null) {
-            Log.i(TAG, prefix + " No Credential Manager Request");
-        } else {
-            Log.i(TAG, prefix + "  GetCredentialRequest: no. of options= "
-                    + getCredentialRequest.getCredentialOptions().size()
-            );
-        }
+        GetCredentialRequest getCredentialRequest = node.getPendingCredentialRequest();
+        Log.i(TAG, prefix + "  Credential Manager info:"
+                + " hasCredentialManagerRequest=" + (getCredentialRequest != null)
+                + (getCredentialRequest != null
+                        ? ", sizeOfOptions=" + getCredentialRequest.getCredentialOptions().size()
+                        : "")
+        );
 
         final int NCHILDREN = node.getChildCount();
         if (NCHILDREN > 0) {

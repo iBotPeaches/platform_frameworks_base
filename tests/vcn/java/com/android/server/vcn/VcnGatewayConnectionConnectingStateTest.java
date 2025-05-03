@@ -35,7 +35,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 
-/** Tests for VcnGatewayConnection.ConnectingState */
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class VcnGatewayConnectionConnectingStateTest extends VcnGatewayConnectionTestBase {

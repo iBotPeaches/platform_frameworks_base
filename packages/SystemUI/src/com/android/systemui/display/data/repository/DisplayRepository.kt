@@ -16,6 +16,7 @@
 
 package com.android.systemui.display.data.repository
 
+import android.annotation.SuppressLint
 import android.hardware.display.DisplayManager
 import android.hardware.display.DisplayManager.DISPLAY_CATEGORY_ALL_INCLUDING_DISABLED
 import android.hardware.display.DisplayManager.DisplayListener
@@ -32,6 +33,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.display.data.DisplayEvent
 import com.android.systemui.util.Compile
+import com.android.systemui.util.kotlin.pairwiseBy
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -40,13 +42,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 
 /** Provides a [Flow] of [Display] as returned by [DisplayManager]. */
@@ -57,8 +63,23 @@ interface DisplayRepository {
     /** Display addition event indicating a new display has been added. */
     val displayAdditionEvent: Flow<Display?>
 
-    /** Provides the current set of displays. */
-    val displays: Flow<Set<Display>>
+    /** Display removal event indicating a display has been removed. */
+    val displayRemovalEvent: Flow<Int>
+
+    /**
+     * Provides the current set of displays.
+     *
+     * Consider using [displayIds] if only the [Display.getDisplayId] is needed.
+     */
+    val displays: StateFlow<Set<Display>>
+
+    /**
+     * Provides the current set of display ids.
+     *
+     * Note that it is preferred to use this instead of [displays] if only the
+     * [Display.getDisplayId] is needed.
+     */
+    val displayIds: StateFlow<Set<Int>>
 
     /**
      * Pending display id that can be enabled/disabled.
@@ -66,6 +87,17 @@ interface DisplayRepository {
      * When `null`, it means there is no pending display waiting to be enabled.
      */
     val pendingDisplay: Flow<PendingDisplay?>
+
+    /** Whether the default display is currently off. */
+    val defaultDisplayOff: Flow<Boolean>
+
+    /**
+     * Given a display ID int, return the corresponding Display object, or null if none exist.
+     *
+     * This method is guaranteed to not result in any binder call.
+     */
+    fun getDisplay(displayId: Int): Display? =
+        displays.value.firstOrNull { it.displayId == displayId }
 
     /** Represents a connected display that has not been enabled yet. */
     interface PendingDisplay {
@@ -87,13 +119,14 @@ interface DisplayRepository {
 }
 
 @SysUISingleton
+@SuppressLint("SharedFlowCreation")
 class DisplayRepositoryImpl
 @Inject
 constructor(
     private val displayManager: DisplayManager,
     @Background backgroundHandler: Handler,
     @Background bgApplicationScope: CoroutineScope,
-    @Background backgroundCoroutineDispatcher: CoroutineDispatcher
+    @Background backgroundCoroutineDispatcher: CoroutineDispatcher,
 ) : DisplayRepository {
     private val allDisplayEvents: Flow<DisplayEvent> =
         conflatedCallbackFlow {
@@ -127,45 +160,95 @@ constructor(
     override val displayChangeEvent: Flow<Int> =
         allDisplayEvents.filterIsInstance<DisplayEvent.Changed>().map { event -> event.displayId }
 
-    override val displayAdditionEvent: Flow<Display?> =
-        allDisplayEvents.filterIsInstance<DisplayEvent.Added>().map {
-            displayManager.getDisplay(it.displayId)
-        }
+    override val displayRemovalEvent: Flow<Int> =
+        allDisplayEvents.filterIsInstance<DisplayEvent.Removed>().map { it.displayId }
+
+    // This is necessary because there might be multiple displays, and we could
+    // have missed events for those added before this process or flow started.
+    // Note it causes a binder call from the main thread (it's traced).
+    private val initialDisplays: Set<Display> =
+        traceSection("$TAG#initialDisplays") { displayManager.displays?.toSet() ?: emptySet() }
+    private val initialDisplayIds = initialDisplays.map { display -> display.displayId }.toSet()
+
+    /** Propagate to the listeners only enabled displays */
+    private val enabledDisplayIds: StateFlow<Set<Int>> =
+        allDisplayEvents
+            .scan(initial = initialDisplayIds) { previousIds: Set<Int>, event: DisplayEvent ->
+                val id = event.displayId
+                when (event) {
+                    is DisplayEvent.Removed -> previousIds - id
+                    is DisplayEvent.Added,
+                    is DisplayEvent.Changed -> previousIds + id
+                }
+            }
+            .distinctUntilChanged()
+            .debugLog("enabledDisplayIds")
+            .stateIn(bgApplicationScope, SharingStarted.WhileSubscribed(), initialDisplayIds)
+
+    private val defaultDisplay by lazy {
+        getDisplayFromDisplayManager(Display.DEFAULT_DISPLAY)
+            ?: error("Unable to get default display.")
+    }
 
     /**
      * Represents displays that went though the [DisplayListener.onDisplayAdded] callback.
      *
      * Those are commonly the ones provided by [DisplayManager.getDisplays] by default.
      */
-    private val enabledDisplays =
-        allDisplayEvents
-            .map { getDisplays() }
-            .shareIn(bgApplicationScope, started = SharingStarted.WhileSubscribed(), replay = 1)
+    private val enabledDisplays: StateFlow<Set<Display>> =
+        enabledDisplayIds
+            .mapElementsLazily { displayId -> getDisplayFromDisplayManager(displayId) }
+            .onEach {
+                if (it.isEmpty()) Log.wtf(TAG, "No enabled displays. This should never happen.")
+            }
+            .flowOn(backgroundCoroutineDispatcher)
+            .debugLog("enabledDisplays")
+            .stateIn(
+                bgApplicationScope,
+                started = SharingStarted.WhileSubscribed(),
+                // This triggers a single binder call on the UI thread per process. The
+                // alternative would be to use sharedFlows, but they are prohibited due to
+                // performance concerns.
+                // Ultimately, this is a trade-off between a one-time UI thread binder call and
+                // the constant overhead of sharedFlows.
+                initialValue = initialDisplays,
+            )
 
-    override val displays: Flow<Set<Display>> = enabledDisplays
+    /**
+     * Represents displays that went though the [DisplayListener.onDisplayAdded] callback.
+     *
+     * Those are commonly the ones provided by [DisplayManager.getDisplays] by default.
+     */
+    override val displays: StateFlow<Set<Display>> = enabledDisplays
 
-    private fun getDisplays(): Set<Display> =
-        traceSection("$TAG#getDisplays()") { displayManager.displays?.toSet() ?: emptySet() }
+    override val displayIds: StateFlow<Set<Int>> = enabledDisplayIds
 
-    /** Propagate to the listeners only enabled displays */
-    private val enabledDisplayIds: Flow<Set<Int>> =
-        enabledDisplays
-            .map { enabledDisplaysSet -> enabledDisplaysSet.map { it.displayId }.toSet() }
-            .debugLog("enabledDisplayIds")
+    /**
+     * Implementation that maps from [displays], instead of [allDisplayEvents] for 2 reasons:
+     * 1. Guarantee that it emits __after__ [displays] emitted. This way it is guaranteed that
+     *    calling [getDisplay] for the newly added display will be non-null.
+     * 2. Reuse the existing instance of [Display] without a new call to [DisplayManager].
+     */
+    override val displayAdditionEvent: Flow<Display?> =
+        displays
+            .pairwiseBy { previousDisplays, currentDisplays -> currentDisplays - previousDisplays }
+            .flatMapLatest { it.asFlow() }
 
-    private val _ignoredDisplayIds = MutableStateFlow<Set<Int>>(emptySet())
+    val _ignoredDisplayIds = MutableStateFlow<Set<Int>>(emptySet())
     private val ignoredDisplayIds: Flow<Set<Int>> = _ignoredDisplayIds.debugLog("ignoredDisplayIds")
 
     private fun getInitialConnectedDisplays(): Set<Int> =
-        displayManager
-            .getDisplays(DISPLAY_CATEGORY_ALL_INCLUDING_DISABLED)
-            .map { it.displayId }
-            .toSet()
-            .also {
-                if (DEBUG) {
-                    Log.d(TAG, "getInitialConnectedDisplays: $it")
+        traceSection("$TAG#getInitialConnectedDisplays") {
+            displayManager
+                .getDisplays(DISPLAY_CATEGORY_ALL_INCLUDING_DISABLED)
+                .map { it.displayId }
+                .toSet()
+                .also {
+                    if (DEBUG) {
+                        Log.d(TAG, "getInitialConnectedDisplays: $it")
+                    }
                 }
-            }
+        }
 
     /* keeps connected displays until they are disconnected. */
     private val connectedDisplayIds: StateFlow<Set<Int>> =
@@ -195,7 +278,8 @@ constructor(
                 displayManager.registerDisplayListener(
                     callback,
                     backgroundHandler,
-                    DisplayManager.EVENT_FLAG_DISPLAY_CONNECTION_CHANGED,
+                    /* eventFlags */ 0,
+                    DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_CONNECTION_CHANGED,
                 )
                 awaitClose { displayManager.unregisterDisplayListener(callback) }
             }
@@ -208,7 +292,7 @@ constructor(
                 // the flow starts being collected. This is to ensure the call to get displays (an
                 // IPC) happens in the background instead of when this object
                 // is instantiated.
-                initialValue = emptySet()
+                initialValue = emptySet(),
             )
 
     private val connectedExternalDisplayIds: Flow<Set<Int>> =
@@ -226,6 +310,9 @@ constructor(
     private fun getDisplayType(displayId: Int): Int? =
         traceSection("$TAG#getDisplayType") { displayManager.getDisplay(displayId)?.type }
 
+    private fun getDisplayFromDisplayManager(displayId: Int): Display? =
+        traceSection("$TAG#getDisplay") { displayManager.getDisplay(displayId) }
+
     /**
      * Pending displays are the ones connected, but not enabled and not ignored.
      *
@@ -242,7 +329,7 @@ constructor(
                         TAG,
                         "combining enabled=$enabledDisplaysIds, " +
                             "connectedExternalDisplayIds=$connectedExternalDisplayIds, " +
-                            "ignored=$ignoredDisplayIds"
+                            "ignored=$ignoredDisplayIds",
                     )
                 }
                 connectedExternalDisplayIds - enabledDisplaysIds - ignoredDisplayIds
@@ -290,12 +377,53 @@ constructor(
             }
             .debugLog("pendingDisplay")
 
+    override val defaultDisplayOff: Flow<Boolean> =
+        displayChangeEvent
+            .filter { it == Display.DEFAULT_DISPLAY }
+            .map { defaultDisplay.state == Display.STATE_OFF }
+            .distinctUntilChanged()
+
     private fun <T> Flow<T>.debugLog(flowName: String): Flow<T> {
         return if (DEBUG) {
             traceEach(flowName, logcat = true, traceEmissionCount = true)
         } else {
             this
         }
+    }
+
+    /**
+     * Maps a set of T to a set of V, minimizing the number of `createValue` calls taking into
+     * account the diff between each root flow emission.
+     *
+     * This is needed to minimize the number of [getDisplayFromDisplayManager] in this class. Note
+     * that if the [createValue] returns a null element, it will not be added in the output set.
+     */
+    private fun <T, V> Flow<Set<T>>.mapElementsLazily(createValue: (T) -> V?): Flow<Set<V>> {
+        data class State<T, V>(
+            val previousSet: Set<T>,
+            // Caches T values from the previousSet that were already converted to V
+            val valueMap: Map<T, V>,
+            val resultSet: Set<V>,
+        )
+
+        val emptyInitialState = State(emptySet<T>(), emptyMap(), emptySet<V>())
+        return this.scan(emptyInitialState) { state, currentSet ->
+                if (currentSet == state.previousSet) {
+                    state
+                } else {
+                    val removed = state.previousSet - currentSet
+                    val added = currentSet - state.previousSet
+                    val newMap = state.valueMap.toMutableMap()
+
+                    added.forEach { key -> createValue(key)?.let { newMap[key] = it } }
+                    removed.forEach { key -> newMap.remove(key) }
+
+                    val resultSet = newMap.values.toSet()
+                    State(currentSet, newMap, resultSet)
+                }
+            }
+            .filter { it != emptyInitialState }
+            .map { it.resultSet }
     }
 
     private companion object {

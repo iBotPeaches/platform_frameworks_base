@@ -18,6 +18,7 @@ package com.android.server.display;
 
 import static android.hardware.display.DisplayManagerGlobal.EVENT_DISPLAY_CONNECTED;
 import static android.view.Display.TYPE_EXTERNAL;
+import static android.view.Display.TYPE_INTERNAL;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -36,6 +37,7 @@ import android.os.IThermalEventListener;
 import android.os.IThermalService;
 import android.os.RemoteException;
 import android.os.Temperature;
+import android.view.Display;
 import android.view.DisplayInfo;
 
 import androidx.test.filters.SmallTest;
@@ -97,6 +99,8 @@ public class ExternalDisplayPolicyTest {
     @Mock
     private LogicalDisplay mMockedLogicalDisplay;
     @Mock
+    private LogicalDisplay mMockedDefaultDisplay;
+    @Mock
     private DisplayNotificationManager mMockedDisplayNotificationManager;
     @Mock
     private ExternalDisplayStatsService mMockedExternalDisplayStatsService;
@@ -141,6 +145,15 @@ public class ExternalDisplayPolicyTest {
         when(mMockedLogicalDisplay.getDisplayInfoLocked()).thenReturn(mockedLogicalDisplayInfo);
         when(mMockedLogicalDisplayMapper.getDisplayLocked(EXTERNAL_DISPLAY_ID)).thenReturn(
                 mMockedLogicalDisplay);
+
+        // Initialize default logical display
+        when(mMockedDefaultDisplay.getDisplayIdLocked()).thenReturn(Display.DEFAULT_DISPLAY);
+        when(mMockedDefaultDisplay.isEnabledLocked()).thenReturn(true);
+        final var mockedDefaultDisplayInfo = new DisplayInfo();
+        mockedDefaultDisplayInfo.type = TYPE_INTERNAL;
+        when(mMockedDefaultDisplay.getDisplayInfoLocked()).thenReturn(mockedDefaultDisplayInfo);
+        when(mMockedLogicalDisplayMapper.getDisplayLocked(Display.DEFAULT_DISPLAY)).thenReturn(
+                mMockedDefaultDisplay);
     }
 
     @Test
@@ -258,6 +271,7 @@ public class ExternalDisplayPolicyTest {
 
         when(mMockedLogicalDisplay.isEnabledLocked()).thenReturn(false);
         mExternalDisplayPolicy.handleExternalDisplayConnectedLocked(mMockedLogicalDisplay);
+        mHandler.flush();
         verify(mMockedInjector, never()).sendExternalDisplayEventLocked(any(), anyInt());
         verify(mMockedDisplayNotificationManager, times(2))
                 .onHighTemperatureExternalDisplayNotAllowed();
@@ -292,6 +306,52 @@ public class ExternalDisplayPolicyTest {
         verify(mMockedLogicalDisplayMapper, never()).forEachLocked(any());
     }
 
+    @Test
+    public void testMirroringAlwaysConfirmedByUser_flagDisabled() {
+        when(mMockedFlags.isWaitingConfirmationBeforeMirroringEnabled()).thenReturn(false);
+        assertThat(mExternalDisplayPolicy.isDisplayReadyForMirroring(EXTERNAL_DISPLAY_ID)).isTrue();
+    }
+
+    @Test
+    public void testMirroringConfirmed_afterBootForEnabledDisplay() {
+        when(mMockedFlags.isWaitingConfirmationBeforeMirroringEnabled()).thenReturn(true);
+        mExternalDisplayPolicy.onBootCompleted();
+        assertThat(mExternalDisplayPolicy.isDisplayReadyForMirroring(EXTERNAL_DISPLAY_ID))
+                .isTrue();
+    }
+
+    @Test
+    public void testMirroringNotConfirmed_afterBootForDisabledDisplay() {
+        when(mMockedFlags.isWaitingConfirmationBeforeMirroringEnabled()).thenReturn(true);
+        mExternalDisplayPolicy.onBootCompleted();
+        when(mMockedLogicalDisplay.isEnabledLocked()).thenReturn(false);
+        assertThat(mExternalDisplayPolicy.isDisplayReadyForMirroring(EXTERNAL_DISPLAY_ID))
+                .isFalse();
+    }
+
+    @Test
+    public void testMirroringNeverConfirmed_forNonExternalDisplays() {
+        when(mMockedFlags.isWaitingConfirmationBeforeMirroringEnabled()).thenReturn(true);
+        mExternalDisplayPolicy.onBootCompleted();
+        assertThat(mExternalDisplayPolicy.isDisplayReadyForMirroring(Display.DEFAULT_DISPLAY))
+                .isFalse();
+    }
+
+    @Test
+    public void testMirroringNeverConfirmed_forNonExistingDisplays() {
+        when(mMockedFlags.isWaitingConfirmationBeforeMirroringEnabled()).thenReturn(true);
+        mExternalDisplayPolicy.onBootCompleted();
+        assertThat(mExternalDisplayPolicy.isDisplayReadyForMirroring(Display.INVALID_DISPLAY))
+                .isFalse();
+    }
+
+    @Test
+    public void testMirroringNeverConfirmed_duringBoot() {
+        when(mMockedFlags.isWaitingConfirmationBeforeMirroringEnabled()).thenReturn(true);
+        assertThat(mExternalDisplayPolicy.isDisplayReadyForMirroring(EXTERNAL_DISPLAY_ID))
+                .isFalse();
+    }
+
     private void setTemperature(final IThermalEventListener thermalEventListener,
             final List<Temperature> temperature) throws RemoteException {
         for (var t : temperature) {
@@ -317,7 +377,8 @@ public class ExternalDisplayPolicyTest {
                 mDisplayEventCaptor.capture());
         assertThat(mLogicalDisplayCaptor.getValue()).isEqualTo(mMockedLogicalDisplay);
         assertThat(mDisplayEventCaptor.getValue()).isEqualTo(EVENT_DISPLAY_CONNECTED);
-        verify(mMockedLogicalDisplay).setEnabledLocked(false);
+        verify(mMockedLogicalDisplayMapper).setEnabledLocked(eq(mMockedLogicalDisplay),
+                eq(false));
         clearInvocations(mMockedLogicalDisplayMapper);
         clearInvocations(mMockedLogicalDisplay);
     }

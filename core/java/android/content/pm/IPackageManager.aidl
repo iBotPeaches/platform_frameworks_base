@@ -847,5 +847,13 @@ interface IPackageManager {
     @EnforcePermission("GET_APP_METADATA")
     int getAppMetadataSource(String packageName, int userId);
 
-    ComponentName getDomainVerificationAgent();
+    ComponentName getDomainVerificationAgent(int userId);
+
+    void setPageSizeAppCompatFlagsSettingsOverride(in String packageName, boolean enabled);
+
+    boolean isPageSizeCompatEnabled(in String packageName);
+
+    String getPageSizeCompatWarningMessage(in String packageName);
+
+    List<String> getAllApexDirectories();
 }

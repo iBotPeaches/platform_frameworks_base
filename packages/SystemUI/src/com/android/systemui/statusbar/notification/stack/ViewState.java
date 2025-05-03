@@ -33,7 +33,7 @@ import com.android.systemui.statusbar.notification.AnimatableProperty;
 import com.android.systemui.statusbar.notification.NotificationFadeAware.FadeOptimizedNotification;
 import com.android.systemui.statusbar.notification.PropertyAnimator;
 import com.android.systemui.statusbar.notification.row.ExpandableView;
-import com.android.systemui.statusbar.policy.HeadsUpUtil;
+import com.android.systemui.statusbar.notification.headsup.HeadsUpUtil;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
@@ -657,7 +657,7 @@ public class ViewState implements Dumpable {
         }
         ObjectAnimator previousAnimator = getChildTag(child, TAG_ANIMATOR_TRANSLATION_Y);
         AnimationFilter filter = properties.getAnimationFilter();
-        if (!filter.shouldAnimateY(child)) {
+        if (!filter.animateY) {
             // just a local update was performed
             if (previousAnimator != null) {
                 // we need to increase all animation keyframes of the previous animator by the

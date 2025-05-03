@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 #define LOG_TAG "DisplayEventReceiver"
 
@@ -40,6 +41,7 @@ static struct {
     jmethodID dispatchHotplug;
     jmethodID dispatchHotplugConnectionError;
     jmethodID dispatchModeChanged;
+    jmethodID dispatchModeRejected;
     jmethodID dispatchFrameRateOverrides;
     jmethodID dispatchHdcpLevelsChanged;
 
@@ -67,6 +69,7 @@ static struct {
         jfieldID preferredFrameTimelineIndex;
         jfieldID frameTimelinesLength;
         jfieldID frameTimelines;
+        jfieldID numberQueuedBuffers;
     } vsyncEventDataClassInfo;
 
 } gDisplayEventReceiverClassInfo;
@@ -94,6 +97,7 @@ private:
     void dispatchHotplugConnectionError(nsecs_t timestamp, int errorCode) override;
     void dispatchModeChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t modeId,
                              nsecs_t renderPeriod) override;
+    void dispatchModeRejected(PhysicalDisplayId displayId, int32_t modeId) override;
     void dispatchFrameRateOverrides(nsecs_t timestamp, PhysicalDisplayId displayId,
                                     std::vector<FrameRateOverride> overrides) override;
     void dispatchNullEvent(nsecs_t timestamp, PhysicalDisplayId displayId) override {}
@@ -165,7 +169,8 @@ static jobject createJavaVsyncEventData(JNIEnv* env, VsyncEventData vsyncEventDa
     return env->NewObject(gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.clazz,
                           gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.init,
                           frameTimelineObjs.get(), vsyncEventData.preferredFrameTimelineIndex,
-                          vsyncEventData.frameTimelinesLength, vsyncEventData.frameInterval);
+                          vsyncEventData.frameTimelinesLength, vsyncEventData.frameInterval,
+                          vsyncEventData.numberQueuedBuffers);
 }
 
 void NativeDisplayEventReceiver::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId,
@@ -188,6 +193,9 @@ void NativeDisplayEventReceiver::dispatchVsync(nsecs_t timestamp, PhysicalDispla
         env->SetLongField(vsyncEventDataObj.get(),
                           gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.frameInterval,
                           vsyncEventData.frameInterval);
+        env->SetIntField(vsyncEventDataObj.get(),
+                         gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.numberQueuedBuffers,
+                         vsyncEventData.numberQueuedBuffers);
 
         ScopedLocalRef<jobjectArray>
                 frameTimelinesObj(env,
@@ -264,6 +272,18 @@ void NativeDisplayEventReceiver::dispatchModeChanged(nsecs_t timestamp, Physical
     }
 
     mMessageQueue->raiseAndClearException(env, "dispatchModeChanged");
+}
+
+void NativeDisplayEventReceiver::dispatchModeRejected(PhysicalDisplayId displayId, int32_t modeId) {
+    JNIEnv* env = AndroidRuntime::getJNIEnv();
+
+    ScopedLocalRef<jobject> receiverObj(env, GetReferent(env, mReceiverWeakGlobal));
+    if (receiverObj.get()) {
+        ALOGV("receiver %p ~ Invoking Mode Rejected handler.", this);
+        env->CallVoidMethod(receiverObj.get(), gDisplayEventReceiverClassInfo.dispatchModeRejected,
+                            displayId.value, modeId);
+        ALOGV("receiver %p ~ Returned from Mode Rejected handler.", this);
+    }
 }
 
 void NativeDisplayEventReceiver::dispatchFrameRateOverrides(
@@ -400,6 +420,9 @@ int register_android_view_DisplayEventReceiver(JNIEnv* env) {
     gDisplayEventReceiverClassInfo.dispatchModeChanged =
             GetMethodIDOrDie(env, gDisplayEventReceiverClassInfo.clazz, "dispatchModeChanged",
                              "(JJIJ)V");
+    gDisplayEventReceiverClassInfo.dispatchModeRejected =
+            GetMethodIDOrDie(env, gDisplayEventReceiverClassInfo.clazz, "dispatchModeRejected",
+                             "(JI)V");
     gDisplayEventReceiverClassInfo.dispatchFrameRateOverrides =
             GetMethodIDOrDie(env, gDisplayEventReceiverClassInfo.clazz,
                              "dispatchFrameRateOverrides",
@@ -441,7 +464,7 @@ int register_android_view_DisplayEventReceiver(JNIEnv* env) {
             GetMethodIDOrDie(env, gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.clazz,
                              "<init>",
                              "([Landroid/view/"
-                             "DisplayEventReceiver$VsyncEventData$FrameTimeline;IIJ)V");
+                             "DisplayEventReceiver$VsyncEventData$FrameTimeline;IIJI)V");
 
     gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.preferredFrameTimelineIndex =
             GetFieldIDOrDie(env, gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.clazz,
@@ -456,6 +479,9 @@ int register_android_view_DisplayEventReceiver(JNIEnv* env) {
             GetFieldIDOrDie(env, gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.clazz,
                             "frameTimelines",
                             "[Landroid/view/DisplayEventReceiver$VsyncEventData$FrameTimeline;");
+    gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.numberQueuedBuffers =
+            GetFieldIDOrDie(env, gDisplayEventReceiverClassInfo.vsyncEventDataClassInfo.clazz,
+                            "numberQueuedBuffers", "I");
 
     return res;
 }

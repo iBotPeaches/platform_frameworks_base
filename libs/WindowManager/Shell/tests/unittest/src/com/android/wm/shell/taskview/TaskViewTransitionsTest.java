@@ -18,6 +18,7 @@ package com.android.wm.shell.taskview;
 
 import static android.view.WindowManager.TRANSIT_CHANGE;
 import static android.view.WindowManager.TRANSIT_OPEN;
+import static android.view.WindowManager.TRANSIT_TO_BACK;
 import static android.view.WindowManager.TRANSIT_TO_FRONT;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -32,7 +33,8 @@ import static org.mockito.Mockito.when;
 import android.app.ActivityManager;
 import android.graphics.Rect;
 import android.os.IBinder;
-import android.testing.AndroidTestingRunner;
+import android.platform.test.flag.junit.FlagsParameterization;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.testing.TestableLooper;
 import android.view.SurfaceControl;
 import android.window.TransitionInfo;
@@ -41,10 +43,12 @@ import android.window.WindowContainerTransaction;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.wm.shell.Flags;
 import com.android.wm.shell.ShellTestCase;
 import com.android.wm.shell.transition.Transitions;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -53,10 +57,22 @@ import org.mockito.MockitoAnnotations;
 import java.util.ArrayList;
 import java.util.List;
 
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4;
+import platform.test.runner.parameterized.Parameters;
+
 @SmallTest
-@RunWith(AndroidTestingRunner.class)
+@RunWith(ParameterizedAndroidJunit4.class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 public class TaskViewTransitionsTest extends ShellTestCase {
+
+    @Parameters(name = "{0}")
+    public static List<FlagsParameterization> getParams() {
+        return FlagsParameterization.allCombinationsOf(
+                Flags.FLAG_ENABLE_TASK_VIEW_CONTROLLER_CLEANUP);
+    }
+
+    @Rule
+    public final SetFlagsRule mSetFlagsRule;
 
     @Mock
     Transitions mTransitions;
@@ -68,6 +84,10 @@ public class TaskViewTransitionsTest extends ShellTestCase {
     WindowContainerToken mToken;
 
     TaskViewTransitions mTaskViewTransitions;
+
+    public TaskViewTransitionsTest(FlagsParameterization flags) {
+        mSetFlagsRule = new SetFlagsRule(flags);
+    }
 
     @Before
     public void setUp() {
@@ -205,6 +225,48 @@ public class TaskViewTransitionsTest extends ShellTestCase {
 
         mTaskViewTransitions.setTaskBounds(mTaskViewTaskController,
                 new Rect(0, 0, 100, 100));
+    }
+
+    @Test
+    public void testReorderTask_movedToFrontTransaction() {
+        assumeTrue(Transitions.ENABLE_SHELL_TRANSITIONS);
+
+        mTaskViewTransitions.reorderTaskViewTask(mTaskViewTaskController, true);
+        // Consume the pending transaction from order change
+        TaskViewTransitions.PendingTransition pending =
+                mTaskViewTransitions.findPending(mTaskViewTaskController, TRANSIT_TO_FRONT);
+        assertThat(pending).isNotNull();
+        mTaskViewTransitions.startAnimation(pending.mClaimed,
+                mock(TransitionInfo.class),
+                new SurfaceControl.Transaction(),
+                new SurfaceControl.Transaction(),
+                mock(Transitions.TransitionFinishCallback.class));
+
+        // Verify it was consumed
+        TaskViewTransitions.PendingTransition pending2 =
+                mTaskViewTransitions.findPending(mTaskViewTaskController, TRANSIT_TO_FRONT);
+        assertThat(pending2).isNull();
+    }
+
+    @Test
+    public void testReorderTask_movedToBackTransaction() {
+        assumeTrue(Transitions.ENABLE_SHELL_TRANSITIONS);
+
+        mTaskViewTransitions.reorderTaskViewTask(mTaskViewTaskController, false);
+        // Consume the pending transaction from order change
+        TaskViewTransitions.PendingTransition pending =
+                mTaskViewTransitions.findPending(mTaskViewTaskController, TRANSIT_TO_BACK);
+        assertThat(pending).isNotNull();
+        mTaskViewTransitions.startAnimation(pending.mClaimed,
+                mock(TransitionInfo.class),
+                new SurfaceControl.Transaction(),
+                new SurfaceControl.Transaction(),
+                mock(Transitions.TransitionFinishCallback.class));
+
+        // Verify it was consumed
+        TaskViewTransitions.PendingTransition pending2 =
+                mTaskViewTransitions.findPending(mTaskViewTaskController, TRANSIT_TO_BACK);
+        assertThat(pending2).isNull();
     }
 
     @Test

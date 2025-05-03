@@ -1,0 +1,8 @@
+# Policy file for "tiny-framework" used by hoststubgen's own tests.
+
+com.android.hoststubgen.test.tinyframework.*
+com.supported.*
+com.unsupported.*
+
+# Disallow all other classes
+!*

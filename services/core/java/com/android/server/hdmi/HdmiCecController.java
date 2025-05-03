@@ -427,7 +427,7 @@ final class HdmiCecController {
     @ServiceThreadOnly
     void setHpdSignalType(@Constants.HpdSignalType int signal, int portId) {
         assertRunOnServiceThread();
-        HdmiLogger.debug("setHpdSignalType: portId %b, signal %b", portId, signal);
+        HdmiLogger.debug("setHpdSignalType: portId %d, signal %d", portId, signal);
         mNativeWrapperImpl.nativeSetHpdSignalType(signal, portId);
     }
 
@@ -439,7 +439,7 @@ final class HdmiCecController {
     @Constants.HpdSignalType
     int getHpdSignalType(int portId) {
         assertRunOnServiceThread();
-        HdmiLogger.debug("getHpdSignalType: portId %b ", portId);
+        HdmiLogger.debug("getHpdSignalType: portId %d ", portId);
         return mNativeWrapperImpl.nativeGetHpdSignalType(portId);
     }
 
@@ -528,15 +528,17 @@ final class HdmiCecController {
      */
     @ServiceThreadOnly
     void pollDevices(DevicePollingCallback callback, int sourceAddress, int pickStrategy,
-            int retryCount) {
+            int retryCount, long pollingMessageInterval) {
         assertRunOnServiceThread();
 
         // Extract polling candidates. No need to poll against local devices.
         List<Integer> pollingCandidates = pickPollCandidates(pickStrategy);
         ArrayList<Integer> allocated = new ArrayList<>();
+        // pollStarted indication to avoid polling delay for the first message
         mControlHandler.postDelayed(
-                () -> runDevicePolling(
-                        sourceAddress, pollingCandidates, retryCount, callback, allocated),
+                ()
+                        -> runDevicePolling(sourceAddress, pollingCandidates, retryCount, callback,
+                                allocated, pollingMessageInterval, /**pollStarted**/ false),
                 mPollDevicesDelay);
     }
 
@@ -576,9 +578,10 @@ final class HdmiCecController {
     }
 
     @ServiceThreadOnly
-    private void runDevicePolling(final int sourceAddress,
-            final List<Integer> candidates, final int retryCount,
-            final DevicePollingCallback callback, final List<Integer> allocated) {
+    private void runDevicePolling(final int sourceAddress, final List<Integer> candidates,
+            final int retryCount, final DevicePollingCallback callback,
+            final List<Integer> allocated, final long pollingMessageInterval,
+            final boolean pollStarted) {
         assertRunOnServiceThread();
         if (candidates.isEmpty()) {
             if (callback != null) {
@@ -587,11 +590,10 @@ final class HdmiCecController {
             }
             return;
         }
-
         final Integer candidate = candidates.remove(0);
         // Proceed polling action for the next address once polling action for the
         // previous address is done.
-        runOnIoThread(new Runnable() {
+        mIoHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 if (sendPollMessage(sourceAddress, candidate, retryCount)) {
@@ -600,12 +602,12 @@ final class HdmiCecController {
                 runOnServiceThread(new Runnable() {
                     @Override
                     public void run() {
-                        runDevicePolling(sourceAddress, candidates, retryCount, callback,
-                                allocated);
+                        runDevicePolling(sourceAddress, candidates, retryCount, callback, allocated,
+                                pollingMessageInterval, /**pollStarted**/ true);
                     }
                 });
             }
-        });
+        }, pollStarted ? pollingMessageInterval : 0);
     }
 
     @IoThreadOnly
@@ -999,7 +1001,7 @@ final class HdmiCecController {
             try {
                 // Create an AIDL callback that can callback onHotplugEvent
                 mHdmiConnection.setCallback(new HdmiConnectionCallbackAidl(callback));
-            } catch (RemoteException e) {
+            } catch (RemoteException | NullPointerException e) {
                 HdmiLogger.error("Couldn't initialise tv.hdmi callback : ", e);
             }
         }
@@ -1132,7 +1134,7 @@ final class HdmiCecController {
                     i++;
                 }
                 return hdmiPortInfo;
-            } catch (RemoteException e) {
+            } catch (RemoteException | NullPointerException e) {
                 HdmiLogger.error("Failed to get port information : ", e);
                 return null;
             }
@@ -1142,7 +1144,7 @@ final class HdmiCecController {
         public boolean nativeIsConnected(int port) {
             try {
                 return mHdmiConnection.isConnected(port);
-            } catch (RemoteException e) {
+            } catch (RemoteException | NullPointerException e) {
                 HdmiLogger.error("Failed to get connection info : ", e);
                 return false;
             }
@@ -1156,7 +1158,7 @@ final class HdmiCecController {
                 HdmiLogger.error(
                         "Could not set HPD signal type for portId " + portId + " to " + signal
                                 + ". Error: ", sse.errorCode);
-            } catch (RemoteException e) {
+            } catch (RemoteException | NullPointerException e) {
                 HdmiLogger.error(
                         "Could not set HPD signal type for portId " + portId + " to " + signal
                                 + ". Exception: ", e);
@@ -1167,7 +1169,7 @@ final class HdmiCecController {
         public int nativeGetHpdSignalType(int portId) {
             try {
                 return mHdmiConnection.getHpdSignal(portId);
-            } catch (RemoteException e) {
+            } catch (RemoteException | NullPointerException e) {
                 HdmiLogger.error(
                         "Could not get HPD signal type for portId " + portId + ". Exception: ", e);
                 return Constants.HDMI_HPD_TYPE_PHYSICAL;
@@ -1205,9 +1207,11 @@ final class HdmiCecController {
 
         @Override
         public void onValues(int result, short addr) {
-            if (result == Result.SUCCESS) {
-                synchronized (mLock) {
-                    mPhysicalAddress = new Short(addr).intValue();
+            synchronized (mLock) {
+                if (result == Result.SUCCESS) {
+                    mPhysicalAddress = Short.toUnsignedInt(addr);
+                } else {
+                    mPhysicalAddress = INVALID_PHYSICAL_ADDRESS;
                 }
             }
         }
@@ -1603,9 +1607,11 @@ final class HdmiCecController {
 
         @Override
         public void onValues(int result, short addr) {
-            if (result == Result.SUCCESS) {
-                synchronized (mLock) {
-                    mPhysicalAddress = new Short(addr).intValue();
+            synchronized (mLock) {
+                if (result == Result.SUCCESS) {
+                    mPhysicalAddress = Short.toUnsignedInt(addr);
+                } else {
+                    mPhysicalAddress = INVALID_PHYSICAL_ADDRESS;
                 }
             }
         }

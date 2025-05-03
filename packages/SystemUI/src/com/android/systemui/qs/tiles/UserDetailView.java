@@ -34,11 +34,12 @@ import com.android.internal.logging.UiEventLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.settingslib.RestrictedLockUtils;
 import com.android.settingslib.drawable.CircleFramedDrawable;
-import com.android.systemui.res.R;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.qs.PseudoGridView;
 import com.android.systemui.qs.QSUserSwitcherEvent;
 import com.android.systemui.qs.user.UserSwitchDialogController;
+import com.android.systemui.res.R;
+import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.statusbar.phone.SystemUIDialog;
 import com.android.systemui.statusbar.policy.BaseUserSwitcherAdapter;
 import com.android.systemui.statusbar.policy.UserSwitcherController;
@@ -95,7 +96,7 @@ public class UserDetailView extends PseudoGridView {
         }
 
         @Inject
-        public Adapter(Context context, UserSwitcherController controller,
+        public Adapter(@ShadeDisplayAware Context context, UserSwitcherController controller,
                 UiEventLogger uiEventLogger, FalsingManager falsingManager) {
             super(controller);
             mContext = context;
@@ -186,7 +187,7 @@ public class UserDetailView extends PseudoGridView {
                     (UserRecord) view.getTag();
             if (userRecord.isDisabledByAdmin()) {
                 final Intent intent = RestrictedLockUtils.getShowAdminSupportDetailsIntent(
-                        mContext, userRecord.enforcedAdmin);
+                        userRecord.enforcedAdmin);
                 mController.startActivity(intent);
             } else if (userRecord.isSwitchToEnabled) {
                 MetricsLogger.action(mContext, MetricsEvent.QS_SWITCH_USER);

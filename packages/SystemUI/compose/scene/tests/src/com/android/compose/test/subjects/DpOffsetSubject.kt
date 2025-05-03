@@ -30,10 +30,8 @@ fun assertThat(dpOffset: DpOffset): DpOffsetSubject {
 }
 
 /** A Truth subject to assert on [DpOffset] with some tolerance. Inspired by FloatSubject. */
-class DpOffsetSubject(
-    metadata: FailureMetadata,
-    private val actual: DpOffset,
-) : Subject(metadata, actual) {
+class DpOffsetSubject(metadata: FailureMetadata, private val actual: DpOffset) :
+    Subject(metadata, actual) {
     fun isWithin(tolerance: Dp): TolerantDpOffsetComparison {
         return object : TolerantDpOffsetComparison {
             override fun of(expected: DpOffset) {
@@ -51,8 +49,8 @@ class DpOffsetSubject(
         val DefaultTolerance = Dp(.5f)
 
         fun dpOffsets() =
-            Factory<DpOffsetSubject, DpOffset> { metadata, actual ->
-                DpOffsetSubject(metadata, actual)
+            Factory { metadata, actual: DpOffset? ->
+                DpOffsetSubject(metadata, actual!!)
             }
     }
 }

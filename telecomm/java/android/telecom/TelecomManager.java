@@ -1434,11 +1434,14 @@ public class TelecomManager {
     }
 
     /**
-     * This API will return all {@link PhoneAccount}s registered via
-     * {@link TelecomManager#registerPhoneAccount(PhoneAccount)}. If a {@link PhoneAccount} appears
-     * to be missing from the list, Telecom has either unregistered the {@link PhoneAccount}
-     * or the caller registered the {@link PhoneAccount} under a different user and does not
-     * have the {@link android.Manifest.permission#INTERACT_ACROSS_USERS} permission.
+     * This API will return all {@link PhoneAccount}s the caller registered via
+     * {@link TelecomManager#registerPhoneAccount(PhoneAccount)}.  If a {@link PhoneAccount} appears
+     * to be missing from the list, Telecom has either unregistered the {@link PhoneAccount} (for
+     * cleanup purposes) or the caller registered the {@link PhoneAccount} under a different user
+     * and does not have the  {@link android.Manifest.permission#INTERACT_ACROSS_USERS} permission.
+     * <b>Note:</b> This API will only return {@link PhoneAccount}s registered by the same app.  For
+     * system Dialers that need all the {@link PhoneAccount}s registered by every application, see
+     * {@link TelecomManager#getAllPhoneAccounts()}.
      *
      * @return all the {@link PhoneAccount}s registered by the caller.
      */
@@ -2046,11 +2049,15 @@ public class TelecomManager {
     /**
      * Ends the foreground call on the device.
      * <p>
-     * If there is a ringing call, calling this method rejects the ringing call.  Otherwise the
+     * If there is a ringing call, calling this method rejects the ringing call. Otherwise, the
      * foreground call is ended.
      * <p>
      * Note: this method CANNOT be used to end ongoing emergency calls and will return {@code false}
      * if an attempt is made to end an emergency call.
+     * <p>
+     * Note: If the foreground call on this device is self-managed, this method will only end
+     * the call if the caller of this method is privileged (i.e. system, shell, or root) or system
+     * UI.
      *
      * @return {@code true} if there is a call which will be rejected or terminated, {@code false}
      * otherwise.
@@ -2078,6 +2085,9 @@ public class TelecomManager {
      * If the incoming call is a video call, the call will be answered with the same video state as
      * the incoming call requests.  This means, for example, that an incoming call requesting
      * {@link VideoProfile#STATE_BIDIRECTIONAL} will be answered, accepting that state.
+     *
+     * If the ringing incoming call is self-managed, this method will only accept the call if the
+     * caller of this method is privileged (i.e. system, shell, or root) or system UI.
      *
      * @deprecated Companion apps for wearable devices should use the {@link InCallService} API
      * instead.
@@ -2336,6 +2346,7 @@ public class TelecomManager {
      * @return True if the digits were processed as an MMI code, false otherwise.
      */
     @RequiresPermission(android.Manifest.permission.MODIFY_PHONE_STATE)
+    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
     public boolean handleMmi(String dialString) {
         ITelecomService service = getTelecomService();
         if (service != null) {
@@ -2361,6 +2372,7 @@ public class TelecomManager {
      * @return True if the digits were processed as an MMI code, false otherwise.
      */
     @RequiresPermission(android.Manifest.permission.MODIFY_PHONE_STATE)
+    @RequiresFeature(PackageManager.FEATURE_TELEPHONY_CALLING)
     public boolean handleMmi(String dialString, PhoneAccountHandle accountHandle) {
         ITelecomService service = getTelecomService();
         if (service != null) {
@@ -2794,7 +2806,9 @@ public class TelecomManager {
 
     /**
      * Determines whether there are any ongoing {@link PhoneAccount#CAPABILITY_SELF_MANAGED}
-     * calls for a given {@code packageName} and {@code userHandle}.
+     * calls for a given {@code packageName} and {@code userHandle}. If UserHandle.ALL or a user
+     * that isn't the calling user is passed in, the caller will need to have granted the ability
+     * to interact across users.
      *
      * @param packageName the package name of the app to check calls for.
      * @param userHandle the user handle to check calls for.
@@ -2813,41 +2827,7 @@ public class TelecomManager {
         if (service != null) {
             try {
                 return service.isInSelfManagedCall(packageName, userHandle,
-                        mContext.getOpPackageName(), false);
-            } catch (RemoteException e) {
-                Log.e(TAG, "RemoteException isInSelfManagedCall: " + e);
-                e.rethrowFromSystemServer();
-                return false;
-            }
-        } else {
-            throw new IllegalStateException("Telecom service is not present");
-        }
-    }
-
-    /**
-     * Determines whether there are any ongoing {@link PhoneAccount#CAPABILITY_SELF_MANAGED}
-     * calls for a given {@code packageName} amongst all users, given that detectForAllUsers is true
-     * and the caller has the ability to interact across users. If detectForAllUsers isn't enabled,
-     * the calls will be checked against the caller.
-     *
-     * @param packageName the package name of the app to check calls for.
-     * @param detectForAllUsers indicates if calls should be detected across all users.
-     * @return {@code true} if there are ongoing calls, {@code false} otherwise.
-     * @throws SecurityException if detectForAllUsers is true and the caller does not grant the
-     * ability to interact across users.
-     * @hide
-     */
-    @SystemApi
-    @FlaggedApi(Flags.FLAG_TELECOM_RESOLVE_HIDDEN_DEPENDENCIES)
-    @RequiresPermission(allOf = {Manifest.permission.READ_PRIVILEGED_PHONE_STATE,
-            Manifest.permission.INTERACT_ACROSS_USERS}, conditional = true)
-    public boolean isInSelfManagedCall(@NonNull String packageName,
-            boolean detectForAllUsers) {
-        ITelecomService service = getTelecomService();
-        if (service != null) {
-            try {
-                return service.isInSelfManagedCall(packageName, null,
-                        mContext.getOpPackageName(), detectForAllUsers);
+                        mContext.getOpPackageName());
             } catch (RemoteException e) {
                 Log.e(TAG, "RemoteException isInSelfManagedCall: " + e);
                 e.rethrowFromSystemServer();

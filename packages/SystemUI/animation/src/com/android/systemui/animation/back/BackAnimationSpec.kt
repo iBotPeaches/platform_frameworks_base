@@ -37,27 +37,33 @@ fun interface BackAnimationSpec {
 
 /** Create a [BackAnimationSpec] from [displayMetrics] and design specs. */
 fun BackAnimationSpec.Companion.createFloatingSurfaceAnimationSpec(
-    displayMetrics: DisplayMetrics,
+    displayMetricsProvider: () -> DisplayMetrics,
     maxMarginXdp: Float,
     maxMarginYdp: Float,
     minScale: Float,
-    translateXEasing: Interpolator = Interpolators.STANDARD_DECELERATE,
+    translateXEasing: Interpolator = Interpolators.BACK_GESTURE,
     translateYEasing: Interpolator = Interpolators.LINEAR,
-    scaleEasing: Interpolator = Interpolators.STANDARD_DECELERATE,
+    scaleEasing: Interpolator = Interpolators.BACK_GESTURE,
 ): BackAnimationSpec {
-    val screenWidthPx = displayMetrics.widthPixels
-    val screenHeightPx = displayMetrics.heightPixels
-
-    val maxMarginXPx = maxMarginXdp.dpToPx(displayMetrics)
-    val maxMarginYPx = maxMarginYdp.dpToPx(displayMetrics)
-    val maxTranslationXByScale = (screenWidthPx - screenWidthPx * minScale) / 2
-    val maxTranslationX = maxTranslationXByScale - maxMarginXPx
-    val maxTranslationYByScale = (screenHeightPx - screenHeightPx * minScale) / 2
-    val maxTranslationY = maxTranslationYByScale - maxMarginYPx
-    val minScaleReversed = 1f - minScale
-
     return BackAnimationSpec { backEvent, progressY, result ->
-        val direction = if (backEvent.swipeEdge == BackEvent.EDGE_LEFT) 1 else -1
+        val displayMetrics = displayMetricsProvider()
+        val screenWidthPx = displayMetrics.widthPixels
+        val screenHeightPx = displayMetrics.heightPixels
+
+        val maxMarginXPx = maxMarginXdp.dpToPx(displayMetrics)
+        val maxMarginYPx = maxMarginYdp.dpToPx(displayMetrics)
+        val maxTranslationXByScale = (screenWidthPx - screenWidthPx * minScale) / 2
+        val maxTranslationX = maxTranslationXByScale - maxMarginXPx
+        val maxTranslationYByScale = (screenHeightPx - screenHeightPx * minScale) / 2
+        val maxTranslationY = maxTranslationYByScale - maxMarginYPx
+        val minScaleReversed = 1f - minScale
+
+        val direction =
+            when (backEvent.swipeEdge) {
+                BackEvent.EDGE_LEFT -> 1
+                BackEvent.EDGE_RIGHT -> -1
+                else -> 0
+            }
         val progressX = backEvent.progress
 
         val ratioTranslateX = translateXEasing.getInterpolation(progressX)

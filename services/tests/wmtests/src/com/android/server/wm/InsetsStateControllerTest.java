@@ -32,6 +32,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.server.wm.WindowContainer.POSITION_TOP;
+import static com.android.server.wm.WindowStateAnimator.HAS_DRAWN;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -201,7 +202,12 @@ public class InsetsStateControllerTest extends WindowTestsBase {
                 .setWindowContainer(mImeWindow, null, null);
         getController().onImeControlTargetChanged(base);
         base.setRequestedVisibleTypes(ime(), ime());
-        getController().onRequestedVisibleTypesChanged(base);
+        getController().onRequestedVisibleTypesChanged(base, null /* statsToken */);
+        if (android.view.inputmethod.Flags.refactorInsetsController()) {
+            // to set the serverVisibility, the IME needs to be drawn and onPostLayout be called.
+            mImeWindow.mWinAnimator.mDrawState = HAS_DRAWN;
+            getController().onPostLayout();
+        }
 
         // Send our spy window (app) into the system so that we can detect the invocation.
         final WindowState win = createWindow(null, TYPE_APPLICATION, "app");
@@ -285,6 +291,8 @@ public class InsetsStateControllerTest extends WindowTestsBase {
         final WindowState statusBar = createWindow(null, TYPE_APPLICATION, "statusBar");
         final WindowState ime = createWindow(null, TYPE_INPUT_METHOD, "ime");
 
+        makeWindowVisible(statusBar);
+
         // IME cannot be the IME target.
         ime.mAttrs.flags |= FLAG_NOT_FOCUSABLE;
 
@@ -353,6 +361,17 @@ public class InsetsStateControllerTest extends WindowTestsBase {
     }
 
     @Test
+    public void testControlTargetChangedWhileProviderHasNoWindow() {
+        final WindowState app = createWindow(null, TYPE_APPLICATION, "app");
+        final InsetsSourceProvider provider = getController().getOrCreateSourceProvider(
+                ID_STATUS_BAR, statusBars());
+        getController().onBarControlTargetChanged(app, null, null, null);
+        assertNull(getController().getControlsForDispatch(app));
+        provider.setWindowContainer(createWindow(null, TYPE_APPLICATION, "statusBar"), null, null);
+        assertNotNull(getController().getControlsForDispatch(app));
+    }
+
+    @Test
     public void testTransientVisibilityOfFixedRotationState() {
         final WindowState statusBar = createWindow(null, TYPE_APPLICATION, "statusBar");
         final WindowState app = createWindow(null, TYPE_APPLICATION, "app");
@@ -371,6 +390,7 @@ public class InsetsStateControllerTest extends WindowTestsBase {
         mDisplayContent.getInsetsPolicy().updateBarControlTarget(app);
         mDisplayContent.getInsetsPolicy().showTransient(statusBars(),
                 true /* isGestureOnSystemBar */);
+        mWm.mAnimator.ready();
         waitUntilWindowAnimatorIdle();
 
         assertTrue(mDisplayContent.getInsetsPolicy().isTransient(statusBars()));
@@ -434,7 +454,7 @@ public class InsetsStateControllerTest extends WindowTestsBase {
 
         waitUntilHandlersIdle();
         clearInvocations(mDisplayContent);
-        imeSourceProvider.updateControlForTarget(app, false /* force */);
+        imeSourceProvider.updateControlForTarget(app, false /* force */, null /* statsToken */);
         imeSourceProvider.setClientVisible(true);
         verify(mDisplayContent).assignWindowLayers(anyBoolean());
         waitUntilHandlersIdle();
@@ -486,8 +506,14 @@ public class InsetsStateControllerTest extends WindowTestsBase {
         mDisplayContent.updateImeInputAndControlTarget(app);
 
         app.setRequestedVisibleTypes(ime(), ime());
-        getController().onRequestedVisibleTypesChanged(app);
+        getController().onRequestedVisibleTypesChanged(app, null /* statsToken */);
         assertTrue(ime.getControllableInsetProvider().getSource().isVisible());
+
+        if (android.view.inputmethod.Flags.refactorInsetsController()) {
+            // The IME is only set to shown, after onPostLayout is called and all preconditions
+            // (serverVisible, no givenInsetsPending, etc.) are fulfilled
+            getController().getImeSourceProvider().onPostLayout();
+        }
 
         getController().updateAboveInsetsState(true /* notifyInsetsChange */);
         assertNotNull(app.getInsetsState().peekSource(ID_IME));
@@ -533,7 +559,7 @@ public class InsetsStateControllerTest extends WindowTestsBase {
         imeInsetsProvider.setWindowContainer(mImeWindow, null, null);
         imeInsetsProvider.updateSourceFrame(mImeWindow.getFrame());
 
-        imeInsetsProvider.updateControlForTarget(app1, false);
+        imeInsetsProvider.updateControlForTarget(app1, false, null /* statsToken */);
         imeInsetsProvider.onPostLayout();
         final InsetsSourceControl control1 = imeInsetsProvider.getControl(app1);
         assertNotNull(control1);
@@ -542,7 +568,7 @@ public class InsetsStateControllerTest extends WindowTestsBase {
 
         // Simulate the IME control target updated from app1 to app2 when IME insets was invisible.
         imeInsetsProvider.setServerVisible(false);
-        imeInsetsProvider.updateControlForTarget(app2, false);
+        imeInsetsProvider.updateControlForTarget(app2, false, null /* statsToken */);
 
         // Verify insetsHint of the new control is same as last IME source frame after the layout.
         imeInsetsProvider.onPostLayout();
@@ -550,6 +576,24 @@ public class InsetsStateControllerTest extends WindowTestsBase {
         assertNotNull(control2);
         assertEquals(imeInsetsProvider.getSource().getFrame().height(),
                 control2.getInsetsHint().bottom);
+    }
+
+    @Test
+    public void testHasPendingControls() {
+        final WindowState statusBar = createWindow(null, TYPE_APPLICATION, "statusBar");
+        final WindowState app = createWindow(null, TYPE_APPLICATION, "app");
+        getController().getOrCreateSourceProvider(ID_STATUS_BAR, statusBars())
+                .setWindowContainer(statusBar, null, null);
+        // No controls dispatched yet.
+        assertFalse(getController().hasPendingControls(app));
+
+        getController().onBarControlTargetChanged(app, null, null, null);
+        // Controls pending to be dispatched.
+        assertTrue(getController().hasPendingControls(app));
+
+        performSurfacePlacementAndWaitForWindowAnimator();
+        // Pending controls were dispatched.
+        assertFalse(getController().hasPendingControls(app));
     }
 
     /** Creates a window which is associated with ActivityRecord. */

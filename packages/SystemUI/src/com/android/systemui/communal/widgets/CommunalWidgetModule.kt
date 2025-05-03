@@ -20,7 +20,7 @@ package com.android.systemui.communal.widgets
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.res.Resources
-import android.os.Looper
+import com.android.systemui.communal.shared.model.GlanceableHubMultiUserHelper
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -38,47 +38,43 @@ import kotlinx.coroutines.CoroutineScope
 @Module
 interface CommunalWidgetModule {
     companion object {
-        private const val APP_WIDGET_HOST_ID = 116
+        const val APP_WIDGET_HOST_ID = 116
         const val DEFAULT_WIDGETS = "default_widgets"
-
-        @SysUISingleton
-        @Provides
-        fun provideAppWidgetManager(@Application context: Context): Optional<AppWidgetManager> {
-            return Optional.ofNullable(AppWidgetManager.getInstance(context))
-        }
 
         @SysUISingleton
         @Provides
         fun provideCommunalAppWidgetHost(
             @Application context: Context,
             @Background backgroundScope: CoroutineScope,
-            interactionHandler: WidgetInteractionHandler,
-            @Main looper: Looper,
             @CommunalLog logBuffer: LogBuffer,
+            glanceableHubMultiUserHelper: GlanceableHubMultiUserHelper,
         ): CommunalAppWidgetHost {
             return CommunalAppWidgetHost(
                 context,
                 backgroundScope,
                 APP_WIDGET_HOST_ID,
-                interactionHandler,
-                looper,
                 logBuffer,
+                glanceableHubMultiUserHelper,
             )
         }
 
         @SysUISingleton
         @Provides
         fun provideCommunalWidgetHost(
+            @Application applicationScope: CoroutineScope,
             appWidgetManager: Optional<AppWidgetManager>,
             appWidgetHost: CommunalAppWidgetHost,
             selectedUserInteractor: SelectedUserInteractor,
             @CommunalLog logBuffer: LogBuffer,
+            glanceableHubMultiUserHelper: GlanceableHubMultiUserHelper,
         ): CommunalWidgetHost {
             return CommunalWidgetHost(
+                applicationScope,
                 appWidgetManager,
                 appWidgetHost,
                 selectedUserInteractor,
-                logBuffer
+                logBuffer,
+                glanceableHubMultiUserHelper,
             )
         }
 

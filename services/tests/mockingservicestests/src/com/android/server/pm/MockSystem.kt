@@ -140,6 +140,7 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
         PropertyInvalidatedCache.disableForTestMode()
         val apply = ExtendedMockito.mockitoSession()
                 .strictness(Strictness.LENIENT)
+                .mockStatic(SaferIntentUtils::class.java)
                 .mockStatic(SystemProperties::class.java)
                 .mockStatic(SystemConfig::class.java)
                 .mockStatic(SELinuxMMAC::class.java, Mockito.CALLS_REAL_METHODS)
@@ -166,7 +167,7 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
             null
         }
         whenever(mocks.settings.addPackageLPw(nullable(), nullable(), nullable(), nullable(),
-                nullable(), nullable(), nullable())) {
+                nullable(), nullable(), nullable(), nullable())) {
             val name: String = getArgument(0)
             val pendingAdd = mPendingPackageAdds.firstOrNull { it.first == name }
                     ?: return@whenever null
@@ -186,7 +187,7 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
 
     class Mocks {
         val lock = PackageManagerTracedLock()
-        val installLock = Any()
+        val installLock = PackageManagerTracedLock()
         val injector: PackageManagerServiceInjector = mock()
         val systemWrapper: PackageManagerServiceInjector.SystemWrapper = mock()
         val context: Context = mock()
@@ -217,6 +218,8 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
         val handler = TestHandler(null)
         val defaultAppProvider: DefaultAppProvider = mock()
         val backgroundHandler = TestHandler(null)
+        val packageInstallerService: PackageInstallerService = mock()
+        val installDependencyHelper: InstallDependencyHelper = mock()
         val updateOwnershipHelper: UpdateOwnershipHelper = mock()
     }
 
@@ -305,6 +308,7 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
         whenever(mocks.injector.handler) { mocks.handler }
         whenever(mocks.injector.defaultAppProvider) { mocks.defaultAppProvider }
         whenever(mocks.injector.backgroundHandler) { mocks.backgroundHandler }
+        whenever(mocks.injector.packageInstallerService) { mocks.packageInstallerService }
         whenever(mocks.injector.updateOwnershipHelper) { mocks.updateOwnershipHelper }
         whenever(mocks.injector.getSystemService(AppOpsManager::class.java)) { mocks.appOpsManager }
         wheneverStatic { SystemConfig.getInstance() }.thenReturn(mocks.systemConfig)
@@ -313,6 +317,7 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
         whenever(mocks.systemConfig.defaultVrComponents).thenReturn(ArraySet())
         whenever(mocks.systemConfig.hiddenApiWhitelistedApps).thenReturn(ArraySet())
         whenever(mocks.systemConfig.appMetadataFilePaths).thenReturn(ArrayMap())
+        whenever(mocks.systemConfig.oemDefinedUids).thenReturn(ArrayMap())
         wheneverStatic { SystemProperties.set(anyString(), anyString()) }.thenDoNothing()
         wheneverStatic { SystemProperties.getBoolean("fw.free_cache_v2", true) }.thenReturn(true)
         wheneverStatic { Environment.getApexDirectory() }.thenReturn(apexDirectory)
@@ -330,6 +335,8 @@ class MockSystem(withSession: (StaticMockitoSessionBuilder) -> Unit = {}) {
             DEVICE_PROVISIONING_PACKAGE_NAME
         }
         whenever(mocks.apexManager.activeApexInfos).thenReturn(DEFAULT_ACTIVE_APEX_INFO_LIST)
+        whenever(mocks.packageInstallerService.installDependencyHelper).thenReturn(
+            mocks.installDependencyHelper)
         whenever(mocks.settings.packagesLocked).thenReturn(mSettingsMap)
         whenever(mocks.settings.internalVersion).thenReturn(DEFAULT_VERSION_INFO)
         whenever(mocks.settings.keySetManagerService).thenReturn(mocks.keySetManagerService)

@@ -11,6 +11,7 @@ flag {
 
 flag {
     name: "fsverity_api"
+    is_exported: true
     namespace: "hardware_backed_security"
     description: "Feature flag for fs-verity API"
     bug: "285185747"
@@ -41,6 +42,16 @@ flag {
 }
 
 flag {
+    name: "secure_array_zeroization"
+    namespace: "security"
+    description: "Enable secure array zeroization"
+    bug: "320392352"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "deprecate_fsv_sig"
     namespace: "hardware_backed_security"
     description: "Feature flag for deprecating .fsv_sig"
@@ -64,10 +75,18 @@ flag {
 
 flag {
     name: "frp_enforcement"
+    is_exported: true
     namespace: "hardware_backed_security"
     description: "This flag controls whether PDB enforces FRP"
     bug: "290312729"
     is_fixed_read_only: true
+}
+
+flag {
+    name: "significant_places"
+    namespace: "biometrics"
+    description: "Enabled significant place monitoring"
+    bug: "337870680"
 }
 
 flag {
@@ -89,4 +108,43 @@ flag {
   namespace: "biometrics"
   description: "Causes TrustManagerService to listen for credential attempts and ignore reports from upstream"
   bug: "323086607"
+}
+
+flag {
+    name: "clear_strong_auth_on_add_primary_credential"
+    namespace: "biometrics"
+    description: "Clear StrongAuth on add credential"
+    bug: "320817991"
+}
+
+flag {
+    name: "afl_api"
+    namespace: "hardware_backed_security"
+    description: "AFL feature"
+    bug: "365994454"
+    is_exported: true
+}
+
+flag {
+    name: "protect_device_config_flags"
+    namespace: "psap_ai"
+    description: "Feature flag to limit adb shell to allowlisted flags"
+    bug: "364083026"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "keystore_grant_api"
+    namespace: "hardware_backed_security"
+    description: "Feature flag for exposing KeyStore grant APIs"
+    bug: "351158708"
+    is_exported: true
+}
+
+flag {
+    name: "secure_lockdown"
+    namespace: "biometrics"
+    description: "Feature flag for Secure Lockdown feature"
+    bug: "373422357"
+    is_exported: true
 }

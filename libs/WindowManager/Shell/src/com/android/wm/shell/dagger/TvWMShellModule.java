@@ -30,11 +30,11 @@ import com.android.wm.shell.common.MultiInstanceHelper;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
 import com.android.wm.shell.common.SystemWindows;
-import com.android.wm.shell.common.TransactionPool;
-import com.android.wm.shell.common.annotations.ShellMainThread;
+import com.android.wm.shell.common.split.SplitState;
 import com.android.wm.shell.dagger.pip.TvPipModule;
-import com.android.wm.shell.draganddrop.DragAndDropController;
 import com.android.wm.shell.recents.RecentTasksController;
+import com.android.wm.shell.shared.TransactionPool;
+import com.android.wm.shell.shared.annotations.ShellMainThread;
 import com.android.wm.shell.splitscreen.SplitScreenController;
 import com.android.wm.shell.splitscreen.tv.TvSplitScreenController;
 import com.android.wm.shell.startingsurface.StartingWindowTypeAlgorithm;
@@ -90,6 +90,7 @@ public class TvWMShellModule {
             Optional<RecentTasksController> recentTasks,
             LaunchAdjacentController launchAdjacentController,
             MultiInstanceHelper multiInstanceHelper,
+            SplitState splitState,
             @ShellMainThread ShellExecutor mainExecutor,
             Handler mainHandler,
             SystemWindows systemWindows) {
@@ -97,6 +98,6 @@ public class TvWMShellModule {
                 shellTaskOrganizer, syncQueue, rootTDAOrganizer, displayController,
                 displayImeController, displayInsetsController, transitions, transactionPool,
                 iconProvider, recentTasks, launchAdjacentController, multiInstanceHelper,
-                mainExecutor, mainHandler, systemWindows);
+                splitState, mainExecutor, mainHandler, systemWindows);
     }
 }

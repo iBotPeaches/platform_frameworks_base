@@ -43,9 +43,9 @@ import androidx.annotation.NonNull;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.logging.UiEventLogger;
 import com.android.keyguard.KeyguardUpdateMonitor;
-import com.android.systemui.res.R;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.FalsingManager;
+import com.android.systemui.res.R;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 
@@ -330,13 +330,19 @@ public class WalletScreenController implements
         QAWalletCardViewInfo(Context context, WalletCard walletCard) {
             mWalletCard = walletCard;
             Icon cardImageIcon = mWalletCard.getCardImage();
-            if (cardImageIcon.getType() == Icon.TYPE_URI) {
-                mCardDrawable = null;
-            } else {
+            if (cardImageIcon.getType() == Icon.TYPE_BITMAP
+                    || cardImageIcon.getType() == Icon.TYPE_ADAPTIVE_BITMAP) {
                 mCardDrawable = mWalletCard.getCardImage().loadDrawable(context);
+            } else {
+                mCardDrawable = null;
             }
             Icon icon = mWalletCard.getCardIcon();
-            mIconDrawable = icon == null ? null : icon.loadDrawable(context);
+            if (icon != null && (icon.getType() == Icon.TYPE_BITMAP
+                    || icon.getType() == Icon.TYPE_ADAPTIVE_BITMAP)) {
+                mIconDrawable = icon.loadDrawable(context);
+            } else {
+                mIconDrawable = null;
+            }
         }
 
         @Override

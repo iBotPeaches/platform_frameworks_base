@@ -22,7 +22,6 @@ import android.content.Intent
 import android.os.UserHandle
 import android.util.LayoutDirection
 import com.android.systemui.Dumpable
-import com.android.systemui.res.R
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
 import com.android.systemui.common.coroutine.ConflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
@@ -35,13 +34,17 @@ import com.android.systemui.keyguard.data.quickaffordance.KeyguardQuickAffordanc
 import com.android.systemui.keyguard.data.quickaffordance.KeyguardQuickAffordanceSelectionManager
 import com.android.systemui.keyguard.shared.model.KeyguardQuickAffordancePickerRepresentation
 import com.android.systemui.keyguard.shared.model.KeyguardSlotPickerRepresentation
+import com.android.systemui.res.R
 import com.android.systemui.settings.UserTracker
+import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.util.kotlin.FlowDumperImpl
 import java.io.PrintWriter
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -55,16 +58,26 @@ import kotlinx.coroutines.flow.stateIn
 class KeyguardQuickAffordanceRepository
 @Inject
 constructor(
-    @Application private val appContext: Context,
+    @ShadeDisplayAware private val appContext: Context,
     @Application private val scope: CoroutineScope,
     private val localUserSelectionManager: KeyguardQuickAffordanceLocalUserSelectionManager,
     private val remoteUserSelectionManager: KeyguardQuickAffordanceRemoteUserSelectionManager,
     private val userTracker: UserTracker,
     legacySettingSyncer: KeyguardQuickAffordanceLegacySettingSyncer,
-    private val configs: Set<@JvmSuppressWildcards KeyguardQuickAffordanceConfig>,
+    configs: Set<@JvmSuppressWildcards KeyguardQuickAffordanceConfig>,
     dumpManager: DumpManager,
     userHandle: UserHandle,
-) {
+) : FlowDumperImpl(dumpManager) {
+    /**
+     * Whether a quick affordance is being launched. Quick Affordances are interactive lockscreen UI
+     * elements that allow the user to perform quick actions without unlocking their device.
+     */
+    val launchingAffordance: MutableStateFlow<Boolean> =
+        MutableStateFlow(false).dumpValue("launchingAffordance")
+
+    // Configs for all keyguard quick affordances, mapped by the quick affordance ID as key
+    private val configsByAffordanceId: Map<String, KeyguardQuickAffordanceConfig> =
+        configs.associateBy { it.key }
     private val userId: Flow<Int> =
         ConflatedCallbackFlow.conflatedCallbackFlow {
             val callback =
@@ -109,11 +122,7 @@ constructor(
                     }
                 }
             }
-            .stateIn(
-                scope = scope,
-                started = SharingStarted.Eagerly,
-                initialValue = emptyMap(),
-            )
+            .stateIn(scope = scope, started = SharingStarted.Eagerly, initialValue = emptyMap())
 
     init {
         legacySettingSyncer.startSyncing()
@@ -126,7 +135,7 @@ constructor(
      */
     fun getCurrentSelections(slotId: String): List<KeyguardQuickAffordanceConfig> {
         val selections = selectionManager.value.getSelections().getOrDefault(slotId, emptyList())
-        return configs.filter { selections.contains(it.key) }
+        return configsByAffordanceId.values.filter { selections.contains(it.key) }
     }
 
     /**
@@ -141,14 +150,8 @@ constructor(
      * Updates the IDs of affordances to show at the slot with the given ID. The order of affordance
      * IDs should be descending priority order.
      */
-    fun setSelections(
-        slotId: String,
-        affordanceIds: List<String>,
-    ) {
-        selectionManager.value.setSelections(
-            slotId = slotId,
-            affordanceIds = affordanceIds,
-        )
+    fun setSelections(slotId: String, affordanceIds: List<String>) {
+        selectionManager.value.setSelections(slotId = slotId, affordanceIds = affordanceIds)
     }
 
     /**
@@ -159,7 +162,7 @@ constructor(
      */
     suspend fun getAffordancePickerRepresentations():
         List<KeyguardQuickAffordancePickerRepresentation> {
-        return configs
+        return configsByAffordanceId.values
             .associateWith { config -> config.getPickerScreenState() }
             .filterNot { (_, pickerState) ->
                 pickerState is KeyguardQuickAffordanceConfig.PickerScreenState.UnavailableOnDevice
@@ -219,11 +222,13 @@ constructor(
             val (slotId, slotCapacity) = parseSlot(unparsedSlot)
             check(!seenSlotIds.contains(slotId)) { "Duplicate slot \"$slotId\"!" }
             seenSlotIds.add(slotId)
-            KeyguardSlotPickerRepresentation(
-                id = slotId,
-                maxSelectedAffordances = slotCapacity,
-            )
+            KeyguardSlotPickerRepresentation(id = slotId, maxSelectedAffordances = slotCapacity)
         }
+    }
+
+    /** Get the config of a quick affordance. */
+    fun getConfig(quickAffordanceId: String): KeyguardQuickAffordanceConfig? {
+        return configsByAffordanceId[quickAffordanceId]
     }
 
     private inner class Dumpster : Dumpable {
@@ -246,7 +251,7 @@ constructor(
                 pw.println("    $slotId$selectionText (capacity = $capacity)")
             }
             pw.println("Available affordances on device:")
-            configs.forEach { config ->
+            configsByAffordanceId.values.forEach { config ->
                 pw.println("    ${config.key} (\"${config.pickerName()}\")")
             }
         }

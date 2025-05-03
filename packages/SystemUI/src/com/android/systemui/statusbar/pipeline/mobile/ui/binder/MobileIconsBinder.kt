@@ -20,11 +20,10 @@ import android.view.View
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.systemui.lifecycle.repeatWhenAttached
-import com.android.systemui.statusbar.phone.StatusBarIconController.IconManager
+import com.android.systemui.statusbar.phone.ui.IconManager
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 object MobileIconsBinder {
     /**

@@ -21,11 +21,13 @@ import android.os.Trace;
 import android.util.Slog;
 import android.view.Display;
 import android.view.DisplayAddress;
+import android.view.Surface;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.server.display.DisplayManagerService.SyncRoot;
 import com.android.server.display.utils.DebugUtils;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -176,9 +178,27 @@ class DisplayDeviceRepository implements DisplayAdapter.Listener {
                         "handleDisplayDeviceChanged");
             }
             int diff = device.mDebugLastLoggedDeviceInfo.diff(info);
-            if (diff == DisplayDeviceInfo.DIFF_STATE) {
+            if (diff == 0) {
+                Slog.i(TAG, "Display device same: " + info);
+            } else if (diff == DisplayDeviceInfo.DIFF_STATE) {
                 Slog.i(TAG, "Display device changed state: \"" + info.name
                         + "\", " + Display.stateToString(info.state));
+            } else if (diff == DisplayDeviceInfo.DIFF_ROTATION) {
+                Slog.i(TAG, "Display device rotated: \"" + info.name
+                        + "\", " + Surface.rotationToString(info.rotation));
+            } else if ((diff &
+                    (DisplayDeviceInfo.DIFF_MODE_ID | DisplayDeviceInfo.DIFF_RENDER_TIMINGS
+                            | DisplayDeviceInfo.DIFF_FRAME_RATE_OVERRIDE)) != 0) {
+                Slog.i(TAG, "Display device changed render timings: \"" + info.name
+                        + "\", renderFrameRate=" + info.renderFrameRate
+                        + ", presentationDeadlineNanos=" + info.presentationDeadlineNanos
+                        + ", appVsyncOffsetNanos=" + info.appVsyncOffsetNanos
+                        + ", frameRateOverrides=" + Arrays.toString(info.frameRateOverrides));
+            } else if (diff == DisplayDeviceInfo.DIFF_COMMITTED_STATE) {
+                if (DEBUG) {
+                    Slog.i(TAG, "Display device changed committed state: \"" + info.name
+                            + "\", " + Display.stateToString(info.committedState));
+                }
             } else if (diff != DisplayDeviceInfo.DIFF_HDR_SDR_RATIO) {
                 Slog.i(TAG, "Display device changed: " + info);
             }

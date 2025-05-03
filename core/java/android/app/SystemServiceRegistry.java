@@ -16,6 +16,10 @@
 
 package android.app;
 
+import static android.app.appfunctions.flags.Flags.enableAppFunctionManager;
+import static android.provider.flags.Flags.stageFlagsForBuild;
+import static android.server.Flags.removeGameManagerServiceFromWear;
+
 import android.accounts.AccountManager;
 import android.accounts.IAccountManager;
 import android.adservices.AdServicesFrameworkInitializer;
@@ -28,12 +32,17 @@ import android.app.admin.DevicePolicyManager;
 import android.app.admin.IDevicePolicyManager;
 import android.app.ambientcontext.AmbientContextManager;
 import android.app.ambientcontext.IAmbientContextManager;
+import android.app.appfunctions.AppFunctionManager;
+import android.app.appfunctions.AppFunctionManagerConfiguration;
+import android.app.appfunctions.IAppFunctionManager;
 import android.app.appsearch.AppSearchManagerFrameworkInitializer;
 import android.app.blob.BlobStoreManagerFrameworkInitializer;
 import android.app.contentsuggestions.ContentSuggestionsManager;
 import android.app.contentsuggestions.IContentSuggestionsManager;
+import android.app.contextualsearch.ContextualSearchManager;
 import android.app.ecm.EnhancedConfirmationFrameworkInitializer;
 import android.app.job.JobSchedulerFrameworkInitializer;
+import android.app.ondeviceintelligence.OnDeviceIntelligenceFrameworkInitializer;
 import android.app.people.PeopleManager;
 import android.app.prediction.AppPredictionManager;
 import android.app.role.RoleFrameworkInitializer;
@@ -41,6 +50,8 @@ import android.app.sdksandbox.SdkSandboxManagerFrameworkInitializer;
 import android.app.search.SearchUiManager;
 import android.app.slice.SliceManager;
 import android.app.smartspace.SmartspaceManager;
+import android.app.supervision.ISupervisionManager;
+import android.app.supervision.SupervisionManager;
 import android.app.time.TimeManager;
 import android.app.timedetector.TimeDetector;
 import android.app.timedetector.TimeDetectorImpl;
@@ -63,13 +74,13 @@ import android.companion.ICompanionDeviceManager;
 import android.companion.virtual.IVirtualDeviceManager;
 import android.companion.virtual.VirtualDeviceManager;
 import android.compat.Compatibility;
+import android.compat.annotation.ChangeId;
+import android.compat.annotation.EnabledAfter;
 import android.content.ClipboardManager;
 import android.content.ContentCaptureOptions;
 import android.content.Context;
 import android.content.IRestrictionsManager;
 import android.content.RestrictionsManager;
-import android.content.integrity.AppIntegrityManager;
-import android.content.integrity.IAppIntegrityManager;
 import android.content.om.IOverlayManager;
 import android.content.om.OverlayManager;
 import android.content.pm.ApplicationInfo;
@@ -92,6 +103,7 @@ import android.debug.IAdbManager;
 import android.devicelock.DeviceLockFrameworkInitializer;
 import android.graphics.fonts.FontManager;
 import android.hardware.ConsumerIrManager;
+import android.hardware.ISensorPrivacyManager;
 import android.hardware.ISerialManager;
 import android.hardware.SensorManager;
 import android.hardware.SensorPrivacyManager;
@@ -136,6 +148,8 @@ import android.media.midi.MidiManager;
 import android.media.musicrecognition.IMusicRecognitionManager;
 import android.media.musicrecognition.MusicRecognitionManager;
 import android.media.projection.MediaProjectionManager;
+import android.media.quality.IMediaQualityManager;
+import android.media.quality.MediaQualityManager;
 import android.media.soundtrigger.SoundTriggerManager;
 import android.media.tv.ITvInputManager;
 import android.media.tv.TvInputManager;
@@ -147,6 +161,7 @@ import android.media.tv.tunerresourcemanager.ITunerResourceManager;
 import android.media.tv.tunerresourcemanager.TunerResourceManager;
 import android.nearby.NearbyFrameworkInitializer;
 import android.net.ConnectivityFrameworkInitializer;
+import android.net.ConnectivityFrameworkInitializerBaklava;
 import android.net.ConnectivityFrameworkInitializerTiramisu;
 import android.net.INetworkPolicyManager;
 import android.net.IPacProxyManager;
@@ -157,8 +172,6 @@ import android.net.NetworkWatchlistManager;
 import android.net.PacProxyManager;
 import android.net.TetheringManager;
 import android.net.VpnManager;
-import android.net.vcn.IVcnManagementService;
-import android.net.vcn.VcnManager;
 import android.net.wifi.WifiFrameworkInitializer;
 import android.net.wifi.nl80211.WifiNl80211Manager;
 import android.net.wifi.sharedconnectivity.app.SharedConnectivityManager;
@@ -175,6 +188,7 @@ import android.os.IBatteryPropertiesRegistrar;
 import android.os.IBinder;
 import android.os.IDumpstate;
 import android.os.IHardwarePropertiesManager;
+import android.os.IHintManager;
 import android.os.IPowerManager;
 import android.os.IPowerStatsService;
 import android.os.IRecoverySystem;
@@ -200,6 +214,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.os.flagging.ConfigInfrastructureFrameworkInitializer;
 import android.os.health.SystemHealthManager;
 import android.os.image.DynamicSystemManager;
 import android.os.image.IDynamicSystemService;
@@ -213,12 +228,21 @@ import android.permission.PermissionManager;
 import android.print.IPrintManager;
 import android.print.PrintManager;
 import android.provider.E2eeContactKeysManager;
+import android.provider.ProviderFrameworkInitializer;
+import android.ranging.RangingFrameworkInitializer;
 import android.safetycenter.SafetyCenterFrameworkInitializer;
 import android.scheduling.SchedulingFrameworkInitializer;
 import android.security.FileIntegrityManager;
 import android.security.IFileIntegrityService;
+import android.security.advancedprotection.AdvancedProtectionManager;
+import android.security.advancedprotection.IAdvancedProtectionService;
 import android.security.attestationverification.AttestationVerificationManager;
 import android.security.attestationverification.IAttestationVerificationManagerService;
+import android.security.authenticationpolicy.AuthenticationPolicyManager;
+import android.security.authenticationpolicy.IAuthenticationPolicyService;
+import android.security.intrusiondetection.IIntrusionDetectionService;
+import android.security.intrusiondetection.IntrusionDetectionManager;
+import android.security.keystore.KeyStoreManager;
 import android.service.oemlock.IOemLockService;
 import android.service.oemlock.OemLockManager;
 import android.service.persistentdata.IPersistentDataBlockService;
@@ -265,6 +289,7 @@ import com.android.internal.os.IDropBoxManagerService;
 import com.android.internal.policy.PhoneLayoutInflater;
 import com.android.internal.util.Preconditions;
 
+import java.time.InstantSource;
 import java.util.Map;
 import java.util.Objects;
 
@@ -280,6 +305,16 @@ public final class SystemServiceRegistry {
 
     /** @hide */
     public static boolean sEnableServiceNotFoundWtf = false;
+
+    /**
+     * After {@link Build.VERSION_CODES.VANILLA_ICE_CREAM}, Wear devices will be allowed to publish
+     * no {@link GameManager} instance. This is because the respective system service is no longer
+     * started for Wear devices given that the applications of the service do not currently apply to
+     * Wear.
+     */
+    @ChangeId
+    @EnabledAfter(targetSdkVersion = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    static final long NULL_GAME_MANAGER_IN_WEAR = 340929737;
 
     // Service registry information.
     // This information is never changed once static initialization has completed.
@@ -439,16 +474,12 @@ public final class SystemServiceRegistry {
             public VpnManager createService(ContextImpl ctx) throws ServiceNotFoundException {
                 IBinder b = ServiceManager.getService(Context.VPN_MANAGEMENT_SERVICE);
                 IVpnManager service = IVpnManager.Stub.asInterface(b);
+                if (service == null
+                        && ctx.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)
+                        && android.server.Flags.allowRemovingVpnService()) {
+                    return null;
+                }
                 return new VpnManager(ctx, service);
-            }});
-
-        registerService(Context.VCN_MANAGEMENT_SERVICE, VcnManager.class,
-                new CachedServiceFetcher<VcnManager>() {
-            @Override
-            public VcnManager createService(ContextImpl ctx) throws ServiceNotFoundException {
-                IBinder b = ServiceManager.getService(Context.VCN_MANAGEMENT_SERVICE);
-                IVcnManagementService service = IVcnManagementService.Stub.asInterface(b);
-                return new VcnManager(ctx, service);
             }});
 
         registerService(Context.COUNTRY_DETECTOR, CountryDetector.class,
@@ -544,6 +575,11 @@ public final class SystemServiceRegistry {
             @Override
             public TextServicesManager createService(ContextImpl ctx)
                     throws ServiceNotFoundException {
+                 if (ctx.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)
+                        && ServiceManager.getService(Context.TEXT_SERVICES_MANAGER_SERVICE) == null
+                        && android.server.Flags.removeTextService()) {
+                    return null;
+                }
                 return TextServicesManager.createInstance(ctx);
             }});
 
@@ -590,7 +626,7 @@ public final class SystemServiceRegistry {
                                     com.android.internal.R.style.Theme_Holo_Dialog,
                                     com.android.internal.R.style.Theme_DeviceDefault_Dialog,
                                     com.android.internal.R.style.Theme_DeviceDefault_Light_Dialog)),
-                    ctx.mMainThread.getHandler());
+                    InstantSource.system());
             }});
 
         registerService(Context.PEOPLE_SERVICE, PeopleManager.class,
@@ -659,8 +695,12 @@ public final class SystemServiceRegistry {
         registerService(Context.SENSOR_PRIVACY_SERVICE, SensorPrivacyManager.class,
                 new CachedServiceFetcher<SensorPrivacyManager>() {
                     @Override
-                    public SensorPrivacyManager createService(ContextImpl ctx) {
-                        return SensorPrivacyManager.getInstance(ctx);
+                    public SensorPrivacyManager createService(ContextImpl ctx)
+                            throws ServiceNotFoundException {
+                        IBinder b = ServiceManager.getServiceOrThrow(
+                                Context.SENSOR_PRIVACY_SERVICE);
+                        return SensorPrivacyManager.getInstance(
+                                ctx, ISensorPrivacyManager.Stub.asInterface(b));
                     }});
 
         registerService(Context.STATUS_BAR_SERVICE, StatusBarManager.class,
@@ -884,6 +924,23 @@ public final class SystemServiceRegistry {
                 return new CompanionDeviceManager(service, ctx.getOuterContext());
             }});
 
+        if (enableAppFunctionManager()) {
+            registerService(Context.APP_FUNCTION_SERVICE, AppFunctionManager.class,
+                    new CachedServiceFetcher<>() {
+                        @Override
+                        public AppFunctionManager createService(ContextImpl ctx)
+                                throws ServiceNotFoundException {
+                            if (!AppFunctionManagerConfiguration.isSupported(ctx)) {
+                                return null;
+                            }
+                            IAppFunctionManager service;
+                            service = IAppFunctionManager.Stub.asInterface(
+                                    ServiceManager.getServiceOrThrow(Context.APP_FUNCTION_SERVICE));
+                            return new AppFunctionManager(service, ctx.getOuterContext());
+                        }
+                    });
+        }
+
         registerService(Context.VIRTUAL_DEVICE_SERVICE, VirtualDeviceManager.class,
                 new CachedServiceFetcher<VirtualDeviceManager>() {
             @Override
@@ -965,6 +1022,25 @@ public final class SystemServiceRegistry {
                         final IAuthService service =
                                 IAuthService.Stub.asInterface(binder);
                         return new BiometricManager(ctx.getOuterContext(), service);
+                    }
+                });
+
+        registerService(Context.AUTHENTICATION_POLICY_SERVICE,
+                AuthenticationPolicyManager.class,
+                new CachedServiceFetcher<AuthenticationPolicyManager>() {
+                    @Override
+                    public AuthenticationPolicyManager createService(ContextImpl ctx)
+                            throws ServiceNotFoundException {
+                        if (!android.security.Flags.secureLockdown()) {
+                            throw new ServiceNotFoundException(
+                                    Context.AUTHENTICATION_POLICY_SERVICE);
+                        }
+
+                        final IBinder binder = ServiceManager.getServiceOrThrow(
+                                Context.AUTHENTICATION_POLICY_SERVICE);
+                        final IAuthenticationPolicyService service =
+                                IAuthenticationPolicyService.Stub.asInterface(binder);
+                        return new AuthenticationPolicyManager(ctx.getOuterContext(), service);
                     }
                 });
 
@@ -1143,8 +1219,10 @@ public final class SystemServiceRegistry {
             public SystemHealthManager createService(ContextImpl ctx) throws ServiceNotFoundException {
                 IBinder batteryStats = ServiceManager.getServiceOrThrow(BatteryStats.SERVICE_NAME);
                 IBinder powerStats = ServiceManager.getService(Context.POWER_STATS_SERVICE);
+                IBinder perfHint = ServiceManager.getService(Context.PERFORMANCE_HINT_SERVICE);
                 return new SystemHealthManager(IBatteryStats.Stub.asInterface(batteryStats),
-                        IPowerStatsService.Stub.asInterface(powerStats));
+                        IPowerStatsService.Stub.asInterface(powerStats),
+                        IHintManager.Stub.asInterface(perfHint));
             }});
 
         registerService(Context.CONTEXTHUB_SERVICE, ContextHubManager.class,
@@ -1279,6 +1357,16 @@ public final class SystemServiceRegistry {
                     return b == null ? null : new SmartspaceManager(ctx);
                 }
             });
+
+        registerService(Context.CONTEXTUAL_SEARCH_SERVICE, ContextualSearchManager.class,
+                new CachedServiceFetcher<>() {
+                    @Override
+                    public ContextualSearchManager createService(ContextImpl ctx)
+                            throws ServiceNotFoundException {
+                        IBinder b = ServiceManager.getService(Context.CONTEXTUAL_SEARCH_SERVICE);
+                        return b == null ? null : new ContextualSearchManager();
+                    }
+                });
 
         registerService(Context.APP_PREDICTION_SERVICE, AppPredictionManager.class,
                 new CachedServiceFetcher<AppPredictionManager>() {
@@ -1491,16 +1579,6 @@ public final class SystemServiceRegistry {
                         return new AttestationVerificationManager(ctx.getOuterContext(),
                                 IAttestationVerificationManagerService.Stub.asInterface(b));
                     }});
-
-        //CHECKSTYLE:ON IndentationCheck
-        registerService(Context.APP_INTEGRITY_SERVICE, AppIntegrityManager.class,
-                new CachedServiceFetcher<AppIntegrityManager>() {
-                    @Override
-                    public AppIntegrityManager createService(ContextImpl ctx)
-                            throws ServiceNotFoundException {
-                        IBinder b = ServiceManager.getServiceOrThrow(Context.APP_INTEGRITY_SERVICE);
-                        return new AppIntegrityManager(IAppIntegrityManager.Stub.asInterface(b));
-                    }});
         registerService(Context.APP_HIBERNATION_SERVICE, AppHibernationManager.class,
                 new CachedServiceFetcher<AppHibernationManager>() {
                     @Override
@@ -1539,8 +1617,24 @@ public final class SystemServiceRegistry {
                     @Override
                     public GameManager createService(ContextImpl ctx)
                             throws ServiceNotFoundException {
-                        return new GameManager(ctx.getOuterContext(),
-                                ctx.mMainThread.getHandler());
+                        final PackageManager pm = ctx.getPackageManager();
+                        final boolean isWatch = pm.hasSystemFeature(PackageManager.FEATURE_WATCH);
+                        final IBinder binder =
+                                // Allow a potentially absent GameManagerService only for
+                                // Wear devices. For non-Wear devices, throw a
+                                // ServiceNotFoundException when the service is missing.
+                                (removeGameManagerServiceFromWear() && isWatch)
+                                        ? ServiceManager.getService(Context.GAME_SERVICE)
+                                        : ServiceManager.getServiceOrThrow(Context.GAME_SERVICE);
+
+                        if (binder == null
+                                && Compatibility.isChangeEnabled(NULL_GAME_MANAGER_IN_WEAR)) {
+                            return null;
+                        }
+
+                        return new GameManager(
+                                ctx.getOuterContext(),
+                                IGameManagerService.Stub.asInterface(binder));
                     }
                 });
 
@@ -1582,11 +1676,20 @@ public final class SystemServiceRegistry {
                     @Override
                     public WearableSensingManager createService(ContextImpl ctx)
                             throws ServiceNotFoundException {
-                        IBinder iBinder = ServiceManager.getServiceOrThrow(
+                        IBinder iBinder = ServiceManager.getService(
                                 Context.WEARABLE_SENSING_SERVICE);
-                        IWearableSensingManager manager =
-                                IWearableSensingManager.Stub.asInterface(iBinder);
-                        return new WearableSensingManager(ctx.getOuterContext(), manager);
+                        if (iBinder != null) {
+                            IWearableSensingManager manager =
+                                    IWearableSensingManager.Stub.asInterface(iBinder);
+                            return new WearableSensingManager(ctx.getOuterContext(), manager);
+                        }
+                        // Wear intentionally removes the service, so do not throw a
+                        // ServiceNotFoundException when the service is not absent.
+                        if (ctx.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)
+                                && android.server.Flags.removeWearableSensingServiceFromWear()) {
+                            return null;
+                        }
+                        throw new ServiceNotFoundException(Context.WEARABLE_SENSING_SERVICE);
                     }});
 
         registerService(Context.GRAMMATICAL_INFLECTION_SERVICE, GrammaticalInflectionManager.class,
@@ -1608,6 +1711,17 @@ public final class SystemServiceRegistry {
                     }
                 });
 
+        registerService(Context.KEYSTORE_SERVICE, KeyStoreManager.class,
+                new StaticServiceFetcher<KeyStoreManager>() {
+                    @Override
+                    public KeyStoreManager createService()
+                            throws ServiceNotFoundException {
+                        if (!android.security.Flags.keystoreGrantApi()) {
+                            throw new ServiceNotFoundException("KeyStoreManager is not supported");
+                        }
+                        return KeyStoreManager.getInstance();
+                    }});
+
         registerService(Context.CONTACT_KEYS_SERVICE, E2eeContactKeysManager.class,
                 new CachedServiceFetcher<E2eeContactKeysManager>() {
                     @Override
@@ -1619,6 +1733,39 @@ public final class SystemServiceRegistry {
                         }
                         return new E2eeContactKeysManager(ctx);
                     }});
+
+        registerService(Context.SUPERVISION_SERVICE, SupervisionManager.class,
+                new CachedServiceFetcher<>() {
+                    @Override
+                    public SupervisionManager createService(ContextImpl ctx)
+                            throws ServiceNotFoundException {
+                        if (!android.app.supervision.flags.Flags.supervisionApi()) {
+                            throw new ServiceNotFoundException(
+                                    "SupervisionManager is not supported");
+                        }
+                        IBinder iBinder = ServiceManager.getServiceOrThrow(
+                                Context.SUPERVISION_SERVICE);
+                        ISupervisionManager service = ISupervisionManager.Stub.asInterface(iBinder);
+                        return new SupervisionManager(ctx, service);
+                    }
+                });
+        if (android.security.Flags.aapmApi()) {
+            registerService(Context.ADVANCED_PROTECTION_SERVICE, AdvancedProtectionManager.class,
+                    new CachedServiceFetcher<>() {
+                        @Override
+                        public AdvancedProtectionManager createService(ContextImpl ctx)
+                                throws ServiceNotFoundException {
+                            IBinder iBinder = ServiceManager.getService(
+                                    Context.ADVANCED_PROTECTION_SERVICE);
+                            IAdvancedProtectionService service =
+                                    IAdvancedProtectionService.Stub.asInterface(iBinder);
+                            if (service == null) {
+                                return null;
+                            }
+                            return new AdvancedProtectionManager(service);
+                        }
+                    });
+        }
 
         // DO NOT do a flag check like this unless the flag is read-only.
         // (because this code is executed during preload in zygote.)
@@ -1633,6 +1780,36 @@ public final class SystemServiceRegistry {
                         }
                     });
         }
+        registerService(Context.MEDIA_QUALITY_SERVICE, MediaQualityManager.class,
+                new CachedServiceFetcher<MediaQualityManager>() {
+                    @Override
+                    public MediaQualityManager createService(ContextImpl ctx)
+                            throws ServiceNotFoundException {
+                        IBinder iBinder = ServiceManager
+                                .getServiceOrThrow(Context.MEDIA_QUALITY_SERVICE);
+                        IMediaQualityManager service = IMediaQualityManager
+                                .Stub.asInterface(iBinder);
+                        return new MediaQualityManager(ctx, service);
+                    }
+                });
+
+        registerService(Context.INTRUSION_DETECTION_SERVICE, IntrusionDetectionManager.class,
+                new CachedServiceFetcher<IntrusionDetectionManager>() {
+                    @Override
+                    public IntrusionDetectionManager createService(ContextImpl ctx)
+                            throws ServiceNotFoundException {
+                        if (!android.security.Flags.aflApi()) {
+                            throw new ServiceNotFoundException(
+                                    "Intrusion Detection is not supported");
+                        }
+                        IBinder b = ServiceManager.getServiceOrThrow(
+                                Context.INTRUSION_DETECTION_SERVICE);
+                        IIntrusionDetectionService service =
+                                IIntrusionDetectionService.Stub.asInterface(b);
+                        return new IntrusionDetectionManager(service);
+                    }
+                });
+
         sInitializing = true;
         try {
             // Note: the following functions need to be @SystemApis, once they become mainline
@@ -1659,8 +1836,18 @@ public final class SystemServiceRegistry {
             ConnectivityFrameworkInitializerTiramisu.registerServiceWrappers();
             NearbyFrameworkInitializer.registerServiceWrappers();
             OnDevicePersonalizationFrameworkInitializer.registerServiceWrappers();
+            OnDeviceIntelligenceFrameworkInitializer.registerServiceWrappers();
             DeviceLockFrameworkInitializer.registerServiceWrappers();
             VirtualizationFrameworkInitializer.registerServiceWrappers();
+            ConnectivityFrameworkInitializerBaklava.registerServiceWrappers();
+
+            if (stageFlagsForBuild()) {
+                ConfigInfrastructureFrameworkInitializer.registerServiceWrappers();
+            }
+
+            if (com.android.server.telecom.flags.Flags.telecomMainlineBlockedNumbersManager()) {
+                ProviderFrameworkInitializer.registerServiceWrappers();
+            }
             // This code is executed on zygote during preload, where only read-only
             // flags can be used. Do not use mutable flags.
             if (android.permission.flags.Flags.enhancedConfirmationModeApisEnabled()) {
@@ -1672,6 +1859,12 @@ public final class SystemServiceRegistry {
             if (android.webkit.Flags.updateServiceIpcWrapper()) {
                 WebViewBootstrapFrameworkInitializer.registerServiceWrappers();
             }
+            // This is guarded by aconfig flag "com.android.ranging.flags.ranging_stack_enabled"
+            // when the build flag RELEASE_RANGING_STACK is enabled. When disabled, this calls the
+            // mock RangingFrameworkInitializer#registerServiceWrappers which is no-op. As the
+            // aconfig lib for ranging module is built only if  RELEASE_RANGING_STACK is enabled,
+            // flagcannot be added here.
+            RangingFrameworkInitializer.registerServiceWrappers();
         } finally {
             // If any of the above code throws, we're in a pretty bad shape and the process
             // will likely crash, but we'll reset it just in case there's an exception handler...
@@ -1706,6 +1899,13 @@ public final class SystemServiceRegistry {
         return fetcher;
     }
 
+    private static boolean hasSystemFeatureOpportunistic(@NonNull ContextImpl ctx,
+            @NonNull String featureName) {
+        PackageManager manager = ctx.getPackageManager();
+        if (manager == null) return true;
+        return manager.hasSystemFeature(featureName);
+    }
+
     /**
      * Gets a system service from a given context.
      * @hide
@@ -1728,12 +1928,29 @@ public final class SystemServiceRegistry {
                 case Context.VIRTUALIZATION_SERVICE:
                 case Context.VIRTUAL_DEVICE_SERVICE:
                     return null;
-                case Context.SEARCH_SERVICE:
-                    // Wear device does not support SEARCH_SERVICE so we do not print WTF here
-                    PackageManager manager = ctx.getPackageManager();
-                    if (manager != null && manager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+                case Context.VCN_MANAGEMENT_SERVICE:
+                    if (!hasSystemFeatureOpportunistic(ctx,
+                            PackageManager.FEATURE_TELEPHONY_SUBSCRIPTION)) {
                         return null;
                     }
+                    break;
+                case Context.SEARCH_SERVICE:
+                    // Wear device does not support SEARCH_SERVICE so we do not print WTF here
+                    if (hasSystemFeatureOpportunistic(ctx, PackageManager.FEATURE_WATCH)) {
+                        return null;
+                    }
+                    break;
+                case Context.APPWIDGET_SERVICE:
+                    if (!hasSystemFeatureOpportunistic(ctx, PackageManager.FEATURE_APP_WIDGETS)) {
+                        return null;
+                    }
+                    break;
+                case Context.TEXT_SERVICES_MANAGER_SERVICE:
+                    if (android.server.Flags.removeTextService()
+                            && hasSystemFeatureOpportunistic(ctx, PackageManager.FEATURE_WATCH)) {
+                        return null;
+                    }
+                    break;
             }
             Slog.wtf(TAG, "Manager wrapper not available: " + name);
             return null;

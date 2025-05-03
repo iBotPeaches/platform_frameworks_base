@@ -16,14 +16,19 @@
 
 package com.android.systemui.statusbar.notification.data.model
 
+import android.app.PendingIntent
 import android.graphics.drawable.Icon
+import com.android.systemui.statusbar.StatusBarIconView
+import com.android.systemui.statusbar.notification.promoted.shared.model.PromotedNotificationContentModel
 import com.android.systemui.statusbar.notification.shared.ActiveNotificationModel
+import com.android.systemui.statusbar.notification.shared.CallType
 import com.android.systemui.statusbar.notification.stack.BUCKET_UNKNOWN
 
 /** Simple ActiveNotificationModel builder for use in tests. */
 fun activeNotificationModel(
     key: String,
     groupKey: String? = null,
+    whenTime: Long = 0L,
     isAmbient: Boolean = false,
     isRowDismissed: Boolean = false,
     isSilent: Boolean = false,
@@ -33,15 +38,20 @@ fun activeNotificationModel(
     aodIcon: Icon? = null,
     shelfIcon: Icon? = null,
     statusBarIcon: Icon? = null,
+    statusBarChipIcon: StatusBarIconView? = null,
     uid: Int = 0,
     instanceId: Int? = null,
     isGroupSummary: Boolean = false,
     packageName: String = "pkg",
+    contentIntent: PendingIntent? = null,
     bucket: Int = BUCKET_UNKNOWN,
+    callType: CallType = CallType.None,
+    promotedContent: PromotedNotificationContentModel? = null,
 ) =
     ActiveNotificationModel(
         key = key,
         groupKey = groupKey,
+        whenTime = whenTime,
         isAmbient = isAmbient,
         isRowDismissed = isRowDismissed,
         isSilent = isSilent,
@@ -51,9 +61,13 @@ fun activeNotificationModel(
         aodIcon = aodIcon,
         shelfIcon = shelfIcon,
         statusBarIcon = statusBarIcon,
+        statusBarChipIconView = statusBarChipIcon,
         uid = uid,
         packageName = packageName,
+        contentIntent = contentIntent,
         instanceId = instanceId,
         isGroupSummary = isGroupSummary,
         bucket = bucket,
+        callType = callType,
+        promotedContent = promotedContent,
     )

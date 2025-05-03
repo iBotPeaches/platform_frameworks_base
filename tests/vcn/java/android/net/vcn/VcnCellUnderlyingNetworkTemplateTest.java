@@ -23,11 +23,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.HashSet;
 import java.util.Set;
 
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class VcnCellUnderlyingNetworkTemplateTest extends VcnUnderlyingNetworkTemplateTestBase {
     private static final Set<String> ALLOWED_PLMN_IDS = new HashSet<>();
     private static final Set<Integer> ALLOWED_CARRIER_IDS = new HashSet<>();

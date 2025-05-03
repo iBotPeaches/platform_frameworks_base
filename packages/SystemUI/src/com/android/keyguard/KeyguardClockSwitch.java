@@ -3,7 +3,6 @@ package com.android.keyguard;
 import static com.android.keyguard.KeyguardStatusAreaView.TRANSLATE_X_CLOCK_DESIGN;
 import static com.android.keyguard.KeyguardStatusAreaView.TRANSLATE_Y_CLOCK_DESIGN;
 import static com.android.keyguard.KeyguardStatusAreaView.TRANSLATE_Y_CLOCK_SIZE;
-import static com.android.systemui.Flags.migrateClocksToBlueprint;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -23,6 +22,7 @@ import androidx.core.content.res.ResourcesCompat;
 
 import com.android.app.animation.Interpolators;
 import com.android.keyguard.dagger.KeyguardStatusViewScope;
+import com.android.systemui.keyguard.MigrateClocksToBlueprint;
 import com.android.systemui.log.LogBuffer;
 import com.android.systemui.log.core.LogLevel;
 import com.android.systemui.plugins.clocks.ClockController;
@@ -147,7 +147,7 @@ public class KeyguardClockSwitch extends RelativeLayout {
         mClockSwitchYAmount = mContext.getResources().getDimensionPixelSize(
                 R.dimen.keyguard_clock_switch_y_shift);
         mSmartspaceTopOffset = (int) (mContext.getResources().getDimensionPixelSize(
-                        R.dimen.keyguard_smartspace_top_offset)
+                com.android.systemui.customization.R.dimen.keyguard_smartspace_top_offset)
                 * mContext.getResources().getConfiguration().fontScale
                 / mContext.getResources().getDisplayMetrics().density
                 * SMARTSPACE_TOP_PADDING_MULTIPLIER);
@@ -192,13 +192,17 @@ public class KeyguardClockSwitch extends RelativeLayout {
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
-        if (!migrateClocksToBlueprint()) {
-            mSmallClockFrame = findViewById(R.id.lockscreen_clock_view);
-            mLargeClockFrame = findViewById(R.id.lockscreen_clock_view_large);
+        if (!MigrateClocksToBlueprint.isEnabled()) {
+            mSmallClockFrame = findViewById(
+                    com.android.systemui.customization.R.id.lockscreen_clock_view);
+            mLargeClockFrame = findViewById(
+                    com.android.systemui.customization.R.id.lockscreen_clock_view_large);
             mStatusArea = findViewById(R.id.keyguard_status_area);
         } else {
-            removeView(findViewById(R.id.lockscreen_clock_view));
-            removeView(findViewById(R.id.lockscreen_clock_view_large));
+            removeView(findViewById(
+                    com.android.systemui.customization.R.id.lockscreen_clock_view));
+            removeView(findViewById(
+                    com.android.systemui.customization.R.id.lockscreen_clock_view_large));
         }
         onConfigChanged();
     }
@@ -266,7 +270,7 @@ public class KeyguardClockSwitch extends RelativeLayout {
     }
 
     void updateClockTargetRegions() {
-        if (migrateClocksToBlueprint()) {
+        if (MigrateClocksToBlueprint.isEnabled()) {
             return;
         }
         if (mClock != null) {
@@ -461,7 +465,8 @@ public class KeyguardClockSwitch extends RelativeLayout {
         super.onLayout(changed, l, t, r, b);
         // TODO: b/305022530
         if (mClock != null && mClock.getConfig().getId().equals("DIGITAL_CLOCK_METRO")) {
-            mClock.getEvents().onColorPaletteChanged(mContext.getResources());
+            mClock.getSmallClock().getEvents().onThemeChanged(mClock.getSmallClock().getTheme());
+            mClock.getLargeClock().getEvents().onThemeChanged(mClock.getLargeClock().getTheme());
         }
 
         if (changed) {

@@ -32,6 +32,7 @@ class FakeMobileConnectionRepository(
 ) : MobileConnectionRepository {
     override val carrierId = MutableStateFlow(UNKNOWN_CARRIER_ID)
     override val inflateSignalStrength: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    override val allowNetworkSliceIndicator: MutableStateFlow<Boolean> = MutableStateFlow(true)
     override val isEmergencyOnly = MutableStateFlow(false)
     override val isRoaming = MutableStateFlow(false)
     override val operatorAlphaShort: MutableStateFlow<String?> = MutableStateFlow(null)
@@ -40,6 +41,7 @@ class FakeMobileConnectionRepository(
     override val isGsm = MutableStateFlow(false)
     override val cdmaLevel = MutableStateFlow(0)
     override val primaryLevel = MutableStateFlow(0)
+    override val satelliteLevel = MutableStateFlow(0)
     override val dataConnectionState = MutableStateFlow(DataConnectionState.Disconnected)
     override val dataActivityDirection =
         MutableStateFlow(DataActivityModel(hasActivityIn = false, hasActivityOut = false))

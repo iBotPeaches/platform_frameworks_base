@@ -39,8 +39,10 @@ import static org.mockito.Mockito.when;
 import android.os.IBinder;
 import android.os.LocaleList;
 import android.os.RemoteException;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.util.Log;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.Flags;
 import android.window.ImeOnBackInvokedDispatcher;
 
 import com.android.internal.inputmethod.IInputMethodClient;
@@ -50,7 +52,6 @@ import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.InputMethodDebug;
 import com.android.internal.inputmethod.StartInputFlags;
 import com.android.internal.inputmethod.StartInputReason;
-import com.android.server.LocalServices;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.wm.WindowManagerInternal;
 
@@ -90,6 +91,9 @@ public class InputMethodManagerServiceWindowGainedFocusTest
             };
     private static final int DEFAULT_SOFT_INPUT_FLAG =
             StartInputFlags.VIEW_HAS_FOCUS | StartInputFlags.IS_TEXT_EDITOR;
+
+    private final DeviceFlagsValueProvider mFlagsValueProvider = new DeviceFlagsValueProvider();
+
     @Mock
     VirtualDeviceManagerInternal mMockVdmInternal;
 
@@ -126,27 +130,52 @@ public class InputMethodManagerServiceWindowGainedFocusTest
             case SOFT_INPUT_STATE_UNSPECIFIED:
                 boolean showSoftInput =
                         (mSoftInputAdjustment == SOFT_INPUT_ADJUST_RESIZE) || mIsLargeScreen;
-                verifyShowSoftInput(
-                        showSoftInput /* setVisible */, showSoftInput /* showSoftInput */);
-                // Soft input was hidden by default, so it doesn't need to call
-                // {@code IMS#hideSoftInput()}.
-                verifyHideSoftInput(!showSoftInput /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, showSoftInput /* invoked */);
+                    // A hide can only be triggered if there is no editorFocused, which this test
+                    // always sets.
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(showSoftInput /* setVisible */,
+                            showSoftInput /* showSoftInput */);
+                    // Soft input was hidden by default, so it doesn't need to call
+                    // {@code IMS#hideSoftInput()}.
+                    verifyHideSoftInput(!showSoftInput /* setNotVisible */,
+                            false /* hideSoftInput */);
+                }
                 break;
             case SOFT_INPUT_STATE_VISIBLE:
             case SOFT_INPUT_STATE_ALWAYS_VISIBLE:
-                verifyShowSoftInput(true /* setVisible */, true /* showSoftInput */);
-                verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, true /* invoked */);
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(true /* setVisible */, true /* showSoftInput */);
+                    verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                }
                 break;
-            case SOFT_INPUT_STATE_UNCHANGED: // Do nothing
-                verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
-                verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+            case SOFT_INPUT_STATE_UNCHANGED:
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, false /* invoked */);
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
+                    verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                }
                 break;
             case SOFT_INPUT_STATE_HIDDEN:
             case SOFT_INPUT_STATE_ALWAYS_HIDDEN:
-                verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
-                // Soft input was hidden by default, so it doesn't need to call
-                // {@code IMS#hideSoftInput()}.
-                verifyHideSoftInput(true /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, false /* invoked */);
+                    // In this case, we don't have to manipulate the requested visible types of
+                    // the WindowState, as they're already in the correct state
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
+                    // Soft input was hidden by default, so it doesn't need to call
+                    // {@code IMS#hideSoftInput()}.
+                    verifyHideSoftInput(true /* setNotVisible */, false /* hideSoftInput */);
+                }
                 break;
             default:
                 throw new IllegalStateException(
@@ -168,26 +197,52 @@ public class InputMethodManagerServiceWindowGainedFocusTest
             case SOFT_INPUT_STATE_UNSPECIFIED:
                 boolean hideSoftInput =
                         (mSoftInputAdjustment != SOFT_INPUT_ADJUST_RESIZE) && !mIsLargeScreen;
-                verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
-                // Soft input was hidden by default, so it doesn't need to call
-                // {@code IMS#hideSoftInput()}.
-                verifyHideSoftInput(hideSoftInput /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    // A show can only be triggered in forward navigation
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                    // A hide can only be triggered if there is no editorFocused, which this test
+                    // always sets.
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
+                    // Soft input was hidden by default, so it doesn't need to call
+                    // {@code IMS#hideSoftInput()}.
+                    verifyHideSoftInput(hideSoftInput /* setNotVisible */,
+                            false /* hideSoftInput */);
+                }
                 break;
             case SOFT_INPUT_STATE_VISIBLE:
             case SOFT_INPUT_STATE_HIDDEN:
             case SOFT_INPUT_STATE_UNCHANGED: // Do nothing
-                verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
-                verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, false /* invoked */);
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
+                    verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                }
                 break;
             case SOFT_INPUT_STATE_ALWAYS_VISIBLE:
-                verifyShowSoftInput(true /* setVisible */, true /* showSoftInput */);
-                verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, true /* invoked */);
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(true /* setVisible */, true /* showSoftInput */);
+                    verifyHideSoftInput(false /* setNotVisible */, false /* hideSoftInput */);
+                }
                 break;
             case SOFT_INPUT_STATE_ALWAYS_HIDDEN:
-                verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
-                // Soft input was hidden by default, so it doesn't need to call
-                // {@code IMS#hideSoftInput()}.
-                verifyHideSoftInput(true /* setNotVisible */, false /* hideSoftInput */);
+                if (mFlagsValueProvider.getBoolean(Flags.FLAG_REFACTOR_INSETS_CONTROLLER)) {
+                    verifySetImeVisibility(true /* setVisible */, false /* invoked */);
+                    // In this case, we don't have to manipulate the requested visible types of
+                    // the WindowState, as they're already in the correct state
+                    verifySetImeVisibility(false /* setVisible */, false /* invoked */);
+                } else {
+                    verifyShowSoftInput(false /* setVisible */, false /* showSoftInput */);
+                    // Soft input was hidden by default, so it doesn't need to call
+                    // {@code IMS#hideSoftInput()}.
+                    verifyHideSoftInput(true /* setNotVisible */, false /* hideSoftInput */);
+                }
                 break;
             default:
                 throw new IllegalStateException(
@@ -198,7 +253,9 @@ public class InputMethodManagerServiceWindowGainedFocusTest
 
     @Test
     public void startInputOrWindowGainedFocus_userNotRunning() throws RemoteException {
-        when(mMockUserManagerInternal.isUserRunning(anyInt())).thenReturn(false);
+        // Run blockingly on ServiceThread to avoid that interfering with our stubbing.
+        mServiceThread.getThreadHandler().runWithScissors(
+                () -> when(mMockUserManagerInternal.isUserRunning(anyInt())).thenReturn(false), 0);
 
         assertThat(
                         startInputOrWindowGainedFocus(
@@ -262,14 +319,13 @@ public class InputMethodManagerServiceWindowGainedFocusTest
                 mMockRemoteInputConnection /* inputConnection */,
                 mMockRemoteAccessibilityInputConnection /* remoteAccessibilityInputConnection */,
                 mTargetSdkVersion /* unverifiedTargetSdkVersion */,
-                mCallingUserId /* userId */,
+                mUserId /* userId */,
                 mMockImeOnBackInvokedDispatcher /* imeDispatcher */);
     }
 
     @Test
     public void startInputOrWindowGainedFocus_localeHintsOverride() throws RemoteException {
-        doReturn(mMockVdmInternal).when(
-                () -> LocalServices.getService(VirtualDeviceManagerInternal.class));
+        addLocalServiceMock(VirtualDeviceManagerInternal.class, mMockVdmInternal);
         LocaleList overrideLocale = LocaleList.forLanguageTags("zh-CN");
         doReturn(overrideLocale).when(mMockVdmInternal).getPreferredLocaleListForUid(anyInt());
         mockHasImeFocusAndRestoreImeVisibility(false /* restoreImeVisibility */);

@@ -19,14 +19,6 @@
 
 #include "com_android_internal_os_Zygote.h"
 
-#include <async_safe/log.h>
-
-// sys/mount.h has to come before linux/fs.h due to redefinition of MS_RDONLY, MS_BIND, etc
-#include <sys/mount.h>
-#include <linux/fs.h>
-#include <sys/types.h>
-#include <dirent.h>
-
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -41,32 +33,31 @@
 
 #include <android/fdsan.h>
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <grp.h>
 #include <inttypes.h>
 #include <malloc.h>
 #include <mntent.h>
-#include <paths.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/auxv.h>
 #include <sys/capability.h>
-#include <sys/cdefs.h>
 #include <sys/eventfd.h>
+#include <sys/mount.h>
 #include <sys/personality.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
+#include <sys/system_properties.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <async_safe/log.h>
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
@@ -97,6 +88,7 @@
 #include "nativebridge/native_bridge.h"
 
 #if defined(__BIONIC__)
+#include <android/dlext_private.h>
 extern "C" void android_reset_stack_guards();
 #endif
 
@@ -359,6 +351,7 @@ enum RuntimeFlags : uint32_t {
     NATIVE_HEAP_ZERO_INIT_ENABLED = 1 << 23,
     PROFILEABLE = 1 << 24,
     DEBUG_ENABLE_PTRACE = 1 << 25,
+    ENABLE_PAGE_SIZE_APP_COMPAT = 1 << 26,
 };
 
 enum UnsolicitedZygoteMessageTypes : uint32_t {
@@ -1828,10 +1821,10 @@ static void BindMountSyspropOverride(fail_fn_t fail_fn, JNIEnv* env) {
   std::string source = "/dev/__properties__/appcompat_override";
   std::string target = "/dev/__properties__";
   if (access(source.c_str(), F_OK) != 0) {
-    fail_fn(CREATE_ERROR("Error accessing %s: %s", source.c_str(), strerror(errno)));
+      return;
   }
   if (access(target.c_str(), F_OK) != 0) {
-    fail_fn(CREATE_ERROR("Error accessing %s: %s", target.c_str(), strerror(errno)));
+      return;
   }
   BindMount(source, target, fail_fn);
   // Reload the system properties file, to ensure new values are read into memory
@@ -2126,6 +2119,12 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids, 
     SetCapabilities(permitted_capabilities, effective_capabilities, permitted_capabilities,
                     fail_fn);
 
+    if ((runtime_flags & RuntimeFlags::ENABLE_PAGE_SIZE_APP_COMPAT) != 0) {
+        android_set_16kb_appcompat_mode(true);
+        // Now that we've used the flag, clear it so that we don't pass unknown flags to the ART
+        // runtime.
+        runtime_flags &= ~RuntimeFlags::ENABLE_PAGE_SIZE_APP_COMPAT;
+    }
     __android_log_close();
     AStatsSocket_close();
 

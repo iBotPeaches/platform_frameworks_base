@@ -21,8 +21,12 @@ import android.os.UserHandle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
+import com.android.systemui.Flags.communalWidgetResizing
 import com.android.systemui.communal.domain.model.CommunalContentModel
+import com.android.systemui.communal.shared.model.CommunalContentSize
 import com.android.systemui.communal.ui.viewmodel.BaseCommunalViewModel
+import com.android.systemui.communal.ui.viewmodel.DragHandle
+import com.android.systemui.communal.ui.viewmodel.ResizeInfo
 import com.android.systemui.communal.widgets.WidgetConfigurator
 
 @Composable
@@ -34,16 +38,12 @@ fun rememberContentListState(
     return remember(communalContent) {
         ContentListState(
             communalContent,
-            { componentName, user, priority ->
-                viewModel.onAddWidget(
-                    componentName,
-                    user,
-                    priority,
-                    widgetConfigurator,
-                )
+            { componentName, user, rank ->
+                viewModel.onAddWidget(componentName, user, rank, widgetConfigurator)
             },
             viewModel::onDeleteWidget,
             viewModel::onReorderWidgets,
+            viewModel::onResizeWidget,
         )
     }
 }
@@ -56,10 +56,17 @@ fun rememberContentListState(
 class ContentListState
 internal constructor(
     communalContent: List<CommunalContentModel>,
-    private val onAddWidget:
-        (componentName: ComponentName, user: UserHandle, priority: Int) -> Unit,
-    private val onDeleteWidget: (id: Int) -> Unit,
-    private val onReorderWidgets: (widgetIdToPriorityMap: Map<Int, Int>) -> Unit,
+    private val onAddWidget: (componentName: ComponentName, user: UserHandle, rank: Int) -> Unit,
+    private val onDeleteWidget: (id: Int, componentName: ComponentName, rank: Int) -> Unit,
+    private val onReorderWidgets: (widgetIdToRankMap: Map<Int, Int>) -> Unit,
+    private val onResizeWidget:
+        (
+            id: Int,
+            spanY: Int,
+            widgetIdToRankMap: Map<Int, Int>,
+            componentName: ComponentName,
+            rank: Int,
+        ) -> Unit,
 ) {
     var list = communalContent.toMutableStateList()
         private set
@@ -74,8 +81,40 @@ internal constructor(
         if (list[indexToRemove].isWidgetContent()) {
             val widget = list[indexToRemove] as CommunalContentModel.WidgetContent
             list.apply { removeAt(indexToRemove) }
-            onDeleteWidget(widget.appWidgetId)
+            onDeleteWidget(widget.appWidgetId, widget.componentName, widget.rank)
         }
+    }
+
+    /** Resize a widget, possibly re-ordering widgets if needed. */
+    fun resize(index: Int, resizeInfo: ResizeInfo) {
+        val item = list[index]
+        val currentSpan = item.size.span
+        val newSpan = currentSpan + resizeInfo.spans
+        // Only widgets can be resized
+        if (
+            !communalWidgetResizing() ||
+                currentSpan == newSpan ||
+                item !is CommunalContentModel.WidgetContent.Widget
+        ) {
+            return
+        }
+        list[index] = item.copy(size = CommunalContentSize.toSize(newSpan))
+        val prevItem = list.getOrNull(index - 1)
+        // Check if we have to update indices of items to accommodate the resize.
+        val widgetIdToRankMap: Map<Int, Int> =
+            if (
+                resizeInfo.isExpanding &&
+                    resizeInfo.fromHandle == DragHandle.TOP &&
+                    prevItem is CommunalContentModel.WidgetContent.Widget
+            ) {
+                onMove(index - 1, index)
+                mapOf(prevItem.appWidgetId to index, item.appWidgetId to index - 1)
+            } else {
+                emptyMap()
+            }
+        val componentName = item.componentName
+        val rank = item.rank
+        onResizeWidget(item.appWidgetId, newSpan, widgetIdToRankMap, componentName, rank)
     }
 
     /**
@@ -92,26 +131,26 @@ internal constructor(
     fun onSaveList(
         newItemComponentName: ComponentName? = null,
         newItemUser: UserHandle? = null,
-        newItemIndex: Int? = null
+        newItemIndex: Int? = null,
     ) {
-        // filters placeholder, but, maintains the indices of the widgets as if the placeholder was
-        // in the list. When persisted in DB, this leaves space for the new item (to be added) at
-        // the correct priority.
-        val widgetIdToPriorityMap: Map<Int, Int> =
+        // New widget added to the grid. Other widgets are shifted as needed at the database level.
+        if (newItemComponentName != null && newItemUser != null && newItemIndex != null) {
+            onAddWidget(newItemComponentName, newItemUser, /* rank= */ newItemIndex)
+            return
+        }
+
+        // No new widget, only reorder existing widgets.
+        val widgetIdToRankMap: Map<Int, Int> =
             list
                 .mapIndexedNotNull { index, item ->
                     if (item is CommunalContentModel.WidgetContent) {
-                        item.appWidgetId to list.size - index
+                        item.appWidgetId to index
                     } else {
                         null
                     }
                 }
                 .toMap()
-        // reorder and then add the new widget
-        onReorderWidgets(widgetIdToPriorityMap)
-        if (newItemComponentName != null && newItemUser != null && newItemIndex != null) {
-            onAddWidget(newItemComponentName, newItemUser, /*priority=*/ list.size - newItemIndex)
-        }
+        onReorderWidgets(widgetIdToRankMap)
     }
 
     /** Returns true if the item at given index is editable. */

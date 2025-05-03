@@ -1,0 +1,27 @@
+# Ravenwood "policy" that should apply to all code.
+
+# The "no-pta" marker is used to exclude the lines from "ravenhelper pta",
+# which tries to convert policies to annotations.
+
+# Keep all AIDL interfaces
+class :aidl keepclass
+
+# Keep all feature flag implementations
+class :feature_flags keepclass
+
+# Keep all sysprops generated code implementations
+class :sysprops keepclass
+
+# Keep all resource R classes
+class :r keepclass
+
+# Support APIs not available in standard JRE
+class java.io.FileDescriptor  # no-pta
+    method getInt$ @com.android.ravenwood.RavenwoodJdkPatch.getInt$
+    method setInt$ @com.android.ravenwood.RavenwoodJdkPatch.setInt$
+class java.util.LinkedHashMap  # no-pta
+    method eldest @com.android.ravenwood.RavenwoodJdkPatch.eldest
+
+# Always set flag UNICODE_CHARACTER_CLASS when compiling regex
+class java.util.regex.Pattern keep
+    method compile @com.android.ravenwood.RavenwoodJdkPatch.compilePattern

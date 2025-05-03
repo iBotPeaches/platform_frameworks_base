@@ -20,6 +20,7 @@ import android.annotation.NonNull;
 import android.content.Context;
 import android.hardware.biometrics.BiometricAuthenticator;
 import android.hardware.biometrics.BiometricRequestConstants;
+import android.hardware.face.FaceEnrollOptions;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -59,7 +60,7 @@ public abstract class EnrollClient<T> extends AcquisitionClient<T> implements En
             @NonNull BiometricLogger logger, @NonNull BiometricContext biometricContext,
             int enrollReason) {
         super(context, lazyDaemon, token, listener, userId, owner, 0 /* cookie */, sensorId,
-                shouldVibrate, logger, biometricContext);
+                shouldVibrate, logger, biometricContext, false /* isMandatoryBiometrics */);
         mBiometricUtils = utils;
         mHardwareAuthToken = Arrays.copyOf(hardwareAuthToken, hardwareAuthToken.length);
         mTimeoutSec = timeoutSec;
@@ -94,7 +95,7 @@ public abstract class EnrollClient<T> extends AcquisitionClient<T> implements En
             mBiometricUtils.addBiometricForUser(getContext(), getTargetUserId(), identifier);
             getLogger().logOnEnrolled(getTargetUserId(),
                     System.currentTimeMillis() - mEnrollmentStartTimeMs,
-                    true /* enrollSuccessful */, mEnrollReason);
+                    true /* enrollSuccessful */, mEnrollReason, identifier.getBiometricId());
             mCallback.onClientFinished(this, true /* success */);
         }
         notifyUserActivity();
@@ -122,7 +123,7 @@ public abstract class EnrollClient<T> extends AcquisitionClient<T> implements En
     public void onError(int error, int vendorCode) {
         getLogger().logOnEnrolled(getTargetUserId(),
                 System.currentTimeMillis() - mEnrollmentStartTimeMs,
-                false /* enrollSuccessful */, mEnrollReason);
+                false /* enrollSuccessful */, mEnrollReason, -1 /* templateId */);
         super.onError(error, vendorCode);
     }
 
@@ -136,7 +137,8 @@ public abstract class EnrollClient<T> extends AcquisitionClient<T> implements En
         return true;
     }
 
-    protected int getRequestReasonFromEnrollReason(@FingerprintManager.EnrollReason int reason) {
+    protected int getRequestReasonFromFingerprintEnrollReason(
+            @FingerprintManager.EnrollReason int reason) {
         switch (reason) {
             case FingerprintManager.ENROLL_FIND_SENSOR:
                 return BiometricRequestConstants.REASON_ENROLL_FIND_SENSOR;
@@ -145,5 +147,16 @@ public abstract class EnrollClient<T> extends AcquisitionClient<T> implements En
             default:
                 return BiometricRequestConstants.REASON_UNKNOWN;
         }
+    }
+
+    protected int getRequestReasonFromFaceEnrollReason(
+            @FaceEnrollOptions.EnrollReason int reason) {
+        return switch (reason) {
+            case FaceEnrollOptions.ENROLL_REASON_RE_ENROLL_NOTIFICATION,
+                    FaceEnrollOptions.ENROLL_REASON_SETTINGS,
+                    FaceEnrollOptions.ENROLL_REASON_SUW ->
+                    BiometricRequestConstants.REASON_ENROLL_ENROLLING;
+            default -> BiometricRequestConstants.REASON_UNKNOWN;
+        };
     }
 }

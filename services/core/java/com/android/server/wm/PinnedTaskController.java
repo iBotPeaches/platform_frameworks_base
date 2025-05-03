@@ -22,7 +22,6 @@ import static com.android.server.wm.WindowManagerDebugConfig.TAG_WITH_CLASS_NAME
 import static com.android.server.wm.WindowManagerDebugConfig.TAG_WM;
 
 import android.app.PictureInPictureParams;
-import android.content.ComponentName;
 import android.content.res.Resources;
 import android.graphics.Insets;
 import android.graphics.Matrix;
@@ -326,19 +325,6 @@ class PinnedTaskController {
     }
 
     /**
-     * Activity is hidden (either stopped or removed), resets the last saved snap fraction
-     * so that the default bounds will be returned for the next session.
-     */
-    void onActivityHidden(ComponentName componentName) {
-        if (mPinnedTaskListener == null) return;
-        try {
-            mPinnedTaskListener.onActivityHidden(componentName);
-        } catch (RemoteException e) {
-            Slog.e(TAG_WM, "Error delivering reset reentry fraction event.", e);
-        }
-    }
-
-    /**
      * Sets the Ime state and height.
      */
     void setAdjustedForIme(boolean adjustedForIme, int imeHeight) {
@@ -362,12 +348,14 @@ class PinnedTaskController {
      * Notifies listeners that the PIP needs to be adjusted for the IME.
      */
     private void notifyImeVisibilityChanged(boolean imeVisible, int imeHeight) {
-        if (mPinnedTaskListener != null) {
-            try {
-                mPinnedTaskListener.onImeVisibilityChanged(imeVisible, imeHeight);
-            } catch (RemoteException e) {
-                Slog.e(TAG_WM, "Error delivering bounds changed event.", e);
-            }
+        if (mPinnedTaskListener == null) {
+            return;
+        }
+
+        try {
+            mPinnedTaskListener.onImeVisibilityChanged(imeVisible, imeHeight);
+        } catch (RemoteException e) {
+            Slog.e(TAG_WM, "Error delivering ime visibility changed event.", e);
         }
     }
 
@@ -375,15 +363,14 @@ class PinnedTaskController {
      * Notifies listeners that the PIP movement bounds have changed.
      */
     private void notifyMovementBoundsChanged(boolean fromImeAdjustment) {
-        synchronized (mService.mGlobalLock) {
-            if (mPinnedTaskListener == null) {
-                return;
-            }
-            try {
-                mPinnedTaskListener.onMovementBoundsChanged(fromImeAdjustment);
-            } catch (RemoteException e) {
-                Slog.e(TAG_WM, "Error delivering actions changed event.", e);
-            }
+        if (mPinnedTaskListener == null) {
+            return;
+        }
+
+        try {
+            mPinnedTaskListener.onMovementBoundsChanged(fromImeAdjustment);
+        } catch (RemoteException e) {
+            Slog.e(TAG_WM, "Error delivering movement bounds changed event.", e);
         }
     }
 

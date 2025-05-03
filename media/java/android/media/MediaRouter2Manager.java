@@ -81,6 +81,7 @@ public final class MediaRouter2Manager {
     @GuardedBy("sLock")
     private static MediaRouter2Manager sInstance;
 
+    private final Context mContext;
     private final MediaSessionManager mMediaSessionManager;
     private final Client mClient;
     private final IMediaRouterService mMediaRouterService;
@@ -120,6 +121,7 @@ public final class MediaRouter2Manager {
     }
 
     private MediaRouter2Manager(Context context) {
+        mContext = context.getApplicationContext();
         mMediaRouterService = IMediaRouterService.Stub.asInterface(
                 ServiceManager.getService(Context.MEDIA_ROUTER_SERVICE));
         mMediaSessionManager = (MediaSessionManager) context
@@ -374,16 +376,17 @@ public final class MediaRouter2Manager {
     }
 
     /**
-     * Gets the system routing session for the given {@code packageName}.
-     * Apps can select a route that is not the global route. (e.g. an app can select the device
-     * route while BT route is available.)
+     * Gets the system routing session for the given {@code targetPackageName}. Apps can select a
+     * route that is not the global route. (e.g. an app can select the device route while BT route
+     * is available.)
      *
-     * @param packageName the package name of the application.
+     * @param targetPackageName the package name of the application.
      */
     @Nullable
-    public RoutingSessionInfo getSystemRoutingSession(@Nullable String packageName) {
+    public RoutingSessionInfo getSystemRoutingSession(@Nullable String targetPackageName) {
         try {
-            return mMediaRouterService.getSystemSessionInfoForPackage(packageName);
+            return mMediaRouterService.getSystemSessionInfoForPackage(
+                    mContext.getPackageName(), targetPackageName);
         } catch (RemoteException ex) {
             throw ex.rethrowFromSystemServer();
         }
@@ -399,9 +402,6 @@ public final class MediaRouter2Manager {
     @Nullable
     public RoutingSessionInfo getRoutingSessionForMediaController(MediaController mediaController) {
         MediaController.PlaybackInfo playbackInfo = mediaController.getPlaybackInfo();
-        if (playbackInfo == null) {
-            return null;
-        }
         if (playbackInfo.getPlaybackType() == MediaController.PlaybackInfo.PLAYBACK_TYPE_LOCAL) {
             return getSystemRoutingSession(mediaController.getPackageName());
         }
@@ -524,8 +524,7 @@ public final class MediaRouter2Manager {
             transferToRoute(
                     sessionInfo, route, transferInitiatorUserHandle, transferInitiatorPackageName);
         } else {
-            requestCreateSession(sessionInfo, route, transferInitiatorUserHandle,
-                    transferInitiatorPackageName);
+            requestCreateSession(sessionInfo, route);
         }
     }
 
@@ -914,9 +913,7 @@ public final class MediaRouter2Manager {
         }
     }
 
-    private void requestCreateSession(RoutingSessionInfo oldSession, MediaRoute2Info route,
-            @NonNull UserHandle transferInitiatorUserHandle,
-            @NonNull String transferInitiationPackageName) {
+    private void requestCreateSession(RoutingSessionInfo oldSession, MediaRoute2Info route) {
         if (TextUtils.isEmpty(oldSession.getClientPackageName())) {
             Log.w(TAG, "requestCreateSession: Can't create a session without package name.");
             notifyTransferFailed(oldSession, route);
@@ -927,8 +924,7 @@ public final class MediaRouter2Manager {
 
         try {
             mMediaRouterService.requestCreateSessionWithManager(
-                    mClient, requestId, oldSession, route, transferInitiatorUserHandle,
-                    transferInitiationPackageName);
+                    mClient, requestId, oldSession, route);
         } catch (RemoteException ex) {
             throw ex.rethrowFromSystemServer();
         }
@@ -956,10 +952,6 @@ public final class MediaRouter2Manager {
     private boolean areSessionsMatched(MediaController mediaController,
             RoutingSessionInfo sessionInfo) {
         MediaController.PlaybackInfo playbackInfo = mediaController.getPlaybackInfo();
-        if (playbackInfo == null) {
-            return false;
-        }
-
         String volumeControlId = playbackInfo.getVolumeControlId();
         if (volumeControlId == null) {
             return false;
@@ -1149,6 +1141,12 @@ public final class MediaRouter2Manager {
                             MediaRouter2Manager::updateRoutesOnHandler,
                             MediaRouter2Manager.this,
                             routes));
+        }
+
+        @Override
+        public void invalidateInstance() {
+            // Should never happen since MediaRouter2Manager should only be used with
+            // MEDIA_CONTENT_CONTROL, which cannot be revoked.
         }
     }
 }

@@ -31,3 +31,18 @@ flag {
     description: "Deletes flag and settings resets"
     bug: "333847376"
 }
+
+flag {
+    name: "refactor_crashrecovery"
+    namespace: "modularization"
+    description: "Refactor required CrashRecovery code"
+    bug: "289203818"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "synchronous_reboot_in_rescue_party"
+    namespace: "modularization"
+    description: "Makes reboot and factory reset synchronous in RescueParty"
+    bug: "328203835"
+}

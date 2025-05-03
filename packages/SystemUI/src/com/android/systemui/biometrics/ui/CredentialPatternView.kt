@@ -8,7 +8,9 @@ import android.view.WindowInsets
 import android.view.WindowInsets.Type
 import android.widget.LinearLayout
 import com.android.systemui.biometrics.AuthPanelController
+import com.android.systemui.biometrics.plugins.AuthContextPlugins
 import com.android.systemui.biometrics.ui.binder.CredentialViewBinder
+import com.android.systemui.biometrics.ui.binder.Spaghetti
 import com.android.systemui.biometrics.ui.viewmodel.CredentialViewModel
 
 /** Pattern credential view for BiometricPrompt. */
@@ -21,8 +23,18 @@ class CredentialPatternView(context: Context, attrs: AttributeSet?) :
         host: CredentialView.Host,
         panelViewController: AuthPanelController,
         animatePanel: Boolean,
+        legacyCallback: Spaghetti.Callback,
+        plugins: AuthContextPlugins?,
     ) {
-        CredentialViewBinder.bind(this, host, viewModel, panelViewController, animatePanel)
+        CredentialViewBinder.bind(
+            this,
+            host,
+            viewModel,
+            panelViewController,
+            animatePanel,
+            legacyCallback,
+            plugins,
+        )
     }
 
     override fun onFinishInflate() {

@@ -39,7 +39,8 @@ import android.window.TransitionRequestInfo;
 import android.window.WindowContainerToken;
 import android.window.WindowContainerTransaction;
 
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
+import com.android.window.flags.Flags;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.activityembedding.ActivityEmbeddingController;
 import com.android.wm.shell.common.split.SplitScreenUtils;
@@ -61,9 +62,10 @@ import java.util.function.Consumer;
 
 /**
  * A handler for dealing with transitions involving multiple other handlers. For example: an
- * activity in split-screen going into PiP.
+ * activity in split-screen going into PiP. Note this is provided as a handset-specific
+ * implementation of {@code MixedTransitionHandler}.
  */
-public class DefaultMixedHandler implements Transitions.TransitionHandler,
+public class DefaultMixedHandler implements MixedTransitionHandler,
         RecentsTransitionHandler.RecentsMixedHandler {
 
     private final Transitions mPlayer;
@@ -76,13 +78,17 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
     private ActivityEmbeddingController mActivityEmbeddingController;
 
     abstract static class MixedTransition {
+        /** Entering Pip from split, breaks split. */
         static final int TYPE_ENTER_PIP_FROM_SPLIT = 1;
 
         /** Both the display and split-state (enter/exit) is changing */
         static final int TYPE_DISPLAY_AND_SPLIT_CHANGE = 2;
 
-        /** Pip was entered while handling an intent with its own remoteTransition. */
-        static final int TYPE_OPTIONS_REMOTE_AND_PIP_CHANGE = 3;
+        /**
+         * While handling an intent with its own remoteTransition, a PIP enter or Desktop immersive
+         * exit change is found.
+         */
+        static final int TYPE_OPTIONS_REMOTE_AND_PIP_OR_DESKTOP_CHANGE = 3;
 
         /** Recents transition while split-screen foreground. */
         static final int TYPE_RECENTS_DURING_SPLIT = 4;
@@ -102,6 +108,15 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
         /** Enter pip from one of the Activity Embedding windows. */
         static final int TYPE_ENTER_PIP_FROM_ACTIVITY_EMBEDDING = 9;
 
+        /** Entering Pip from split, but replace the Pip stage instead of breaking split. */
+        static final int TYPE_ENTER_PIP_REPLACE_FROM_SPLIT = 10;
+
+        /** The display changes when pip is entering. */
+        static final int TYPE_ENTER_PIP_WITH_DISPLAY_CHANGE = 11;
+
+        /** Open transition during a desktop session. */
+        static final int TYPE_OPEN_IN_DESKTOP = 12;
+
         /** The default animation for this mixed transition. */
         static final int ANIM_TYPE_DEFAULT = 0;
 
@@ -116,7 +131,7 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
         final IBinder mTransition;
 
         protected final Transitions mPlayer;
-        protected final DefaultMixedHandler mMixedHandler;
+        protected final MixedTransitionHandler mMixedHandler;
         protected final PipTransitionController mPipHandler;
         protected final StageCoordinator mSplitHandler;
         protected final KeyguardTransitionHandler mKeyguardHandler;
@@ -142,7 +157,7 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
         int mInFlightSubAnimations = 0;
 
         MixedTransition(int type, IBinder transition, Transitions player,
-                DefaultMixedHandler mixedHandler, PipTransitionController pipHandler,
+                MixedTransitionHandler mixedHandler, PipTransitionController pipHandler,
                 StageCoordinator splitHandler, KeyguardTransitionHandler keyguardHandler) {
             mType = type;
             mTransition = transition;
@@ -228,6 +243,7 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
             // Add after dependencies because it is higher priority
             shellInit.addInitCallback(() -> {
                 mPipHandler = pipTransitionController;
+                pipTransitionController.setMixedHandler(this);
                 mSplitHandler = splitScreenControllerOptional.get().getTransitionHandler();
                 mPlayer.addHandler(this);
                 if (mSplitHandler != null) {
@@ -271,6 +287,7 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
                     MixedTransition.TYPE_ENTER_PIP_FROM_ACTIVITY_EMBEDDING, transition));
             // Postpone transition splitting to later.
             WindowContainerTransaction out = new WindowContainerTransaction();
+            mPipHandler.augmentRequest(transition, request, out);
             return out;
         } else if (request.getRemoteTransition() != null
                 && TransitionUtil.isOpeningType(request.getType())
@@ -287,7 +304,7 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
                 return null;
             }
             final MixedTransition mixed = createDefaultMixedTransition(
-                    MixedTransition.TYPE_OPTIONS_REMOTE_AND_PIP_CHANGE, transition);
+                    MixedTransition.TYPE_OPTIONS_REMOTE_AND_PIP_OR_DESKTOP_CHANGE, transition);
             mixed.mLeftoversHandler = handler.first;
             mActiveTransitions.add(mixed);
             if (mixed.mLeftoversHandler != mPlayer.getRemoteTransitionHandler()) {
@@ -325,6 +342,20 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
                         MixedTransition.TYPE_UNFOLD, transition));
             }
             return wct;
+        } else if (mDesktopTasksController != null
+                && mDesktopTasksController.shouldPlayDesktopAnimation(request)) {
+            final Pair<Transitions.TransitionHandler, WindowContainerTransaction> handler =
+                    mPlayer.dispatchRequest(transition, request, /* skip= */ this);
+            if (handler == null) {
+                return null;
+            }
+            ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, " Got a desktop request, so"
+                    + " treat it as Mixed. handler=%s", handler.first);
+            final MixedTransition mixed = createDefaultMixedTransition(
+                    MixedTransition.TYPE_OPEN_IN_DESKTOP, transition);
+            mixed.mLeftoversHandler = handler.first;
+            mActiveTransitions.add(mixed);
+            return handler.second;
         }
         return null;
     }
@@ -332,7 +363,7 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
     private DefaultMixedTransition createDefaultMixedTransition(int type, IBinder transition) {
         return new DefaultMixedTransition(
                 type, transition, mPlayer, this, mPipHandler, mSplitHandler, mKeyguardHandler,
-                mUnfoldHandler, mActivityEmbeddingController);
+                mUnfoldHandler, mActivityEmbeddingController, mDesktopTasksController);
     }
 
     @Override
@@ -340,11 +371,12 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
         if (mRecentsHandler != null) {
             if (mSplitHandler.isSplitScreenVisible()) {
                 return this::setRecentsTransitionDuringSplit;
-            } else if (mKeyguardHandler.isKeyguardShowing()) {
+            } else if (mKeyguardHandler.isKeyguardShowing()
+                    && !mKeyguardHandler.isKeyguardAnimating()) {
                 return this::setRecentsTransitionDuringKeyguard;
             } else if (mDesktopTasksController != null
                     // Check on the default display. Recents/gesture nav is only available there
-                    && mDesktopTasksController.getVisibleTaskCount(DEFAULT_DISPLAY) > 0) {
+                    && mDesktopTasksController.visibleTaskCount(DEFAULT_DISPLAY) > 0) {
                 return this::setRecentsTransitionDuringDesktop;
             }
         }
@@ -390,7 +422,9 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
         for (int i = 0; i < info.getRootCount(); ++i) {
             out.addRoot(info.getRoot(i));
         }
-        out.setAnimationOptions(info.getAnimationOptions());
+        if (!Flags.moveAnimationOptionsToChange()) {
+            out.setAnimationOptions(info.getAnimationOptions());
+        }
         return out;
     }
 
@@ -425,7 +459,8 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
                     ProtoLog.w(ShellProtoLogGroup.WM_SHELL_TRANSITIONS,
                             "Converting mixed transition into a keyguard transition");
                     // Consume the original mixed transition
-                    onTransitionConsumed(transition, false, null);
+                    mActiveTransitions.remove(mixed);
+                    mixed.onTransitionConsumed(transition, false, null);
                     return true;
                 } else {
                     // Keyguard handler cannot handle it, process through original mixed
@@ -482,9 +517,11 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
     // TODO(b/287704263): Remove when split/mixed are reversed.
     public boolean animatePendingEnterPipFromSplit(IBinder transition, TransitionInfo info,
             SurfaceControl.Transaction startT, SurfaceControl.Transaction finishT,
-            Transitions.TransitionFinishCallback finishCallback) {
-        final MixedTransition mixed = createDefaultMixedTransition(
-                MixedTransition.TYPE_ENTER_PIP_FROM_SPLIT, transition);
+            Transitions.TransitionFinishCallback finishCallback, boolean replacingPip) {
+        int type = replacingPip
+                ? MixedTransition.TYPE_ENTER_PIP_REPLACE_FROM_SPLIT
+                : MixedTransition.TYPE_ENTER_PIP_FROM_SPLIT;
+        final MixedTransition mixed = createDefaultMixedTransition(type, transition);
         mActiveTransitions.add(mixed);
         Transitions.TransitionFinishCallback callback = wct -> {
             mActiveTransitions.remove(mixed);
@@ -542,6 +579,47 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
         return true;
     }
 
+    /**
+     * For example: pip is entering in rotation 0, and then the display changes to rotation 90
+     * before the pip transition is ready. So the info contains both the entering pip and display
+     * change. In this case, the pip can go to the end state in new rotation directly, and let the
+     * display level animation cover all changed participates.
+     */
+    public void animateEnteringPipWithDisplayChange(@NonNull IBinder transition,
+            @NonNull TransitionInfo info, @NonNull TransitionInfo.Change pipChange,
+            @NonNull SurfaceControl.Transaction startT,
+            @NonNull SurfaceControl.Transaction finishT,
+            @NonNull Transitions.TransitionFinishCallback finishCallback) {
+        // In order to play display level animation, force the type to CHANGE (it could be PIP).
+        final TransitionInfo changeInfo = info.getType() != TRANSIT_CHANGE
+                ? subCopy(info, TRANSIT_CHANGE, true /* withChanges */) : info;
+        final MixedTransition mixed = createDefaultMixedTransition(
+                MixedTransition.TYPE_ENTER_PIP_WITH_DISPLAY_CHANGE, transition);
+        mActiveTransitions.add(mixed);
+        mixed.mInFlightSubAnimations = 2;
+        final Transitions.TransitionFinishCallback finishCB = wct -> {
+            --mixed.mInFlightSubAnimations;
+            mixed.joinFinishArgs(wct);
+            if (mixed.mInFlightSubAnimations > 0) return;
+            mActiveTransitions.remove(mixed);
+            finishCallback.onTransitionFinished(mixed.mFinishWCT);
+        };
+        // Perform the display animation first.
+        mixed.mLeftoversHandler = mPlayer.dispatchTransition(mixed.mTransition, changeInfo,
+                startT, finishT, finishCB, mPipHandler);
+        // Use a standalone finish transaction for pip because it will apply immediately.
+        final SurfaceControl.Transaction pipFinishT = new SurfaceControl.Transaction();
+        mPipHandler.startEnterAnimation(pipChange, startT, pipFinishT, wct -> {
+            // Apply immediately to avoid potential flickering by bounds change at the end of
+            // display animation.
+            mPipHandler.applyTransaction(wct);
+            finishCB.onTransitionFinished(null /* wct */);
+        });
+        // Jump to the pip end state directly and make sure the real finishT have the latest state.
+        mPipHandler.end();
+        mPipHandler.syncPipSurfaceState(info, startT, finishT);
+    }
+
     private static boolean animateKeyguard(@NonNull final MixedTransition mixed,
             @NonNull TransitionInfo info,
             @NonNull SurfaceControl.Transaction startTransaction,
@@ -562,22 +640,23 @@ public class DefaultMixedHandler implements Transitions.TransitionHandler,
 
     /** Use to when split use intent to enter, check if this enter transition should be mixed or
      * not.*/
-    public boolean shouldSplitEnterMixed(PendingIntent intent) {
+    public boolean isIntentInPip(PendingIntent intent) {
         // Check if this intent package is same as pip one or not, if true we want let the pip
         // task enter split.
         if (mPipHandler != null) {
-            return mPipHandler.isInPipPackage(SplitScreenUtils.getPackageName(intent.getIntent()));
+            return mPipHandler
+                    .isPackageActiveInPip(SplitScreenUtils.getPackageName(intent.getIntent()));
         }
         return false;
     }
 
     /** Use to when split use taskId to enter, check if this enter transition should be mixed or
      * not.*/
-    public boolean shouldSplitEnterMixed(int taskId, ShellTaskOrganizer shellTaskOrganizer) {
+    public boolean isTaskInPip(int taskId, ShellTaskOrganizer shellTaskOrganizer) {
         // Check if this intent package is same as pip one or not, if true we want let the pip
         // task enter split.
         if (mPipHandler != null) {
-            return mPipHandler.isInPipPackage(
+            return mPipHandler.isPackageActiveInPip(
                     SplitScreenUtils.getPackageName(taskId, shellTaskOrganizer));
         }
         return false;

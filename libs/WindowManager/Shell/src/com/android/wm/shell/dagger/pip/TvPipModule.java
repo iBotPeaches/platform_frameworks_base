@@ -22,6 +22,7 @@ import android.os.SystemClock;
 
 import androidx.annotation.NonNull;
 
+import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.WindowManagerShellWrapper;
 import com.android.wm.shell.common.DisplayController;
@@ -29,7 +30,6 @@ import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
 import com.android.wm.shell.common.SystemWindows;
 import com.android.wm.shell.common.TaskStackListenerImpl;
-import com.android.wm.shell.common.annotations.ShellMainThread;
 import com.android.wm.shell.common.pip.LegacySizeSpecSource;
 import com.android.wm.shell.common.pip.PipAppOpsListener;
 import com.android.wm.shell.common.pip.PipDisplayLayoutState;
@@ -53,6 +53,7 @@ import com.android.wm.shell.pip.tv.TvPipMenuController;
 import com.android.wm.shell.pip.tv.TvPipNotificationController;
 import com.android.wm.shell.pip.tv.TvPipTaskOrganizer;
 import com.android.wm.shell.pip.tv.TvPipTransition;
+import com.android.wm.shell.shared.annotations.ShellMainThread;
 import com.android.wm.shell.splitscreen.SplitScreenController;
 import com.android.wm.shell.sysui.ShellController;
 import com.android.wm.shell.sysui.ShellInit;
@@ -214,6 +215,7 @@ public abstract class TvPipModule {
             PipSurfaceTransactionHelper pipSurfaceTransactionHelper,
             Optional<SplitScreenController> splitScreenControllerOptional,
             Optional<PipPerfHintController> pipPerfHintControllerOptional,
+            RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer,
             DisplayController displayController,
             PipUiEventLogger pipUiEventLogger, ShellTaskOrganizer shellTaskOrganizer,
             @ShellMainThread ShellExecutor mainExecutor) {
@@ -221,8 +223,9 @@ public abstract class TvPipModule {
                 syncTransactionQueue, pipTransitionState, tvPipBoundsState, pipDisplayLayoutState,
                 tvPipBoundsAlgorithm, tvPipMenuController, pipAnimationController,
                 pipSurfaceTransactionHelper, tvPipTransition, pipParamsChangedForwarder,
-                splitScreenControllerOptional, pipPerfHintControllerOptional, displayController,
-                pipUiEventLogger, shellTaskOrganizer, mainExecutor);
+                splitScreenControllerOptional, pipPerfHintControllerOptional,
+                rootTaskDisplayAreaOrganizer, displayController, pipUiEventLogger,
+                shellTaskOrganizer, mainExecutor);
     }
 
     @WMSingleton

@@ -16,13 +16,32 @@
 
 package com.android.compose.animation.scene
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
+import kotlinx.coroutines.CoroutineScope
+import platform.test.motion.MotionTestRule
+import platform.test.motion.RecordedMotion
+import platform.test.motion.compose.ComposeRecordingSpec
+import platform.test.motion.compose.ComposeToolkit
+import platform.test.motion.compose.MotionControl
+import platform.test.motion.compose.feature
+import platform.test.motion.compose.recordMotion
+import platform.test.motion.golden.FeatureCapture
+import platform.test.motion.golden.TimeSeriesCaptureScope
 
 @DslMarker annotation class TransitionTestDsl
 
@@ -48,6 +67,16 @@ interface TransitionTestBuilder {
     fun at(timestamp: Long, builder: TransitionTestAssertionScope.() -> Unit)
 
     /**
+     * Run the same assertion for all frames of a transition.
+     *
+     * @param totalFrames needs to be the exact number of frames of the transition that is run,
+     *   otherwise the passed progress will be incorrect. That is the duration in ms divided by 16.
+     * @param builder is passed a progress Float which can be used to calculate values for the
+     *   specific frame. Or use [AutoTransitionTestAssertionScope.interpolate].
+     */
+    fun atAllFrames(totalFrames: Int, builder: AutoTransitionTestAssertionScope.(Float) -> Unit)
+
+    /**
      * Assert on the state of the layout after the transition finished.
      *
      * This should be called maximum once, after [before] or [at] is called.
@@ -68,66 +97,261 @@ interface TransitionTestAssertionScope {
     fun onElement(element: ElementKey, scene: SceneKey? = null): SemanticsNodeInteraction
 }
 
+interface AutoTransitionTestAssertionScope : TransitionTestAssertionScope {
+
+    /** Linear interpolate [from] and [to] with the current progress of the transition. */
+    fun <T> interpolate(from: T, to: T): T
+}
+
+val Default4FrameLinearTransition: TransitionBuilder.() -> Unit = {
+    spec = tween(16 * 4, easing = LinearEasing)
+}
+
 /**
  * Test the transition between [fromSceneContent] and [toSceneContent] at different points in time.
  *
  * @sample com.android.compose.animation.scene.transformation.TranslateTest
  */
 fun ComposeContentTestRule.testTransition(
-    fromSceneContent: @Composable SceneScope.() -> Unit,
-    toSceneContent: @Composable SceneScope.() -> Unit,
-    transition: TransitionBuilder.() -> Unit,
+    fromSceneContent: @Composable ContentScope.() -> Unit,
+    toSceneContent: @Composable ContentScope.() -> Unit,
+    transition: TransitionBuilder.() -> Unit = Default4FrameLinearTransition,
     layoutModifier: Modifier = Modifier,
     fromScene: SceneKey = TestScenes.SceneA,
     toScene: SceneKey = TestScenes.SceneB,
+    changeState: CoroutineScope.(MutableSceneTransitionLayoutState) -> Unit = { state ->
+        state.setTargetScene(toScene, animationScope = this)
+    },
     builder: TransitionTestBuilder.() -> Unit,
 ) {
     testTransition(
-        from = fromScene,
-        to = toScene,
-        transitionLayout = { currentScene, onChangeScene ->
-            SceneTransitionLayout(
-                currentScene,
-                onChangeScene,
-                transitions { from(fromScene, to = toScene, builder = transition) },
-                layoutModifier,
-            ) {
+        state =
+            runOnUiThread {
+                MutableSceneTransitionLayoutState(
+                    fromScene,
+                    transitions { from(fromScene, to = toScene, builder = transition) },
+                )
+            },
+        changeState = changeState,
+        transitionLayout = { state ->
+            SceneTransitionLayout(state, layoutModifier) {
                 scene(fromScene, content = fromSceneContent)
                 scene(toScene, content = toSceneContent)
             }
         },
-        builder,
+        builder = builder,
     )
 }
 
-/**
- * Test the transition between two scenes of [transitionLayout][SceneTransitionLayout] at different
- * points in time.
- */
+/** Test the transition when showing [overlay] from [fromScene]. */
+fun ComposeContentTestRule.testShowOverlayTransition(
+    fromSceneContent: @Composable ContentScope.() -> Unit,
+    overlayContent: @Composable ContentScope.() -> Unit,
+    transition: TransitionBuilder.() -> Unit,
+    fromScene: SceneKey = TestScenes.SceneA,
+    overlay: OverlayKey = TestOverlays.OverlayA,
+    builder: TransitionTestBuilder.() -> Unit,
+) {
+    testTransition(
+        state =
+            runOnUiThread {
+                MutableSceneTransitionLayoutState(
+                    fromScene,
+                    transitions = transitions { from(fromScene, overlay, builder = transition) },
+                )
+            },
+        transitionLayout = { state ->
+            SceneTransitionLayout(state) {
+                scene(fromScene) { fromSceneContent() }
+                overlay(overlay) { overlayContent() }
+            }
+        },
+        changeState = { state -> state.showOverlay(overlay, animationScope = this) },
+        builder = builder,
+    )
+}
+
+/** Test the transition when hiding [overlay] to [toScene]. */
+fun ComposeContentTestRule.testHideOverlayTransition(
+    toSceneContent: @Composable ContentScope.() -> Unit,
+    overlayContent: @Composable ContentScope.() -> Unit,
+    transition: TransitionBuilder.() -> Unit,
+    toScene: SceneKey = TestScenes.SceneA,
+    overlay: OverlayKey = TestOverlays.OverlayA,
+    builder: TransitionTestBuilder.() -> Unit,
+) {
+    testTransition(
+        state =
+            runOnUiThread {
+                MutableSceneTransitionLayoutState(
+                    toScene,
+                    initialOverlays = setOf(overlay),
+                    transitions = transitions { from(overlay, toScene, builder = transition) },
+                )
+            },
+        transitionLayout = { state ->
+            SceneTransitionLayout(state) {
+                scene(toScene) { toSceneContent() }
+                overlay(overlay) { overlayContent() }
+            }
+        },
+        changeState = { state -> state.hideOverlay(overlay, animationScope = this) },
+        builder = builder,
+    )
+}
+
+/** Test the transition when replace [from] to [to]. */
+fun ComposeContentTestRule.testReplaceOverlayTransition(
+    fromContent: @Composable ContentScope.() -> Unit,
+    toContent: @Composable ContentScope.() -> Unit,
+    transition: TransitionBuilder.() -> Unit,
+    currentSceneContent: @Composable ContentScope.() -> Unit = { Box(Modifier.fillMaxSize()) },
+    fromAlignment: Alignment = Alignment.Center,
+    toAlignment: Alignment = Alignment.Center,
+    from: OverlayKey = TestOverlays.OverlayA,
+    to: OverlayKey = TestOverlays.OverlayB,
+    currentScene: SceneKey = TestScenes.SceneA,
+    builder: TransitionTestBuilder.() -> Unit,
+) {
+    testTransition(
+        state =
+            runOnUiThread {
+                MutableSceneTransitionLayoutState(
+                    currentScene,
+                    initialOverlays = setOf(from),
+                    transitions = transitions { from(from, to, builder = transition) },
+                )
+            },
+        transitionLayout = { state ->
+            SceneTransitionLayout(state) {
+                scene(currentScene) { currentSceneContent() }
+                overlay(from, alignment = fromAlignment) { fromContent() }
+                overlay(to, alignment = toAlignment) { toContent() }
+            }
+        },
+        changeState = { state -> state.replaceOverlay(from, to, animationScope = this) },
+        builder = builder,
+    )
+}
+
+data class TransitionRecordingSpec(
+    val recordBefore: Boolean = true,
+    val recordAfter: Boolean = true,
+    val timeSeriesCapture: TimeSeriesCaptureScope<SemanticsNodeInteractionsProvider>.() -> Unit,
+)
+
+/** Captures the feature using [capture] on the [element]. */
+fun TimeSeriesCaptureScope<SemanticsNodeInteractionsProvider>.featureOfElement(
+    element: ElementKey,
+    capture: FeatureCapture<SemanticsNode, *>,
+    name: String = "${element.debugName}_${capture.name}",
+) {
+    feature(isElement(element), capture, name)
+}
+
+/** Records the transition between two scenes of [transitionLayout][SceneTransitionLayout]. */
+fun MotionTestRule<ComposeToolkit>.recordTransition(
+    fromSceneContent: @Composable ContentScope.() -> Unit,
+    toSceneContent: @Composable ContentScope.() -> Unit,
+    transition: TransitionBuilder.() -> Unit,
+    recordingSpec: TransitionRecordingSpec,
+    layoutModifier: Modifier = Modifier,
+    fromScene: SceneKey = TestScenes.SceneA,
+    toScene: SceneKey = TestScenes.SceneB,
+): RecordedMotion {
+    val state =
+        toolkit.composeContentTestRule.runOnUiThread {
+            MutableSceneTransitionLayoutState(
+                fromScene,
+                transitions { from(fromScene, to = toScene, builder = transition) },
+            )
+        }
+
+    return recordMotion(
+        content = { play ->
+            LaunchedEffect(play) {
+                if (play) {
+                    state.setTargetScene(toScene, animationScope = this)
+                }
+            }
+
+            SceneTransitionLayout(state, layoutModifier) {
+                scene(fromScene, content = fromSceneContent)
+                scene(toScene, content = toSceneContent)
+            }
+        },
+        ComposeRecordingSpec(
+            MotionControl(delayRecording = { awaitCondition { state.isTransitioning() } }) {
+                awaitCondition { !state.isTransitioning() }
+            },
+            recordBefore = recordingSpec.recordBefore,
+            recordAfter = recordingSpec.recordAfter,
+            timeSeriesCapture = recordingSpec.timeSeriesCapture,
+        ),
+    )
+}
+
+/** Test the transition from [state] to [to]. */
 fun ComposeContentTestRule.testTransition(
-    from: SceneKey,
+    state: MutableSceneTransitionLayoutState,
     to: SceneKey,
-    transitionLayout:
-        @Composable
-        (
-            currentScene: SceneKey,
-            onChangeScene: (SceneKey) -> Unit,
-        ) -> Unit,
+    transitionLayout: @Composable (state: MutableSceneTransitionLayoutState) -> Unit,
+    builder: TransitionTestBuilder.() -> Unit,
+) {
+    val currentScene = state.transitionState.currentScene
+    check(currentScene != to) {
+        "The 'to' scene (${to.debugName}) should be different from the state current scene " +
+            "(${currentScene.debugName})"
+    }
+
+    testTransition(
+        state = state,
+        changeState = { state -> state.setTargetScene(to, animationScope = this) },
+        transitionLayout = transitionLayout,
+        builder = builder,
+    )
+}
+
+/** Test the transition from [state] to [to]. */
+fun ComposeContentTestRule.testTransition(
+    state: MutableSceneTransitionLayoutState,
+    changeState: CoroutineScope.(MutableSceneTransitionLayoutState) -> Unit,
+    transitionLayout: @Composable (state: MutableSceneTransitionLayoutState) -> Unit,
     builder: TransitionTestBuilder.() -> Unit,
 ) {
     val test = transitionTest(builder)
     val assertionScope =
-        object : TransitionTestAssertionScope {
+        object : AutoTransitionTestAssertionScope {
+            var progress = 0f
+
             override fun onElement(
                 element: ElementKey,
-                scene: SceneKey?
+                scene: SceneKey?,
             ): SemanticsNodeInteraction {
                 return onNode(isElement(element, scene))
             }
+
+            override fun <T> interpolate(from: T, to: T): T {
+                @Suppress("UNCHECKED_CAST")
+                return when {
+                    from is Float && to is Float -> lerp(from, to, progress)
+                    from is Int && to is Int -> lerp(from, to, progress)
+                    from is Long && to is Long -> lerp(from, to, progress)
+                    from is Dp && to is Dp -> lerp(from, to, progress)
+                    else ->
+                        throw UnsupportedOperationException(
+                            "Interpolation not supported for this type"
+                        )
+                }
+                    as T
+            }
         }
 
-    var currentScene by mutableStateOf(from)
-    setContent { transitionLayout(currentScene, { currentScene = it }) }
+    lateinit var coroutineScope: CoroutineScope
+    setContent {
+        coroutineScope = rememberCoroutineScope()
+        transitionLayout(state)
+    }
 
     // Wait for the UI to be idle then test the before state.
     waitForIdle()
@@ -137,25 +361,33 @@ fun ComposeContentTestRule.testTransition(
     mainClock.autoAdvance = false
 
     // Change the current scene.
-    currentScene = to
-
-    // Advance by a frame to trigger recomposition, which will start the transition (i.e. it will
-    // change the transitionState to be a Transition) in a LaunchedEffect.
-    mainClock.advanceTimeByFrame()
-
-    // Advance by another frame so that the animator we started gets its initial value and clock
-    // starting time. We are now at progress = 0f.
+    runOnUiThread { coroutineScope.changeState(state) }
+    waitForIdle()
     mainClock.advanceTimeByFrame()
     waitForIdle()
 
+    var currentTime = 0L
     // Test the assertions at specific points in time.
     test.timestamps.forEach { tsAssertion ->
         if (tsAssertion.timestampDelta > 0L) {
             mainClock.advanceTimeBy(tsAssertion.timestampDelta)
             waitForIdle()
+            currentTime += tsAssertion.timestampDelta.toInt()
         }
 
-        tsAssertion.assertion(assertionScope)
+        assertionScope.progress = tsAssertion.progress
+        try {
+            tsAssertion.assertion(assertionScope, tsAssertion.progress)
+        } catch (assertionError: AssertionError) {
+            if (assertionScope.progress > 0) {
+                throw AssertionError(
+                    "Transition assertion failed at ${currentTime}ms " +
+                        "at progress: ${assertionScope.progress}f",
+                    assertionError,
+                )
+            }
+            throw assertionError
+        }
     }
 
     // Go to the end state and test it.
@@ -198,7 +430,25 @@ private fun transitionTest(builder: TransitionTestBuilder.() -> Unit): Transitio
                     val delta = timestamp - currentTimestamp
                     currentTimestamp = timestamp
 
-                    timestamps.add(TimestampAssertion(delta, builder))
+                    timestamps.add(TimestampAssertion(delta, { builder() }, 0f))
+                }
+
+                override fun atAllFrames(
+                    totalFrames: Int,
+                    builder: AutoTransitionTestAssertionScope.(Float) -> Unit,
+                ) {
+                    check(after == null) { "atFrames(...) {} must be called before after {}" }
+                    check(currentTimestamp == 0L) {
+                        "atFrames(...) can't be called multiple times or after at(...)"
+                    }
+
+                    for (frame in 0 until totalFrames) {
+                        val timestamp = frame * 16L
+                        val delta = timestamp - currentTimestamp
+                        val progress = frame.toFloat() / totalFrames
+                        currentTimestamp = timestamp
+                        timestamps.add(TimestampAssertion(delta, builder, progress))
+                    }
                 }
 
                 override fun after(builder: TransitionTestAssertionScope.() -> Unit) {
@@ -223,5 +473,6 @@ private class TransitionTest(
 
 private class TimestampAssertion(
     val timestampDelta: Long,
-    val assertion: TransitionTestAssertionScope.() -> Unit,
+    val assertion: AutoTransitionTestAssertionScope.(Float) -> Unit,
+    val progress: Float,
 )

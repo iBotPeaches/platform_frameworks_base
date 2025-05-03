@@ -1,8 +1,9 @@
 package com.android.systemui.statusbar
 
-import android.testing.AndroidTestingRunner
 import android.testing.TestableLooper
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.plugins.qs.QS
@@ -19,17 +20,17 @@ import org.mockito.Mockito.intThat
 import org.mockito.Mockito.reset
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
-import org.mockito.Mockito.verifyZeroInteractions
 import org.mockito.Mockito.`when` as whenever
 import org.mockito.MockitoAnnotations
 
-@RunWith(AndroidTestingRunner::class)
+@RunWith(AndroidJUnit4::class)
 @SmallTest
 @TestableLooper.RunWithLooper
 class SplitShadeLockScreenOverScrollerTest : SysuiTestCase() {
 
     private val configurationController = FakeConfigurationController()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Mock private lateinit var scrimController: ScrimController
     @Mock private lateinit var statusBarStateController: SysuiStatusBarStateController
     private var qS: QS? = null
@@ -71,9 +72,9 @@ class SplitShadeLockScreenOverScrollerTest : SysuiTestCase() {
 
         setDragAmount(1000f)
 
-        verifyZeroInteractions(qS)
-        verifyZeroInteractions(scrimController)
-        verifyZeroInteractions(nsslController)
+        verifyNoMoreInteractions(qS)
+        verifyNoMoreInteractions(scrimController)
+        verifyNoMoreInteractions(nsslController)
     }
 
     @Test

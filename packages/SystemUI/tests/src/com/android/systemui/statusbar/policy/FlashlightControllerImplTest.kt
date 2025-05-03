@@ -20,8 +20,8 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.impl.CameraMetadataNative
-import android.test.suitebuilder.annotation.SmallTest
-import android.testing.AndroidTestingRunner
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.broadcast.BroadcastSender
 import com.android.systemui.dump.DumpManager
@@ -41,12 +41,11 @@ import org.mockito.Mockito.eq
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
-import org.mockito.Mockito.verifyZeroInteractions
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 
 @SmallTest
-@RunWith(AndroidTestingRunner::class)
+@RunWith(AndroidJUnit4::class)
 class FlashlightControllerImplTest : SysuiTestCase() {
 
     @Mock
@@ -89,7 +88,7 @@ class FlashlightControllerImplTest : SysuiTestCase() {
 
     @Test
     fun testNoCameraManagerInteractionDirectlyOnConstructor() {
-        verifyZeroInteractions(cameraManager)
+        verifyNoMoreInteractions(cameraManager)
     }
 
     @Test

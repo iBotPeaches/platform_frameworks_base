@@ -19,11 +19,11 @@ package com.android.server.vcn.routeselection;
 import static android.net.vcn.VcnManager.VCN_NETWORK_SELECTION_IPSEC_PACKET_LOSS_PERCENT_THRESHOLD_KEY;
 import static android.net.vcn.VcnManager.VCN_NETWORK_SELECTION_MAX_SEQ_NUM_INCREASE_PER_SECOND_KEY;
 import static android.net.vcn.VcnManager.VCN_NETWORK_SELECTION_POLL_IPSEC_STATE_INTERVAL_SECONDS_KEY;
+import static android.net.vcn.util.PersistableBundleUtils.PersistableBundleWrapper;
 
 import static com.android.server.vcn.routeselection.IpSecPacketLossDetector.IPSEC_PACKET_LOSS_PERCENT_THRESHOLD_DISABLE_DETECTOR;
 import static com.android.server.vcn.routeselection.IpSecPacketLossDetector.MIN_VALID_EXPECTED_RX_PACKET_NUM;
 import static com.android.server.vcn.routeselection.IpSecPacketLossDetector.getMaxSeqNumIncreasePerSecond;
-import static com.android.server.vcn.util.PersistableBundleUtils.PersistableBundleWrapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -47,6 +47,9 @@ import android.net.IpSecTransformState;
 import android.os.OutcomeReceiver;
 import android.os.PowerManager;
 
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
 import com.android.server.vcn.routeselection.IpSecPacketLossDetector.PacketLossCalculationResult;
 import com.android.server.vcn.routeselection.IpSecPacketLossDetector.PacketLossCalculator;
 import com.android.server.vcn.routeselection.NetworkMetricMonitor.IpSecTransformWrapper;
@@ -54,6 +57,7 @@ import com.android.server.vcn.routeselection.NetworkMetricMonitor.NetworkMetricM
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -63,6 +67,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.concurrent.TimeUnit;
 
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class IpSecPacketLossDetectorTest extends NetworkEvaluationTestBase {
     private static final String TAG = IpSecPacketLossDetectorTest.class.getSimpleName();
 
@@ -284,8 +290,11 @@ public class IpSecPacketLossDetectorTest extends NetworkEvaluationTestBase {
 
         // Stop the monitor
         mIpSecPacketLossDetector.close();
+        mIpSecPacketLossDetector.close();
         verifyStopped();
-        verify(mIpSecTransform).close();
+
+        verify(mIpSecTransform, never()).close();
+        verify(mContext).unregisterReceiver(any());
     }
 
     @Test

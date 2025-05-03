@@ -7,3 +7,13 @@ flag {
     description: "This flag controls if webview should be pinned in memory."
     bug: "307594624"
 }
+
+flag {
+  name: "pin_global_quota"
+  namespace: "system_performance"
+  description: "This flag controls whether pinner will use a global quota or not"
+  bug: "340935152"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}

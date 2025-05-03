@@ -17,20 +17,57 @@
 
 package android.os;
 
+import android.os.CpuHeadroomParamsInternal;
+import android.os.GpuHeadroomParamsInternal;
 import android.os.IHintSession;
+import android.os.SessionCreationConfig;
+import android.hardware.power.CpuHeadroomResult;
+import android.hardware.power.ChannelConfig;
+import android.hardware.power.GpuHeadroomResult;
+import android.hardware.power.SessionConfig;
+import android.hardware.power.SessionTag;
 
 /** {@hide} */
 interface IHintManager {
     /**
      * Creates a {@link Session} for the given set of threads and associates to a binder token.
+     * Returns a config if creation is not supported, and HMS had to use the
+     * legacy creation method.
+     *
+     * Throws UnsupportedOperationException if ADPF is not supported, and IllegalStateException
+     * if creation is supported but fails.
      */
-    IHintSession createHintSession(in IBinder token, in int[] tids, long durationNanos);
+    IHintSession createHintSessionWithConfig(in IBinder token, in SessionTag tag,
+            in SessionCreationConfig creationConfig, out SessionConfig config);
 
     /**
-     * Get preferred rate limit in nano second.
+     * Get preferred rate limit in nanoseconds.
      */
     long getHintSessionPreferredRate();
 
     void setHintSessionThreads(in IHintSession hintSession, in int[] tids);
     int[] getHintSessionThreadIds(in IHintSession hintSession);
+
+    /**
+     * Returns FMQ channel information for the caller, which it associates to a binder token.
+     *
+     * Throws IllegalStateException if FMQ channel creation fails.
+     */
+    @nullable ChannelConfig getSessionChannel(in IBinder token);
+    oneway void closeSessionChannel();
+    @nullable CpuHeadroomResult getCpuHeadroom(in CpuHeadroomParamsInternal params);
+    long getCpuHeadroomMinIntervalMillis();
+    @nullable GpuHeadroomResult getGpuHeadroom(in GpuHeadroomParamsInternal params);
+    long getGpuHeadroomMinIntervalMillis();
+
+    /**
+     * Get Maximum number of graphics pipeline threads allowed per-app.
+     */
+    int getMaxGraphicsPipelineThreadsCount();
+
+    /**
+     * Used by the JNI to pass an interface to the SessionManager;
+     * for internal use only.
+     */
+    oneway void passSessionManagerBinder(in IBinder sessionManager);
 }

@@ -16,8 +16,10 @@
 
 package com.android.server.wm;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.inputmethodservice.InputMethodService;
+import android.os.IBinder;
 import android.view.WindowInsets;
 import android.view.WindowInsets.Type.InsetsType;
 import android.view.inputmethod.ImeTracker;
@@ -25,7 +27,7 @@ import android.view.inputmethod.ImeTracker;
 /**
  * Generalization of an object that can control insets state.
  */
-interface InsetsControlTarget {
+interface InsetsControlTarget extends InsetsTarget {
 
     /**
      * Notifies the control target that the insets control has changed.
@@ -42,16 +44,17 @@ interface InsetsControlTarget {
         return null;
     }
 
-    /**
-     * @return {@code true} if any of the {@link InsetsType} is requested visible by this target.
-     */
+    @Override
+    default IBinder getWindowToken() {
+        return null;
+    }
+
+    @Override
     default boolean isRequestedVisible(@InsetsType int types) {
         return (WindowInsets.Type.defaultVisible() & types) != 0;
     }
 
-    /**
-     * @return {@link InsetsType}s which are requested visible by this target.
-     */
+    @Override
     default @InsetsType int getRequestedVisibleTypes() {
         return WindowInsets.Type.defaultVisible();
     }
@@ -83,6 +86,15 @@ interface InsetsControlTarget {
      */
     default boolean canShowTransient() {
         return false;
+    }
+
+    /**
+     * @param visible the requested visibility for the IME, used for
+     * {@link com.android.server.wm.DisplayContent.RemoteInsetsControlTarget}
+     * @param statsToken the token tracking the current IME request
+     */
+    default void setImeInputTargetRequestedVisibility(boolean visible,
+            @NonNull ImeTracker.Token statsToken) {
     }
 
     /** Returns {@code target.getWindow()}, or null if {@code target} is {@code null}. */

@@ -24,23 +24,25 @@ import static android.view.MotionEvent.ACTION_CANCEL;
 import static android.view.MotionEvent.ACTION_DOWN;
 import static android.view.MotionEvent.ACTION_UP;
 import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_3BUTTON;
+import static android.window.BackEvent.EDGE_NONE;
 
-import static com.android.internal.accessibility.common.ShortcutConstants.CHOOSER_PACKAGE_NAME;
-import static com.android.systemui.shared.system.QuickStepContract.KEY_EXTRA_SYSUI_PROXY;
-import static com.android.systemui.shared.system.QuickStepContract.KEY_EXTRA_UNFOLD_ANIMATION_FORWARDER;
-import static com.android.systemui.shared.system.QuickStepContract.KEY_EXTRA_UNLOCK_ANIMATION_CONTROLLER;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_AWAKE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BOUNCER_SHOWING;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_COMMUNAL_HUB_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DEVICE_DOZING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DEVICE_DREAMING;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_FREEFORM_ACTIVE_IN_DESKTOP_MODE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_GOING_AWAY;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING_OCCLUDED;
-import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_TRACING_ENABLED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_WAKEFULNESS_TRANSITION;
+import static com.android.systemui.shared.system.QuickStepContract.addInterface;
+import static com.android.window.flags.Flags.predictiveBackSwipeEdgeNoneApi;
+import static com.android.window.flags.Flags.predictiveBackThreeButtonNav;
 
 import android.annotation.FloatRange;
+import android.annotation.Nullable;
 import android.app.ActivityTaskManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -62,6 +64,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
@@ -69,11 +72,11 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.accessibility.AccessibilityManager;
+import android.view.inputmethod.Flags;
 import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.NonNull;
 
-import com.android.internal.accessibility.dialog.AccessibilityButtonChooserActivity;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.AssistUtils;
 import com.android.internal.app.IVoiceInteractionSessionListener;
@@ -82,35 +85,39 @@ import com.android.internal.util.ScreenshotHelper;
 import com.android.internal.util.ScreenshotRequest;
 import com.android.systemui.Dumpable;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.contextualeducation.GestureType;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dump.DumpManager;
-import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
 import com.android.systemui.keyguard.KeyguardWmStateRefactor;
 import com.android.systemui.keyguard.WakefulnessLifecycle;
 import com.android.systemui.keyguard.ui.view.InWindowLauncherUnlockAnimationManager;
 import com.android.systemui.model.SysUiState;
-import com.android.systemui.navigationbar.NavigationBar;
 import com.android.systemui.navigationbar.NavigationBarController;
-import com.android.systemui.navigationbar.NavigationBarView;
 import com.android.systemui.navigationbar.NavigationModeController;
-import com.android.systemui.navigationbar.buttons.KeyButtonView;
+import com.android.systemui.navigationbar.views.NavigationBar;
+import com.android.systemui.navigationbar.views.NavigationBarView;
+import com.android.systemui.navigationbar.views.buttons.KeyButtonView;
 import com.android.systemui.recents.OverviewProxyService.OverviewProxyListener;
 import com.android.systemui.scene.domain.interactor.SceneInteractor;
-import com.android.systemui.scene.shared.flag.SceneContainerFlags;
+import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.settings.DisplayTracker;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.shade.ShadeViewController;
+import com.android.systemui.shade.domain.interactor.ShadeInteractor;
 import com.android.systemui.shared.recents.IOverviewProxy;
 import com.android.systemui.shared.recents.ISystemUiProxy;
 import com.android.systemui.shared.system.QuickStepContract;
+import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.shared.system.smartspace.ISysuiUnlockAnimationController;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.NotificationShadeWindowController;
 import com.android.systemui.statusbar.phone.StatusBarWindowCallback;
 import com.android.systemui.statusbar.policy.CallbackController;
 import com.android.systemui.unfold.progress.UnfoldTransitionProgressForwarder;
+import com.android.wm.shell.back.BackAnimation;
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.sysui.ShellInterface;
 
 import dagger.Lazy;
@@ -144,8 +151,6 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
     private static final long MAX_BACKOFF_MILLIS = 10 * 60 * 1000;
 
     private final Context mContext;
-    private final FeatureFlags mFeatureFlags;
-    private final SceneContainerFlags mSceneContainerFlags;
     private final Executor mMainExecutor;
     private final ShellInterface mShellInterface;
     private final Lazy<ShadeViewController> mShadeViewControllerLazy;
@@ -155,6 +160,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
     private final ScreenPinningRequest mScreenPinningRequest;
     private final NotificationShadeWindowController mStatusBarWinController;
     private final Provider<SceneInteractor> mSceneInteractor;
+    private final Provider<ShadeInteractor> mShadeInteractor;
 
     private final Runnable mConnectionRunnable = () ->
             internalConnectToCurrentUser("runnable: startConnectionToCurrentUser");
@@ -171,13 +177,14 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
     private Region mActiveNavBarRegion;
 
     private final BroadcastDispatcher mBroadcastDispatcher;
+    private final BackAnimation mBackAnimation;
 
     private IOverviewProxy mOverviewProxy;
     private int mConnectionBackoffAttempts;
     private boolean mBound;
     private boolean mIsEnabled;
 
-    private boolean mIsNonPrimaryUser;
+    private boolean mIsSystemOrVisibleBgUser;
     private int mCurrentBoundedUserId = -1;
     private boolean mInputFocusTransferStarted;
     private float mInputFocusTransferStartY;
@@ -207,8 +214,10 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         @Override
         public void onStatusBarTouchEvent(MotionEvent event) {
             verifyCallerAndClearCallingIdentity("onStatusBarTouchEvent", () -> {
-                // TODO move this logic to message queue
-                if (event.getActionMasked() == ACTION_DOWN) {
+                if (SceneContainerFlag.isEnabled()) {
+                    //TODO(b/329863123) implement latency tracking for shade scene
+                    Log.i(TAG_OPS, "Scene container enabled. Latency tracking not started.");
+                } else if (event.getActionMasked() == ACTION_DOWN) {
                     mShadeViewControllerLazy.get().startExpandLatencyTracking();
                 }
                 mHandler.post(() -> {
@@ -220,8 +229,8 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
 
                         // If scene framework is enabled, set the scene container window to
                         // visible and let the touch "slip" into that window.
-                        if (mSceneContainerFlags.isEnabled()) {
-                            mSceneInteractor.get().onRemoteUserInteractionStarted("launcher swipe");
+                        if (SceneContainerFlag.isEnabled()) {
+                            mSceneInteractor.get().onRemoteUserInputStarted("launcher swipe");
                         } else {
                             mShadeViewControllerLazy.get().startInputFocusTransfer();
                         }
@@ -229,7 +238,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
                     if (action == ACTION_UP || action == ACTION_CANCEL) {
                         mInputFocusTransferStarted = false;
 
-                        if (!mSceneContainerFlags.isEnabled()) {
+                        if (!SceneContainerFlag.isEnabled()) {
                             float velocity = (event.getY() - mInputFocusTransferStartY)
                                     / (event.getEventTime() - mInputFocusTransferStartMillis);
                             if (action == ACTION_CANCEL) {
@@ -237,6 +246,11 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
                             } else {
                                 mShadeViewControllerLazy.get().finishInputFocusTransfer(velocity);
                             }
+                        } else if (action == ACTION_UP) {
+                            // Gesture was too short to be picked up by scene container touch
+                            // handling; programmatically start the transition to the shade.
+                            mShadeInteractor.get()
+                                    .expandNotificationsShade("short launcher swipe", null);
                         }
                     }
                     event.recycle();
@@ -246,8 +260,21 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
 
         @Override
         public void onStatusBarTrackpadEvent(MotionEvent event) {
-            verifyCallerAndClearCallingIdentityPostMain("onStatusBarTrackpadEvent", () ->
-                    mShadeViewControllerLazy.get().handleExternalTouch(event));
+            verifyCallerAndClearCallingIdentityPostMain("onStatusBarTrackpadEvent", () -> {
+                if (SceneContainerFlag.isEnabled()) {
+                    int action = event.getActionMasked();
+                    if (action == ACTION_DOWN) {
+                        mSceneInteractor.get().onRemoteUserInputStarted(
+                                "trackpad swipe");
+                    } else if (action == ACTION_UP) {
+                        mShadeInteractor.get()
+                                .expandNotificationsShade("short trackpad swipe", null);
+                    }
+                    mStatusBarWinController.getWindowRootView().dispatchTouchEvent(event);
+                } else {
+                    mShadeViewControllerLazy.get().handleExternalTouch(event);
+                }
+            });
         }
 
         @Override
@@ -257,21 +284,61 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         }
 
         @Override
-        public void onBackPressed() {
-            verifyCallerAndClearCallingIdentityPostMain("onBackPressed", () -> {
-                sendEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
-                sendEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK);
-            });
+        public void setOverrideHomeButtonLongPress(long duration, float slopMultiplier,
+                boolean haptic) {
+            verifyCallerAndClearCallingIdentityPostMain("setOverrideHomeButtonLongPress",
+                    () -> notifySetOverrideHomeButtonLongPress(duration, slopMultiplier, haptic));
+        }
+
+        @Override
+        public void onBackEvent(@Nullable KeyEvent keyEvent) throws RemoteException {
+            if (predictiveBackThreeButtonNav() && predictiveBackSwipeEdgeNoneApi()
+                    && mBackAnimation != null && keyEvent != null) {
+                mBackAnimation.setTriggerBack(!keyEvent.isCanceled());
+                mBackAnimation.onBackMotion(/* touchX */ 0, /* touchY */ 0, keyEvent.getAction(),
+                        EDGE_NONE);
+            } else {
+                verifyCallerAndClearCallingIdentityPostMain("onBackPressed", () -> {
+                    sendEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
+                    sendEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK);
+                });
+            }
         }
 
         @Override
         public void onImeSwitcherPressed() {
             // TODO(b/204901476) We're intentionally using the default display for now since
             // Launcher/Taskbar isn't display aware.
+            if (Flags.imeSwitcherRevamp()) {
+                mContext.getSystemService(InputMethodManager.class)
+                        .onImeSwitchButtonClickFromSystem(mDisplayTracker.getDefaultDisplayId());
+            } else {
+                mContext.getSystemService(InputMethodManager.class)
+                        .showInputMethodPickerFromSystem(true /* showAuxiliarySubtypes */,
+                                mDisplayTracker.getDefaultDisplayId());
+            }
+            mUiEventLogger.log(KeyButtonView.NavBarButtonEvent.NAVBAR_IME_SWITCHER_BUTTON_TAP);
+        }
+
+        @Override
+        public void onImeSwitcherLongPress() {
+            if (!Flags.imeSwitcherRevamp()) {
+                return;
+            }
+            // TODO(b/204901476) We're intentionally using the default display for now since
+            // Launcher/Taskbar isn't display aware.
             mContext.getSystemService(InputMethodManager.class)
                     .showInputMethodPickerFromSystem(true /* showAuxiliarySubtypes */,
                             mDisplayTracker.getDefaultDisplayId());
-            mUiEventLogger.log(KeyButtonView.NavBarButtonEvent.NAVBAR_IME_SWITCHER_BUTTON_TAP);
+            mUiEventLogger.log(
+                    KeyButtonView.NavBarButtonEvent.NAVBAR_IME_SWITCHER_BUTTON_LONGPRESS);
+        }
+
+        @Override
+        public void updateContextualEduStats(boolean isTrackpadGesture, String gestureType) {
+            verifyCallerAndClearCallingIdentityPostMain("updateContextualEduStats",
+                    () -> mHandler.post(() -> OverviewProxyService.this.updateContextualEduStats(
+                            isTrackpadGesture, GestureType.valueOf(gestureType))));
         }
 
         @Override
@@ -340,23 +407,16 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         @Override
         public void notifyAccessibilityButtonClicked(int displayId) {
             verifyCallerAndClearCallingIdentity("notifyAccessibilityButtonClicked", () ->
-                    AccessibilityManager.getInstance(mContext)
-                            .notifyAccessibilityButtonClicked(displayId));
+                    AccessibilityManager.getInstance(mContext).notifyAccessibilityButtonClicked(
+                            displayId));
         }
 
         @Override
         public void notifyAccessibilityButtonLongClicked() {
-            verifyCallerAndClearCallingIdentity("notifyAccessibilityButtonLongClicked",
-                    () -> {
-                        final Intent intent =
-                                new Intent(AccessibilityManager.ACTION_CHOOSE_ACCESSIBILITY_BUTTON);
-                        final String chooserClassName = AccessibilityButtonChooserActivity
-                                .class.getName();
-                        intent.setClassName(CHOOSER_PACKAGE_NAME, chooserClassName);
-                        intent.addFlags(
-                                Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                        mContext.startActivityAsUser(intent, mUserTracker.getUserHandle());
-                    });
+            verifyCallerAndClearCallingIdentity("notifyAccessibilityButtonLongClicked", () ->
+                    AccessibilityManager.getInstance(mContext)
+                            .notifyAccessibilityButtonLongClicked(
+                                    mDisplayTracker.getDefaultDisplayId()));
         }
 
         @Override
@@ -380,7 +440,13 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         @Override
         public void toggleNotificationPanel() {
             verifyCallerAndClearCallingIdentityPostMain("toggleNotificationPanel", () ->
-                    mCommandQueue.togglePanel());
+                    mCommandQueue.toggleNotificationsPanel());
+        }
+
+        @Override
+        public void toggleQuickSettingsPanel() {
+            verifyCallerAndClearCallingIdentityPostMain("toggleQuickSettingsPanel", () ->
+                    mCommandQueue.toggleQuickSettingsPanel());
         }
 
         private boolean verifyCaller(String reason) {
@@ -491,13 +557,9 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
             mOverviewProxy = IOverviewProxy.Stub.asInterface(service);
 
             Bundle params = new Bundle();
-            params.putBinder(KEY_EXTRA_SYSUI_PROXY, mSysUiProxy.asBinder());
-            params.putBinder(KEY_EXTRA_UNLOCK_ANIMATION_CONTROLLER,
-                    mSysuiUnlockAnimationController.asBinder());
-            mUnfoldTransitionProgressForwarder.ifPresent(
-                    unfoldProgressForwarder -> params.putBinder(
-                            KEY_EXTRA_UNFOLD_ANIMATION_FORWARDER,
-                            unfoldProgressForwarder.asBinder()));
+            addInterface(mSysUiProxy, params);
+            addInterface(mSysuiUnlockAnimationController, params);
+            addInterface(mUnfoldTransitionProgressForwarder.orElse(null), params);
             // Add all the interfaces exposed by the shell
             mShellInterface.createExternalInterfaces(params);
 
@@ -591,28 +653,35 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
             NotificationShadeWindowController statusBarWinController,
             SysUiState sysUiState,
             Provider<SceneInteractor> sceneInteractor,
+            Provider<ShadeInteractor> shadeInteractor,
             UserTracker userTracker,
+            UserManager userManager,
             WakefulnessLifecycle wakefulnessLifecycle,
             UiEventLogger uiEventLogger,
             DisplayTracker displayTracker,
             KeyguardUnlockAnimationController sysuiUnlockAnimationController,
             InWindowLauncherUnlockAnimationManager inWindowLauncherUnlockAnimationManager,
             AssistUtils assistUtils,
-            FeatureFlags featureFlags,
-            SceneContainerFlags sceneContainerFlags,
             DumpManager dumpManager,
             Optional<UnfoldTransitionProgressForwarder> unfoldTransitionProgressForwarder,
-            BroadcastDispatcher broadcastDispatcher
+            BroadcastDispatcher broadcastDispatcher,
+            Optional<BackAnimation> backAnimation
     ) {
-        // b/241601880: This component shouldn't be running for a non-primary user
-        mIsNonPrimaryUser = !Process.myUserHandle().equals(UserHandle.SYSTEM);
-        if (mIsNonPrimaryUser) {
-            Log.wtf(TAG_OPS, "Unexpected initialization for non-primary user", new Throwable());
+        // b/241601880: This component should only be running for primary users or
+        // secondaryUsers when visibleBackgroundUsers are supported.
+        boolean isSystemUser = Process.myUserHandle().equals(UserHandle.SYSTEM);
+        boolean isVisibleBackgroundUser =
+                userManager.isVisibleBackgroundUsersSupported() && !userManager.isUserForeground();
+        if (!isSystemUser && isVisibleBackgroundUser) {
+            Log.d(TAG_OPS, "Initialization for visibleBackgroundUser");
+        }
+        mIsSystemOrVisibleBgUser = isSystemUser || isVisibleBackgroundUser;
+        if (!mIsSystemOrVisibleBgUser) {
+            Log.wtf(TAG_OPS, "Unexpected initialization for non-system foreground user",
+                    new Throwable());
         }
 
         mContext = context;
-        mFeatureFlags = featureFlags;
-        mSceneContainerFlags = sceneContainerFlags;
         mMainExecutor = mainExecutor;
         mShellInterface = shellInterface;
         mShadeViewControllerLazy = shadeViewControllerLazy;
@@ -621,6 +690,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         mScreenPinningRequest = screenPinningRequest;
         mStatusBarWinController = statusBarWinController;
         mSceneInteractor = sceneInteractor;
+        mShadeInteractor = shadeInteractor;
         mUserTracker = userTracker;
         mConnectionBackoffAttempts = 0;
         mRecentsComponentName = ComponentName.unflattenFromString(context.getString(
@@ -633,6 +703,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         mDisplayTracker = displayTracker;
         mUnfoldTransitionProgressForwarder = unfoldTransitionProgressForwarder;
         mBroadcastDispatcher = broadcastDispatcher;
+        mBackAnimation = backAnimation.orElse(null);
 
         if (!KeyguardWmStateRefactor.isEnabled()) {
             mSysuiUnlockAnimationController = sysuiUnlockAnimationController;
@@ -668,14 +739,18 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
             // Listen for tracing state changes
             @Override
             public void onTracingStateChanged(boolean enabled) {
-                mSysUiState.setFlag(SYSUI_STATE_TRACING_ENABLED, enabled)
-                        .commitUpdate(mContext.getDisplayId());
+                // TODO(b/286509643) Cleanup callers of this; Unused downstream
             }
 
             @Override
-            public void enterStageSplitFromRunningApp(boolean leftOrTop) {
+            public void moveFocusedTaskToStageSplit(int displayId, boolean leftOrTop) {
                 if (mOverviewProxy != null) {
                     try {
+                        if (DesktopModeStatus.canEnterDesktopMode(mContext)
+                                && (sysUiState.getFlags()
+                                & SYSUI_STATE_FREEFORM_ACTIVE_IN_DESKTOP_MODE) != 0) {
+                            return;
+                        }
                         mOverviewProxy.enterStageSplitFromRunningApp(leftOrTop);
                     } catch (RemoteException e) {
                         Log.w(TAG_OPS, "Unable to enter stage split from the current running app");
@@ -729,7 +804,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         }
     }
 
-    private void notifySystemUiStateFlags(int flags) {
+    private void notifySystemUiStateFlags(@SystemUiStateFlags long flags) {
         if (SysUiState.DEBUG) {
             Log.d(TAG_OPS, "Notifying sysui state change to overview service: proxy="
                     + mOverviewProxy + " flags=" + flags);
@@ -745,7 +820,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
 
     private void onStatusBarStateChanged(boolean keyguardShowing, boolean keyguardOccluded,
             boolean keyguardGoingAway, boolean bouncerShowing, boolean isDozing,
-            boolean panelExpanded, boolean isDreaming) {
+            boolean panelExpanded, boolean isDreaming, boolean communalShowing) {
         mSysUiState.setFlag(SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING,
                         keyguardShowing && !keyguardOccluded)
                 .setFlag(SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING_OCCLUDED,
@@ -755,6 +830,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
                 .setFlag(SYSUI_STATE_BOUNCER_SHOWING, bouncerShowing)
                 .setFlag(SYSUI_STATE_DEVICE_DOZING, isDozing)
                 .setFlag(SYSUI_STATE_DEVICE_DREAMING, isDreaming)
+                .setFlag(SYSUI_STATE_COMMUNAL_HUB_SHOWING, communalShowing)
                 .commitUpdate(mContext.getDisplayId());
     }
 
@@ -796,11 +872,12 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
     }
 
     private void internalConnectToCurrentUser(String reason) {
-        if (mIsNonPrimaryUser) {
+        if (!mIsSystemOrVisibleBgUser) {
             // This should not happen, but if any per-user SysUI component has a dependency on OPS,
             // then this could get triggered
-            Log.w(TAG_OPS, "Skipping connection to overview service due to non-primary user "
-                    + "caller");
+            Log.w(TAG_OPS,
+                    "Skipping connection to overview service due to non-system foreground user "
+                            + "caller");
             return;
         }
         disconnectFromLauncherService(reason);
@@ -811,11 +888,21 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
             return;
         }
         mHandler.removeCallbacks(mConnectionRunnable);
+
+        // Avoid creating TouchInteractionService because the System user in HSUM mode does not
+        // interact with UI elements
+        UserHandle currentUser = UserHandle.of(mUserTracker.getUserId());
+        if (UserManager.isHeadlessSystemUserMode() && currentUser.isSystem()) {
+            Log.w(TAG_OPS,
+                    "Skipping connection to TouchInteractionService for the System user in HSUM "
+                            + "mode.");
+            return;
+        }
         try {
             mBound = mContext.bindServiceAsUser(mQuickStepIntent,
                     mOverviewServiceConnection,
                     Context.BIND_AUTO_CREATE | Context.BIND_FOREGROUND_SERVICE_WHILE_AWAKE,
-                    UserHandle.of(mUserTracker.getUserId()));
+                    currentUser);
         } catch (SecurityException e) {
             Log.e(TAG_OPS, "Unable to bind because of security error", e);
         }
@@ -882,6 +969,17 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         }
     }
 
+    /**
+     * Updates contextual education stats when a gesture is triggered
+     * @param isTrackpadGesture indicates if the gesture is triggered by trackpad
+     * @param gestureType type of gesture triggered
+     */
+    public void updateContextualEduStats(boolean isTrackpadGesture, GestureType gestureType) {
+        for (int i = mConnectionCallbacks.size() - 1; i >= 0; --i) {
+            mConnectionCallbacks.get(i).updateContextualEduStats(isTrackpadGesture, gestureType);
+        }
+    }
+
     private void notifyHomeRotationEnabled(boolean enabled) {
         for (int i = mConnectionCallbacks.size() - 1; i >= 0; --i) {
             mConnectionCallbacks.get(i).onHomeRotationEnabled(enabled);
@@ -940,6 +1038,14 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
             long durationMs) {
         for (int i = mConnectionCallbacks.size() - 1; i >= 0; --i) {
             mConnectionCallbacks.get(i).animateNavBarLongPress(isTouchDown, shrink, durationMs);
+        }
+    }
+
+    private void notifySetOverrideHomeButtonLongPress(long duration, float slopMultiplier,
+            boolean haptic) {
+        for (int i = mConnectionCallbacks.size() - 1; i >= 0; --i) {
+            mConnectionCallbacks.get(i)
+                    .setOverrideHomeButtonLongPress(duration, slopMultiplier, haptic);
         }
     }
 
@@ -1100,6 +1206,12 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
         default void startAssistant(Bundle bundle) {}
         default void setAssistantOverridesRequested(int[] invocationTypes) {}
         default void animateNavBarLongPress(boolean isTouchDown, boolean shrink, long durationMs) {}
+        /** Set override of home button long press duration, touch slop multiplier, and haptic. */
+        default void setOverrideHomeButtonLongPress(
+                long override, float slopMultiplier, boolean haptic) {}
+        /** Updates contextual education stats when target gesture type is triggered. */
+        default void updateContextualEduStats(
+                boolean isTrackpadGesture, GestureType gestureType) {}
     }
 
     /**

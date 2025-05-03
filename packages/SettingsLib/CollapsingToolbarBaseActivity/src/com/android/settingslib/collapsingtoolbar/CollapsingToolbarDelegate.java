@@ -20,7 +20,10 @@ import static android.text.Layout.HYPHENATION_FREQUENCY_NORMAL_FAST;
 
 import android.app.ActionBar;
 import android.app.Activity;
+import android.content.Context;
 import android.content.res.Configuration;
+import android.content.res.TypedArray;
+import android.graphics.drawable.Drawable;
 import android.graphics.text.LineBreakConfig;
 import android.os.Build;
 import android.util.Log;
@@ -34,6 +37,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
+
+import com.android.settingslib.widget.SettingsThemeHelper;
 
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
@@ -80,8 +85,14 @@ public class CollapsingToolbarDelegate {
     @NonNull
     private final HostCallback mHostCallback;
 
-    public CollapsingToolbarDelegate(@NonNull HostCallback hostCallback) {
+    private boolean mUseCollapsingToolbar;
+
+    private boolean mIsExpressiveTheme;
+
+    public CollapsingToolbarDelegate(@NonNull HostCallback hostCallback,
+            boolean useCollapsingToolbar) {
         mHostCallback = hostCallback;
+        mUseCollapsingToolbar = useCollapsingToolbar;
     }
 
     /** Method to call that creates the root view of the collapsing toolbar. */
@@ -94,13 +105,37 @@ public class CollapsingToolbarDelegate {
     @SuppressWarnings("RestrictTo")
     View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
             Activity activity) {
-        final View view =
-                inflater.inflate(R.layout.collapsing_toolbar_base_layout, container, false);
+        int layoutId;
+        boolean useCollapsingToolbar =
+                mUseCollapsingToolbar || Build.VERSION.SDK_INT < Build.VERSION_CODES.S;
+        Context context = (activity != null) ? activity : inflater.getContext();
+        mIsExpressiveTheme = SettingsThemeHelper.isExpressiveTheme(context);
+        if (useCollapsingToolbar) {
+            layoutId = mIsExpressiveTheme
+                    ? R.layout.settingslib_expressive_collapsing_toolbar_base_layout
+                    : R.layout.collapsing_toolbar_base_layout;
+        } else {
+            layoutId = R.layout.non_collapsing_toolbar_base_layout;
+        }
+
+        final View view = inflater.inflate(layoutId, container, false);
         if (view instanceof CoordinatorLayout) {
             mCoordinatorLayout = (CoordinatorLayout) view;
         }
         mCollapsingToolbarLayout = view.findViewById(R.id.collapsing_toolbar);
         mAppBarLayout = view.findViewById(R.id.app_bar);
+
+        if (!useCollapsingToolbar) {
+            // In the non-collapsing toolbar layout, we need to set the background of the app bar to
+            // the same as the activity background so that it covers the items extending above the
+            // bounds of the list for edge-to-edge.
+            TypedArray ta = container.getContext().obtainStyledAttributes(new int[] {
+                    android.R.attr.windowBackground});
+            Drawable background = ta.getDrawable(0);
+            ta.recycle();
+            mAppBarLayout.setBackground(background);
+        }
+
         if (mCollapsingToolbarLayout != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mCollapsingToolbarLayout.setLineSpacingMultiplier(TOOLBAR_LINE_SPACING_MULTIPLIER);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -130,6 +165,9 @@ public class CollapsingToolbarDelegate {
             if (actionBar != null) {
                 actionBar.setDisplayHomeAsUpEnabled(true);
                 actionBar.setHomeButtonEnabled(true);
+                if (mIsExpressiveTheme) {
+                    actionBar.setHomeAsUpIndicator(R.drawable.settingslib_expressive_icon_back);
+                }
                 actionBar.setDisplayShowTitleEnabled(true);
             }
         }
@@ -149,6 +187,9 @@ public class CollapsingToolbarDelegate {
         if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(true);
             actionBar.setHomeButtonEnabled(true);
+            if (mIsExpressiveTheme) {
+                actionBar.setHomeAsUpIndicator(R.drawable.settingslib_expressive_icon_back);
+            }
             actionBar.setDisplayShowTitleEnabled(true);
         }
     }
@@ -163,6 +204,9 @@ public class CollapsingToolbarDelegate {
         if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(true);
             actionBar.setHomeButtonEnabled(true);
+            if (mIsExpressiveTheme) {
+                actionBar.setHomeAsUpIndicator(R.drawable.settingslib_expressive_icon_back);
+            }
             actionBar.setDisplayShowTitleEnabled(true);
         }
     }

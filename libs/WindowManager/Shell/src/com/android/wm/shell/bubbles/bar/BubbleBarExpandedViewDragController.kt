@@ -19,9 +19,11 @@ package com.android.wm.shell.bubbles.bar
 import android.annotation.SuppressLint
 import android.view.MotionEvent
 import android.view.View
-import com.android.wm.shell.common.bubbles.DismissView
-import com.android.wm.shell.common.bubbles.RelativeTouchListener
-import com.android.wm.shell.common.magnetictarget.MagnetizedObject
+import androidx.annotation.VisibleForTesting
+import com.android.wm.shell.bubbles.BubblePositioner
+import com.android.wm.shell.shared.bubbles.DismissView
+import com.android.wm.shell.shared.bubbles.RelativeTouchListener
+import com.android.wm.shell.shared.magnetictarget.MagnetizedObject
 
 /** Controller for handling drag interactions with [BubbleBarExpandedView] */
 @SuppressLint("ClickableViewAccessibility")
@@ -29,10 +31,15 @@ class BubbleBarExpandedViewDragController(
     private val expandedView: BubbleBarExpandedView,
     private val dismissView: DismissView,
     private val animationHelper: BubbleBarAnimationHelper,
-    private val onDismissed: () -> Unit
+    private val bubblePositioner: BubblePositioner,
+    private val pinController: BubbleExpandedViewPinController,
+    @get:VisibleForTesting val dragListener: DragListener,
 ) {
 
     var isStuckToDismiss: Boolean = false
+        private set
+
+    var isDragged: Boolean = false
         private set
 
     private var expandedViewInitialTranslationX = 0f
@@ -45,11 +52,11 @@ class BubbleBarExpandedViewDragController(
         magnetizedExpandedView.magnetListener = MagnetListener()
         magnetizedExpandedView.animateStuckToTarget =
             {
-                    target: MagnetizedObject.MagneticTarget,
-                    _: Float,
-                    _: Float,
-                    _: Boolean,
-                    after: (() -> Unit)? ->
+                target: MagnetizedObject.MagneticTarget,
+                _: Float,
+                _: Float,
+                _: Boolean,
+                after: (() -> Unit)? ->
                 animationHelper.animateIntoTarget(target, after)
             }
 
@@ -73,13 +80,26 @@ class BubbleBarExpandedViewDragController(
         }
     }
 
+    /** Listener to get notified about drag events */
+    interface DragListener {
+        /**
+         * Bubble bar was released
+         *
+         * @param inDismiss `true` if view was release in dismiss target
+         */
+        fun onReleased(inDismiss: Boolean)
+    }
+
     private inner class HandleDragListener : RelativeTouchListener() {
 
         private var isMoving = false
 
         override fun onDown(v: View, ev: MotionEvent): Boolean {
             // While animating, don't allow new touch events
-            return !expandedView.isAnimating
+            if (expandedView.isAnimating) return false
+            pinController.onDragStart(bubblePositioner.isBubbleBarOnLeft)
+            isDragged = true
+            return true
         }
 
         override fun onMove(
@@ -88,7 +108,7 @@ class BubbleBarExpandedViewDragController(
             viewInitialX: Float,
             viewInitialY: Float,
             dx: Float,
-            dy: Float
+            dy: Float,
         ) {
             if (!isMoving) {
                 isMoving = true
@@ -97,6 +117,7 @@ class BubbleBarExpandedViewDragController(
             expandedView.translationX = expandedViewInitialTranslationX + dx
             expandedView.translationY = expandedViewInitialTranslationY + dy
             dismissView.show()
+            pinController.onDragUpdate(ev.rawX, ev.rawY)
         }
 
         override fun onUp(
@@ -107,50 +128,55 @@ class BubbleBarExpandedViewDragController(
             dx: Float,
             dy: Float,
             velX: Float,
-            velY: Float
+            velY: Float,
         ) {
             finishDrag()
         }
 
         override fun onCancel(v: View, ev: MotionEvent, viewInitialX: Float, viewInitialY: Float) {
+            isStuckToDismiss = false
             finishDrag()
         }
 
         private fun finishDrag() {
             if (!isStuckToDismiss) {
+                pinController.onDragEnd()
+                dragListener.onReleased(inDismiss = false)
                 animationHelper.animateToRestPosition()
                 dismissView.hide()
             }
             isMoving = false
+            isDragged = false
         }
     }
 
     private inner class MagnetListener : MagnetizedObject.MagnetListener {
         override fun onStuckToTarget(
-                target: MagnetizedObject.MagneticTarget,
-                draggedObject: MagnetizedObject<*>
+            target: MagnetizedObject.MagneticTarget,
+            draggedObject: MagnetizedObject<*>,
         ) {
             isStuckToDismiss = true
+            pinController.onStuckToDismissTarget()
         }
 
         override fun onUnstuckFromTarget(
-                target: MagnetizedObject.MagneticTarget,
-                draggedObject: MagnetizedObject<*>,
-                velX: Float,
-                velY: Float,
-                wasFlungOut: Boolean
+            target: MagnetizedObject.MagneticTarget,
+            draggedObject: MagnetizedObject<*>,
+            velX: Float,
+            velY: Float,
+            wasFlungOut: Boolean,
         ) {
             isStuckToDismiss = false
             animationHelper.animateUnstuckFromDismissView(target)
         }
 
         override fun onReleasedInTarget(
-                target: MagnetizedObject.MagneticTarget,
-                draggedObject: MagnetizedObject<*>
+            target: MagnetizedObject.MagneticTarget,
+            draggedObject: MagnetizedObject<*>,
         ) {
-            onDismissed()
+            dragListener.onReleased(inDismiss = true)
+            pinController.onDragEnd()
             dismissView.hide()
         }
     }
 }
-

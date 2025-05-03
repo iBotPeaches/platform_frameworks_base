@@ -19,62 +19,63 @@ package com.android.systemui.keyguard.ui.view.layout.sections
 
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.constraintlayout.widget.ConstraintSet.BOTTOM
 import androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
-import com.android.systemui.Flags.migrateClocksToBlueprint
+import com.android.systemui.keyguard.MigrateClocksToBlueprint
 import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.keyguard.ui.view.KeyguardRootView
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
 import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
 
 /** Adds a layer to group elements for translation for burn-in preventation */
 class AodBurnInSection
 @Inject
 constructor(
-    private val context: Context,
+    @ShadeDisplayAware private val context: Context,
     private val rootView: KeyguardRootView,
     private val clockViewModel: KeyguardClockViewModel,
 ) : KeyguardSection() {
     private lateinit var burnInLayer: AodBurnInLayer
-    private lateinit var emptyView: View
+    // The burn-in layer requires at least 1 view at all times
+    private val emptyView: View by lazy {
+        View(context, null).apply {
+            id = R.id.burn_in_layer_empty_view
+            visibility = View.GONE
+        }
+    }
+
     override fun addViews(constraintLayout: ConstraintLayout) {
-        if (!migrateClocksToBlueprint()) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
             return
         }
-
-        // The burn-in layer requires at least 1 view at all times
-        emptyView =
-            View(context, null).apply {
-                id = R.id.burn_in_layer_empty_view
-                visibility = View.GONE
-            }
+        if (emptyView.parent != null) {
+            // As emptyView is lazy, it might be already attached.
+            (emptyView.parent as? ViewGroup)?.removeView(emptyView)
+        }
         constraintLayout.addView(emptyView)
         burnInLayer =
             AodBurnInLayer(context).apply {
                 id = R.id.burn_in_layer
                 registerListener(rootView)
                 addView(emptyView)
-                if (!migrateClocksToBlueprint()) {
-                    val statusView =
-                        constraintLayout.requireViewById<View>(R.id.keyguard_status_view)
-                    addView(statusView)
-                }
             }
         constraintLayout.addView(burnInLayer)
     }
 
     override fun bindData(constraintLayout: ConstraintLayout) {
-        if (!migrateClocksToBlueprint()) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
             return
         }
         clockViewModel.burnInLayer = burnInLayer
     }
 
     override fun applyConstraints(constraintSet: ConstraintSet) {
-        if (!migrateClocksToBlueprint()) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
             return
         }
 

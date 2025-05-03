@@ -14,18 +14,18 @@
 
 package com.android.systemui.plugins.qs;
 
-import android.annotation.NonNull;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.metrics.LogMaker;
 import android.service.quicksettings.Tile;
 import android.text.TextUtils;
-import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.internal.logging.InstanceId;
+import com.android.systemui.animation.Expandable;
 import com.android.systemui.plugins.annotations.DependsOn;
 import com.android.systemui.plugins.annotations.ProvidesInterface;
 import com.android.systemui.plugins.qs.QSTile.Callback;
@@ -58,23 +58,23 @@ public interface QSTile {
     /**
      * The tile was clicked.
      *
-     * @param view The view that was clicked.
+     * @param expandable {@link Expandable} that was clicked.
      */
-    void click(@Nullable View view);
+    void click(@Nullable Expandable expandable);
 
     /**
      * The tile secondary click was triggered.
      *
-     * @param view The view that was clicked.
+     * @param expandable {@link Expandable} that was clicked.
      */
-    void secondaryClick(@Nullable View view);
+    void secondaryClick(@Nullable Expandable expandable);
 
     /**
      * The tile was long clicked.
      *
-     * @param view The view that was clicked.
+     * @param expandable {@link Expandable} that was clicked.
      */
-    void longClick(@Nullable View view);
+    void longClick(@Nullable Expandable expandable);
 
     void userSwitch(int currentUser);
 
@@ -92,6 +92,7 @@ public interface QSTile {
 
     CharSequence getTileLabel();
 
+    @NonNull
     State getState();
 
     default LogMaker populate(LogMaker logMaker) {
@@ -119,6 +120,11 @@ public interface QSTile {
      * refreshes from controllers
      */
     boolean isListening();
+
+    /**
+     * Return this tile's {@link TileDetailsViewModel} to be used to render the TileDetailsView.
+     */
+    default TileDetailsViewModel getDetailsViewModel() { return null; }
 
     @ProvidesInterface(version = Callback.VERSION)
     interface Callback {
@@ -169,6 +175,7 @@ public interface QSTile {
         public boolean isTransient = false;
         public String expandedAccessibilityClassName;
         public boolean handlesLongClick = true;
+        public boolean handlesSecondaryClick = false;
         @Nullable
         public Drawable sideViewCustomDrawable;
         public String spec;
@@ -183,7 +190,10 @@ public interface QSTile {
             }
         }
 
-        /** Get the text for secondaryLabel. */
+        /**
+         *  If the current secondaryLabel value is not empty, ignore the given input and return
+         *  the current value. Otherwise return current value.
+         */
         public CharSequence getSecondaryLabel(CharSequence stateText) {
             // Use a local reference as the value might change from other threads
             CharSequence localSecondaryLabel = secondaryLabel;
@@ -212,6 +222,7 @@ public interface QSTile {
                     || !Objects.equals(other.isTransient, isTransient)
                     || !Objects.equals(other.dualTarget, dualTarget)
                     || !Objects.equals(other.handlesLongClick, handlesLongClick)
+                    || !Objects.equals(other.handlesSecondaryClick, handlesSecondaryClick)
                     || !Objects.equals(other.sideViewCustomDrawable, sideViewCustomDrawable);
             other.spec = spec;
             other.icon = icon;
@@ -227,6 +238,7 @@ public interface QSTile {
             other.dualTarget = dualTarget;
             other.isTransient = isTransient;
             other.handlesLongClick = handlesLongClick;
+            other.handlesSecondaryClick = handlesSecondaryClick;
             other.sideViewCustomDrawable = sideViewCustomDrawable;
             return changed;
         }
@@ -252,11 +264,13 @@ public interface QSTile {
             sb.append(",disabledByPolicy=").append(disabledByPolicy);
             sb.append(",dualTarget=").append(dualTarget);
             sb.append(",isTransient=").append(isTransient);
+            sb.append(",handlesSecondaryClick=").append(handlesSecondaryClick);
             sb.append(",state=").append(state);
             sb.append(",sideViewCustomDrawable=").append(sideViewCustomDrawable);
             return sb.append(']');
         }
 
+        @NonNull
         public State copy() {
             State state = new State();
             copyTo(state);
@@ -292,6 +306,7 @@ public interface QSTile {
             return rt;
         }
 
+        @androidx.annotation.NonNull
         @Override
         public State copy() {
             AdapterState state = new AdapterState();
@@ -304,6 +319,7 @@ public interface QSTile {
     class BooleanState extends AdapterState {
         public static final int VERSION = 1;
 
+        @androidx.annotation.NonNull
         @Override
         public State copy() {
             BooleanState state = new BooleanState();

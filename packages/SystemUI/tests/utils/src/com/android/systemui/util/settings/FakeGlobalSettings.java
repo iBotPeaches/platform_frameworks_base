@@ -16,11 +16,18 @@
 
 package com.android.systemui.util.settings;
 
+import static com.android.systemui.util.settings.JavaAdapter.newCoroutineScope;
+
+import static kotlinx.coroutines.test.TestCoroutineDispatchersKt.StandardTestDispatcher;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.ContentResolver;
 import android.database.ContentObserver;
 import android.net.Uri;
+
+import kotlinx.coroutines.CoroutineDispatcher;
+import kotlinx.coroutines.CoroutineScope;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,12 +37,28 @@ import java.util.Map;
 public class FakeGlobalSettings implements GlobalSettings {
     private final Map<String, String> mValues = new HashMap<>();
     private final Map<String, List<ContentObserver>> mContentObserversAllUsers = new HashMap<>();
+    private final CoroutineScope mSettingsScope;
 
     public static final Uri CONTENT_URI = Uri.parse("content://settings/fake_global");
 
+    /**
+     * @deprecated Please use FakeGlobalSettings(testDispatcher) to provide the same dispatcher used
+     * by main test scope.
+     */
+    @Deprecated
     public FakeGlobalSettings() {
+        CoroutineDispatcher dispatcher = StandardTestDispatcher(
+                /* scheduler = */ null,
+                /* name = */ null
+        );
+        mSettingsScope = newCoroutineScope(dispatcher);
     }
 
+    public FakeGlobalSettings(CoroutineDispatcher dispatcher) {
+        mSettingsScope = newCoroutineScope(dispatcher);
+    }
+
+    @NonNull
     @Override
     public ContentResolver getContentResolver() {
         throw new UnsupportedOperationException(
@@ -43,9 +66,15 @@ public class FakeGlobalSettings implements GlobalSettings {
                         + "GlobalSettings.registerContentObserver helpful instead.");
     }
 
+    @NonNull
     @Override
-    public void registerContentObserver(Uri uri, boolean notifyDescendants,
-            ContentObserver settingsObserver) {
+    public CoroutineScope getSettingsScope() {
+        return mSettingsScope;
+    }
+
+    @Override
+    public void registerContentObserverSync(Uri uri, boolean notifyDescendants,
+            @NonNull ContentObserver settingsObserver) {
         List<ContentObserver> observers;
         mContentObserversAllUsers.putIfAbsent(uri.toString(), new ArrayList<>());
         observers = mContentObserversAllUsers.get(uri.toString());
@@ -53,25 +82,26 @@ public class FakeGlobalSettings implements GlobalSettings {
     }
 
     @Override
-    public void unregisterContentObserver(ContentObserver settingsObserver) {
+    public void unregisterContentObserverSync(@NonNull ContentObserver settingsObserver) {
         for (Map.Entry<String, List<ContentObserver>> entry :
                 mContentObserversAllUsers.entrySet()) {
             entry.getValue().remove(settingsObserver);
         }
     }
 
+    @NonNull
     @Override
-    public Uri getUriFor(String name) {
+    public Uri getUriFor(@NonNull String name) {
         return Uri.withAppendedPath(CONTENT_URI, name);
     }
 
     @Override
-    public String getString(String name) {
+    public String getString(@NonNull String name) {
         return mValues.get(getUriFor(name).toString());
     }
 
     @Override
-    public boolean putString(String name, String value) {
+    public boolean putString(@NonNull String name, @NonNull String value) {
         return putString(name, value, null, false);
     }
 

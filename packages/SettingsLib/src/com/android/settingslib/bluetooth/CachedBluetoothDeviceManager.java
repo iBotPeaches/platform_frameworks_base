@@ -40,7 +40,7 @@ public class CachedBluetoothDeviceManager {
     private static final String TAG = "CachedBluetoothDeviceManager";
     private static final boolean DEBUG = BluetoothUtils.D;
 
-    @VisibleForTesting static int sLateBondingTimeoutMillis = 5000; // 5s
+    @VisibleForTesting static int sLateBondingTimeoutMillis = 10000; // 10s
 
     private Context mContext;
     private final LocalBluetoothManager mBtManager;
@@ -60,7 +60,7 @@ public class CachedBluetoothDeviceManager {
         mBtManager = localBtManager;
         mHearingAidDeviceManager = new HearingAidDeviceManager(context, localBtManager,
                 mCachedDevices);
-        mCsipDeviceManager = new CsipDeviceManager(localBtManager, mCachedDevices);
+        mCsipDeviceManager = new CsipDeviceManager(context, localBtManager, mCachedDevices);
     }
 
     public synchronized Collection<CachedBluetoothDevice> getCachedDevicesCopy() {
@@ -173,6 +173,22 @@ public class CachedBluetoothDeviceManager {
             return subDevice.getConnectionSummary();
         }
         return null;
+    }
+
+    /**
+     * Sync device status of the pair of the hearing aid if needed.
+     *
+     * @param device the remote device
+     */
+    public synchronized void syncDeviceWithinHearingAidSetIfNeeded(CachedBluetoothDevice device,
+            int state, int profileId) {
+        if (profileId == BluetoothProfile.HAP_CLIENT
+                || profileId == BluetoothProfile.HEARING_AID
+                || profileId == BluetoothProfile.CSIP_SET_COORDINATOR) {
+            if (state == BluetoothProfile.STATE_CONNECTED) {
+                mHearingAidDeviceManager.syncDeviceIfNeeded(device);
+            }
+        }
     }
 
     /**

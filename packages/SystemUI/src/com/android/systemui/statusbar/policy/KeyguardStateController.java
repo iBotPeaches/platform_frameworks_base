@@ -18,14 +18,21 @@ package com.android.systemui.statusbar.policy;
 
 import android.app.IActivityTaskManager;
 
-import com.android.systemui.keyguard.KeyguardViewMediator;
+import com.android.systemui.Dumpable;
 import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.policy.KeyguardStateController.Callback;
 
+import java.io.PrintWriter;
+
 /**
  * Source of truth for keyguard state: If locked, occluded, has password, trusted etc.
+ *
+ * @deprecated this class is not supported when KEYGUARD_WM_STATE_REFACTOR is enabled.
+ * Use {@link com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor}
+ * or {@link com.android.systemui.deviceentry.domain.interactor.DeviceEntryInteractor} instead.
  */
-public interface KeyguardStateController extends CallbackController<Callback> {
+@Deprecated
+public interface KeyguardStateController extends CallbackController<Callback>, Dumpable {
 
     /**
      * If the device is locked or unlocked.
@@ -40,6 +47,8 @@ public interface KeyguardStateController extends CallbackController<Callback> {
     default boolean isVisible() {
         return isShowing() && !isOccluded();
     }
+
+    default void dump(PrintWriter pw, String[] args) { }
 
     /**
      * If the keyguard is showing. This includes when it's occluded by an activity, and when

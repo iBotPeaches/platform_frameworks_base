@@ -16,8 +16,14 @@
 
 package com.android.server.wm;
 
+import static android.os.UserHandle.USER_NULL;
+import static android.os.UserHandle.USER_SYSTEM;
+import static android.os.UserManager.isHeadlessSystemUserMode;
+import static android.os.UserManager.isVisibleBackgroundUsersEnabled;
+
 import android.annotation.NonNull;
 import android.annotation.UiThread;
+import android.annotation.UserIdInt;
 import android.annotation.WorkerThread;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -26,17 +32,24 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.Flags;
+import android.content.pm.UserInfo;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemProperties;
+import android.os.UserHandle;
+import android.system.Os;
+import android.system.OsConstants;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.AtomicFile;
 import android.util.DisplayMetrics;
+import android.util.Pair;
 import android.util.Slog;
+import android.util.SparseArray;
 import android.util.Xml;
 
 import com.android.internal.annotations.GuardedBy;
@@ -44,6 +57,8 @@ import com.android.internal.util.ArrayUtils;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
 import com.android.server.IoThread;
+import com.android.server.LocalServices;
+import com.android.server.pm.UserManagerInternal;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -64,20 +79,33 @@ class AppWarnings {
     public static final int FLAG_HIDE_COMPILE_SDK = 0x02;
     public static final int FLAG_HIDE_DEPRECATED_SDK = 0x04;
     public static final int FLAG_HIDE_DEPRECATED_ABI = 0x08;
+    public static final int FLAG_HIDE_PAGE_SIZE_MISMATCH = 0x10;
 
+    /**
+     * Map of package flags for each user.
+     * Key: {@literal Pair<userId, packageName>}
+     * Value: Flags
+     */
     @GuardedBy("mPackageFlags")
-    private final ArrayMap<String, Integer> mPackageFlags = new ArrayMap<>();
+    private final ArrayMap<Pair<Integer, String>, Integer> mPackageFlags = new ArrayMap<>();
 
     private final ActivityTaskManagerService mAtm;
-    private final Context mUiContext;
     private final WriteConfigTask mWriteConfigTask;
     private final UiHandler mUiHandler;
     private final AtomicFile mConfigFile;
 
-    private UnsupportedDisplaySizeDialog mUnsupportedDisplaySizeDialog;
-    private UnsupportedCompileSdkDialog mUnsupportedCompileSdkDialog;
-    private DeprecatedTargetSdkVersionDialog mDeprecatedTargetSdkVersionDialog;
-    private DeprecatedAbiDialog mDeprecatedAbiDialog;
+    private UserManagerInternal mUserManagerInternal;
+
+    /**
+     * Maps of app warning dialogs for each user.
+     * Key: userId
+     * Value: The warning dialog for specific user
+     */
+    private SparseArray<UnsupportedDisplaySizeDialog> mUnsupportedDisplaySizeDialogs;
+    private SparseArray<UnsupportedCompileSdkDialog> mUnsupportedCompileSdkDialogs;
+    private SparseArray<DeprecatedTargetSdkVersionDialog> mDeprecatedTargetSdkVersionDialogs;
+    private SparseArray<DeprecatedAbiDialog> mDeprecatedAbiDialogs;
+    private SparseArray<PageSizeMismatchDialog> mPageSizeMismatchDialogs;
 
     /** @see android.app.ActivityManager#alwaysShowUnsupportedCompileSdkWarning */
     private final ArraySet<ComponentName> mAlwaysShowUnsupportedCompileSdkWarningActivities =
@@ -92,12 +120,35 @@ class AppWarnings {
     public AppWarnings(ActivityTaskManagerService atm, Context uiContext, Handler handler,
             Handler uiHandler, File systemDir) {
         mAtm = atm;
-        mUiContext = uiContext;
         mWriteConfigTask = new WriteConfigTask();
         mUiHandler = new UiHandler(uiHandler.getLooper());
         mConfigFile = new AtomicFile(new File(systemDir, CONFIG_FILE_NAME), "warnings-config");
+    }
 
+    /**
+     * Called when ActivityManagerService receives its systemReady call during boot.
+     */
+    void onSystemReady() {
+        mUserManagerInternal = LocalServices.getService(UserManagerInternal.class);
         readConfigFromFileAmsThread();
+
+        if (!isVisibleBackgroundUsersEnabled()) {
+            return;
+        }
+
+        mUserManagerInternal.addUserLifecycleListener(
+                new UserManagerInternal.UserLifecycleListener() {
+                    @Override
+                    public void onUserRemoved(UserInfo user) {
+                        // Ignore profile user.
+                        if (!user.isFull()) {
+                            return;
+                        }
+                        // Dismiss all warnings and clear all package flags for the user.
+                        mUiHandler.hideDialogsForPackage(/* name= */ null, user.id);
+                        clearAllPackageFlagsForUser(user.id);
+                    }
+                });
     }
 
     /**
@@ -106,10 +157,12 @@ class AppWarnings {
      * @param r activity record for which the warning may be displayed
      */
     public void showUnsupportedDisplaySizeDialogIfNeeded(ActivityRecord r) {
-        final Configuration globalConfig = mAtm.getGlobalConfiguration();
-        if (globalConfig.densityDpi != DisplayMetrics.DENSITY_DEVICE_STABLE
+        final DisplayContent dc = r.getDisplayContent();
+        final Configuration config = dc == null
+                ? mAtm.getGlobalConfiguration() : dc.getConfiguration();
+        if (config.densityDpi != DisplayMetrics.DENSITY_DEVICE_STABLE
                 && r.info.applicationInfo.requiresSmallestWidthDp
-                > globalConfig.smallestScreenWidthDp) {
+                > config.smallestScreenWidthDp) {
             mUiHandler.showUnsupportedDisplaySizeDialog(r);
         }
     }
@@ -202,6 +255,19 @@ class AppWarnings {
         }
     }
 
+    public void showPageSizeMismatchDialogIfNeeded(ActivityRecord r) {
+        // Don't show dialog if the app compat is enabled using property
+        final boolean appCompatEnabled = SystemProperties.getBoolean(
+                "bionic.linker.16kb.app_compat.enabled", false);
+        if (appCompatEnabled) {
+            return;
+        }
+        boolean is16KbDevice = Os.sysconf(OsConstants._SC_PAGESIZE) == 16384;
+        if (is16KbDevice) {
+            mUiHandler.showPageSizeMismatchDialog(r);
+        }
+    }
+
     /**
      * Called when an activity is being started.
      *
@@ -212,6 +278,9 @@ class AppWarnings {
         showUnsupportedDisplaySizeDialogIfNeeded(r);
         showDeprecatedTargetDialogIfNeeded(r);
         showDeprecatedAbiDialogIfNeeded(r);
+        if (Flags.appCompatOption16kb()) {
+            showPageSizeMismatchDialogIfNeeded(r);
+        }
     }
 
     /**
@@ -227,18 +296,20 @@ class AppWarnings {
      * Called by ActivityManagerService when package data has been cleared.
      *
      * @param name the package whose data has been cleared
+     * @param userId the user where the package resides.
      */
-    public void onPackageDataCleared(String name) {
-        removePackageAndHideDialogs(name);
+    public void onPackageDataCleared(String name, int userId) {
+        removePackageAndHideDialogs(name, userId);
     }
 
     /**
      * Called by ActivityManagerService when a package has been uninstalled.
      *
      * @param name the package that has been uninstalled
+     * @param userId the user where the package resides.
      */
-    public void onPackageUninstalled(String name) {
-        removePackageAndHideDialogs(name);
+    public void onPackageUninstalled(String name, int userId) {
+        removePackageAndHideDialogs(name, userId);
     }
 
     /**
@@ -251,11 +322,24 @@ class AppWarnings {
     /**
      * Does what it says on the tin.
      */
-    private void removePackageAndHideDialogs(String name) {
-        mUiHandler.hideDialogsForPackage(name);
+    private void removePackageAndHideDialogs(String name, int userId) {
+        // Per-user AppWarnings only affects the behavior of the devices that enable the visible
+        // background users.
+        // To preserve existing behavior of the other devices, handle AppWarnings as a system user
+        // regardless of the actual user.
+        if (!isVisibleBackgroundUsersEnabled()) {
+            userId = USER_SYSTEM;
+        } else {
+            // If the userId is of a profile, use the parent user ID,
+            // since the warning dialogs and the flags for a package are handled per profile group.
+            userId = mUserManagerInternal.getProfileParentId(userId);
+        }
+
+        mUiHandler.hideDialogsForPackage(name, userId);
 
         synchronized (mPackageFlags) {
-            if (mPackageFlags.remove(name) != null) {
+            final Pair<Integer, String> packageKey = Pair.create(userId, name);
+            if (mPackageFlags.remove(packageKey) != null) {
                 mWriteConfigTask.schedule();
             }
         }
@@ -268,10 +352,14 @@ class AppWarnings {
      */
     @UiThread
     private void hideUnsupportedDisplaySizeDialogUiThread() {
-        if (mUnsupportedDisplaySizeDialog != null) {
-            mUnsupportedDisplaySizeDialog.dismiss();
-            mUnsupportedDisplaySizeDialog = null;
+        if (mUnsupportedDisplaySizeDialogs == null) {
+            return;
         }
+
+        for (int i = 0; i < mUnsupportedDisplaySizeDialogs.size(); i++) {
+            mUnsupportedDisplaySizeDialogs.valueAt(i).dismiss();
+        }
+        mUnsupportedDisplaySizeDialogs.clear();
     }
 
     /**
@@ -282,16 +370,24 @@ class AppWarnings {
      * @param ar record for the activity that triggered the warning
      */
     @UiThread
-    private void showUnsupportedDisplaySizeDialogUiThread(ActivityRecord ar) {
-        if (mUnsupportedDisplaySizeDialog != null) {
-            mUnsupportedDisplaySizeDialog.dismiss();
-            mUnsupportedDisplaySizeDialog = null;
+    private void showUnsupportedDisplaySizeDialogUiThread(@NonNull ActivityRecord ar) {
+        final int userId = getUserIdForActivity(ar);
+        UnsupportedDisplaySizeDialog unsupportedDisplaySizeDialog;
+        if (mUnsupportedDisplaySizeDialogs != null) {
+            unsupportedDisplaySizeDialog = mUnsupportedDisplaySizeDialogs.get(userId);
+            if (unsupportedDisplaySizeDialog != null) {
+                unsupportedDisplaySizeDialog.dismiss();
+                mUnsupportedDisplaySizeDialogs.remove(userId);
+            }
         }
-        if (ar != null && !hasPackageFlag(
-                ar.packageName, FLAG_HIDE_DISPLAY_SIZE)) {
-            mUnsupportedDisplaySizeDialog = new UnsupportedDisplaySizeDialog(
-                    AppWarnings.this, mUiContext, ar.info.applicationInfo);
-            mUnsupportedDisplaySizeDialog.show();
+        if (!hasPackageFlag(userId, ar.packageName, FLAG_HIDE_DISPLAY_SIZE)) {
+            unsupportedDisplaySizeDialog = new UnsupportedDisplaySizeDialog(
+                    AppWarnings.this, getUiContextForActivity(ar), ar.info.applicationInfo, userId);
+            unsupportedDisplaySizeDialog.show();
+            if (mUnsupportedDisplaySizeDialogs == null) {
+                mUnsupportedDisplaySizeDialogs = new SparseArray<>();
+            }
+            mUnsupportedDisplaySizeDialogs.put(userId, unsupportedDisplaySizeDialog);
         }
     }
 
@@ -303,16 +399,24 @@ class AppWarnings {
      * @param ar record for the activity that triggered the warning
      */
     @UiThread
-    private void showUnsupportedCompileSdkDialogUiThread(ActivityRecord ar) {
-        if (mUnsupportedCompileSdkDialog != null) {
-            mUnsupportedCompileSdkDialog.dismiss();
-            mUnsupportedCompileSdkDialog = null;
+    private void showUnsupportedCompileSdkDialogUiThread(@NonNull ActivityRecord ar) {
+        final int userId = getUserIdForActivity(ar);
+        UnsupportedCompileSdkDialog unsupportedCompileSdkDialog;
+        if (mUnsupportedCompileSdkDialogs != null) {
+            unsupportedCompileSdkDialog = mUnsupportedCompileSdkDialogs.get(userId);
+            if (unsupportedCompileSdkDialog != null) {
+                unsupportedCompileSdkDialog.dismiss();
+                mUnsupportedCompileSdkDialogs.remove(userId);
+            }
         }
-        if (ar != null && !hasPackageFlag(
-                ar.packageName, FLAG_HIDE_COMPILE_SDK)) {
-            mUnsupportedCompileSdkDialog = new UnsupportedCompileSdkDialog(
-                    AppWarnings.this, mUiContext, ar.info.applicationInfo);
-            mUnsupportedCompileSdkDialog.show();
+        if (!hasPackageFlag(userId, ar.packageName, FLAG_HIDE_COMPILE_SDK)) {
+            unsupportedCompileSdkDialog = new UnsupportedCompileSdkDialog(
+                    AppWarnings.this, getUiContextForActivity(ar), ar.info.applicationInfo, userId);
+            unsupportedCompileSdkDialog.show();
+            if (mUnsupportedCompileSdkDialogs == null) {
+                mUnsupportedCompileSdkDialogs = new SparseArray<>();
+            }
+            mUnsupportedCompileSdkDialogs.put(userId, unsupportedCompileSdkDialog);
         }
     }
 
@@ -324,16 +428,24 @@ class AppWarnings {
      * @param ar record for the activity that triggered the warning
      */
     @UiThread
-    private void showDeprecatedTargetSdkDialogUiThread(ActivityRecord ar) {
-        if (mDeprecatedTargetSdkVersionDialog != null) {
-            mDeprecatedTargetSdkVersionDialog.dismiss();
-            mDeprecatedTargetSdkVersionDialog = null;
+    private void showDeprecatedTargetSdkDialogUiThread(@NonNull ActivityRecord ar) {
+        final int userId = getUserIdForActivity(ar);
+        DeprecatedTargetSdkVersionDialog deprecatedTargetSdkVersionDialog;
+        if (mDeprecatedTargetSdkVersionDialogs != null) {
+            deprecatedTargetSdkVersionDialog = mDeprecatedTargetSdkVersionDialogs.get(userId);
+            if (deprecatedTargetSdkVersionDialog != null) {
+                deprecatedTargetSdkVersionDialog.dismiss();
+                mDeprecatedTargetSdkVersionDialogs.remove(userId);
+            }
         }
-        if (ar != null && !hasPackageFlag(
-                ar.packageName, FLAG_HIDE_DEPRECATED_SDK)) {
-            mDeprecatedTargetSdkVersionDialog = new DeprecatedTargetSdkVersionDialog(
-                    AppWarnings.this, mUiContext, ar.info.applicationInfo);
-            mDeprecatedTargetSdkVersionDialog.show();
+        if (!hasPackageFlag(userId, ar.packageName, FLAG_HIDE_DEPRECATED_SDK)) {
+            deprecatedTargetSdkVersionDialog = new DeprecatedTargetSdkVersionDialog(
+                    AppWarnings.this, getUiContextForActivity(ar), ar.info.applicationInfo, userId);
+            deprecatedTargetSdkVersionDialog.show();
+            if (mDeprecatedTargetSdkVersionDialogs == null) {
+                mDeprecatedTargetSdkVersionDialogs = new SparseArray<>();
+            }
+            mDeprecatedTargetSdkVersionDialogs.put(userId, deprecatedTargetSdkVersionDialog);
         }
     }
 
@@ -345,16 +457,59 @@ class AppWarnings {
      * @param ar record for the activity that triggered the warning
      */
     @UiThread
-    private void showDeprecatedAbiDialogUiThread(ActivityRecord ar) {
-        if (mDeprecatedAbiDialog != null) {
-            mDeprecatedAbiDialog.dismiss();
-            mDeprecatedAbiDialog = null;
+    private void showDeprecatedAbiDialogUiThread(@NonNull ActivityRecord ar) {
+        final int userId = getUserIdForActivity(ar);
+        DeprecatedAbiDialog deprecatedAbiDialog;
+        if (mDeprecatedAbiDialogs != null) {
+            deprecatedAbiDialog = mDeprecatedAbiDialogs.get(userId);
+            if (deprecatedAbiDialog != null) {
+                deprecatedAbiDialog.dismiss();
+                mDeprecatedAbiDialogs.remove(userId);
+            }
         }
-        if (ar != null && !hasPackageFlag(
-                ar.packageName, FLAG_HIDE_DEPRECATED_ABI)) {
-            mDeprecatedAbiDialog = new DeprecatedAbiDialog(
-                    AppWarnings.this, mUiContext, ar.info.applicationInfo);
-            mDeprecatedAbiDialog.show();
+        if (!hasPackageFlag(userId, ar.packageName, FLAG_HIDE_DEPRECATED_ABI)) {
+            deprecatedAbiDialog = new DeprecatedAbiDialog(
+                    AppWarnings.this, getUiContextForActivity(ar), ar.info.applicationInfo, userId);
+            deprecatedAbiDialog.show();
+            if (mDeprecatedAbiDialogs == null) {
+                mDeprecatedAbiDialogs = new SparseArray<>();
+            }
+            mDeprecatedAbiDialogs.put(userId, deprecatedAbiDialog);
+        }
+    }
+
+    @UiThread
+    private void showPageSizeMismatchDialogUiThread(@NonNull ActivityRecord ar) {
+        String warning =
+                mAtm.mContext
+                        .getPackageManager()
+                        .getPageSizeCompatWarningMessage(ar.info.packageName);
+        if (warning == null) {
+            return;
+        }
+
+        final int userId = getUserIdForActivity(ar);
+        PageSizeMismatchDialog pageSizeMismatchDialog;
+        if (mPageSizeMismatchDialogs != null) {
+            pageSizeMismatchDialog = mPageSizeMismatchDialogs.get(userId);
+            if (pageSizeMismatchDialog != null) {
+                pageSizeMismatchDialog.dismiss();
+                mPageSizeMismatchDialogs.remove(userId);
+            }
+        }
+        if (!hasPackageFlag(userId, ar.packageName, FLAG_HIDE_PAGE_SIZE_MISMATCH)) {
+            pageSizeMismatchDialog =
+                    new PageSizeMismatchDialog(
+                            AppWarnings.this,
+                            getUiContextForActivity(ar),
+                            ar.info.applicationInfo,
+                            userId,
+                            warning);
+            pageSizeMismatchDialog.show();
+            if (mPageSizeMismatchDialogs == null) {
+                mPageSizeMismatchDialogs = new SparseArray<>();
+            }
+            mPageSizeMismatchDialogs.put(userId, pageSizeMismatchDialog);
         }
     }
 
@@ -365,65 +520,94 @@ class AppWarnings {
      *
      * @param name the package for which warnings should be dismissed, or {@code null} to dismiss
      *             all warnings
+     * @param userId the user where the package resides.
      */
     @UiThread
-    private void hideDialogsForPackageUiThread(String name) {
+    private void hideDialogsForPackageUiThread(String name, int userId) {
         // Hides the "unsupported display" dialog if necessary.
-        if (mUnsupportedDisplaySizeDialog != null && (name == null || name.equals(
-                mUnsupportedDisplaySizeDialog.mPackageName))) {
-            mUnsupportedDisplaySizeDialog.dismiss();
-            mUnsupportedDisplaySizeDialog = null;
+        if (mUnsupportedDisplaySizeDialogs != null) {
+            UnsupportedDisplaySizeDialog unsupportedDisplaySizeDialog =
+                    mUnsupportedDisplaySizeDialogs.get(userId);
+            if (unsupportedDisplaySizeDialog != null && (name == null || name.equals(
+                    unsupportedDisplaySizeDialog.mPackageName))) {
+                unsupportedDisplaySizeDialog.dismiss();
+                mUnsupportedDisplaySizeDialogs.remove(userId);
+            }
         }
 
         // Hides the "unsupported compile SDK" dialog if necessary.
-        if (mUnsupportedCompileSdkDialog != null && (name == null || name.equals(
-                mUnsupportedCompileSdkDialog.mPackageName))) {
-            mUnsupportedCompileSdkDialog.dismiss();
-            mUnsupportedCompileSdkDialog = null;
+        if (mUnsupportedCompileSdkDialogs != null) {
+            UnsupportedCompileSdkDialog unsupportedCompileSdkDialog =
+                    mUnsupportedCompileSdkDialogs.get(userId);
+            if (unsupportedCompileSdkDialog != null && (name == null || name.equals(
+                    unsupportedCompileSdkDialog.mPackageName))) {
+                unsupportedCompileSdkDialog.dismiss();
+                mUnsupportedCompileSdkDialogs.remove(userId);
+            }
         }
 
         // Hides the "deprecated target sdk version" dialog if necessary.
-        if (mDeprecatedTargetSdkVersionDialog != null && (name == null || name.equals(
-                mDeprecatedTargetSdkVersionDialog.mPackageName))) {
-            mDeprecatedTargetSdkVersionDialog.dismiss();
-            mDeprecatedTargetSdkVersionDialog = null;
+        if (mDeprecatedTargetSdkVersionDialogs != null) {
+            DeprecatedTargetSdkVersionDialog deprecatedTargetSdkVersionDialog =
+                    mDeprecatedTargetSdkVersionDialogs.get(userId);
+            if (deprecatedTargetSdkVersionDialog != null && (name == null || name.equals(
+                    deprecatedTargetSdkVersionDialog.mPackageName))) {
+                deprecatedTargetSdkVersionDialog.dismiss();
+                mDeprecatedTargetSdkVersionDialogs.remove(userId);
+            }
         }
 
         // Hides the "deprecated abi" dialog if necessary.
-        if (mDeprecatedAbiDialog != null && (name == null || name.equals(
-                mDeprecatedAbiDialog.mPackageName))) {
-            mDeprecatedAbiDialog.dismiss();
-            mDeprecatedAbiDialog = null;
+        if (mDeprecatedAbiDialogs != null) {
+            DeprecatedAbiDialog deprecatedAbiDialog = mDeprecatedAbiDialogs.get(userId);
+            if (deprecatedAbiDialog != null && (name == null || name.equals(
+                    deprecatedAbiDialog.mPackageName))) {
+                deprecatedAbiDialog.dismiss();
+                mDeprecatedAbiDialogs.remove(userId);
+            }
+        }
+
+        // Hides the "page size app compat" dialog if necessary.
+        if (mPageSizeMismatchDialogs != null) {
+            PageSizeMismatchDialog pageSizeMismatchDialog = mPageSizeMismatchDialogs.get(userId);
+            if (pageSizeMismatchDialog != null
+                    && (name == null || name.equals(pageSizeMismatchDialog.mPackageName))) {
+                pageSizeMismatchDialog.dismiss();
+                mPageSizeMismatchDialogs.remove(userId);
+            }
         }
     }
 
     /**
      * Returns the value of the flag for the given package.
      *
+     * @param userId the user where the package resides.
      * @param name the package from which to retrieve the flag
      * @param flag the bitmask for the flag to retrieve
      * @return {@code true} if the flag is enabled, {@code false} otherwise
      */
-    boolean hasPackageFlag(String name, int flag) {
-        return (getPackageFlags(name) & flag) == flag;
+    boolean hasPackageFlag(int userId, String name, int flag) {
+        return (getPackageFlags(userId, name) & flag) == flag;
     }
 
     /**
      * Sets the flag for the given package to the specified value.
      *
+     * @param userId the user where the package resides.
      * @param name the package on which to set the flag
      * @param flag the bitmask for flag to set
      * @param enabled the value to set for the flag
      */
-    void setPackageFlag(String name, int flag, boolean enabled) {
+    void setPackageFlag(int userId, String name, int flag, boolean enabled) {
         synchronized (mPackageFlags) {
-            final int curFlags = getPackageFlags(name);
+            final int curFlags = getPackageFlags(userId, name);
             final int newFlags = enabled ? (curFlags | flag) : (curFlags & ~flag);
             if (curFlags != newFlags) {
+                final Pair<Integer, String> packageKey = Pair.create(userId, name);
                 if (newFlags != 0) {
-                    mPackageFlags.put(name, newFlags);
+                    mPackageFlags.put(packageKey, newFlags);
                 } else {
-                    mPackageFlags.remove(name);
+                    mPackageFlags.remove(packageKey);
                 }
                 mWriteConfigTask.schedule();
             }
@@ -433,10 +617,92 @@ class AppWarnings {
     /**
      * Returns the bitmask of flags set for the specified package.
      */
-    private int getPackageFlags(String name) {
+    private int getPackageFlags(int userId, String packageName) {
         synchronized (mPackageFlags) {
-            return mPackageFlags.getOrDefault(name, 0);
+            final Pair<Integer, String> packageKey = Pair.create(userId, packageName);
+            return mPackageFlags.getOrDefault(packageKey, 0);
         }
+    }
+
+    /**
+     * Clear all the package flags for given user.
+     */
+    private void clearAllPackageFlagsForUser(int userId) {
+        synchronized (mPackageFlags) {
+            boolean hasPackageFlagsForUser = false;
+            for (int i = mPackageFlags.size() - 1; i >= 0; i--) {
+                Pair<Integer, String> key = mPackageFlags.keyAt(i);
+                if (key.first == userId) {
+                    hasPackageFlagsForUser = true;
+                    mPackageFlags.remove(key);
+                }
+            }
+
+            if (hasPackageFlagsForUser) {
+                mWriteConfigTask.schedule();
+            }
+        }
+    }
+
+    /**
+     * Returns the user ID for handling AppWarnings per user.
+     * Per-user AppWarnings only affects the behavior of the devices that enable
+     * the visible background users.
+     * If the device doesn't enable visible background users, it will return the system user ID
+     * for handling AppWarnings as a system user regardless of the actual user
+     * to preserve existing behavior of the device.
+     * Otherwise, it will return the main user (i.e., not a profile) that is assigned to the display
+     * where the activity is launched.
+     */
+    private @UserIdInt int getUserIdForActivity(@NonNull ActivityRecord ar) {
+        if (!isVisibleBackgroundUsersEnabled()) {
+            return USER_SYSTEM;
+        }
+
+        if (ar.mUserId == USER_SYSTEM) {
+            return getUserAssignedToDisplay(ar.mDisplayContent.getDisplayId());
+        }
+
+        return mUserManagerInternal.getProfileParentId(ar.mUserId);
+    }
+
+    /**
+     * Returns the UI context for handling AppWarnings per user.
+     * Per-user AppWarnings only affects the behavior of the devices that enable
+     * the visible background users.
+     * If the device enables the visible background users, it will return the UI context associated
+     * with the assigned user and the display where the activity is launched.
+     * If the HSUM device doesn't enable the visible background users, it will return the UI context
+     * associated with the current user and the default display.
+     * Otherwise, it will return the UI context associated with the system user and the default
+     * display.
+     */
+    private Context getUiContextForActivity(@NonNull ActivityRecord ar) {
+        if (!isVisibleBackgroundUsersEnabled()) {
+            if (!isHeadlessSystemUserMode()) {
+                return mAtm.getUiContext();
+            }
+
+            Context uiContextForCurrentUser = mAtm.getUiContext().createContextAsUser(
+                    new UserHandle(mAtm.getCurrentUserId()), /* flags= */ 0);
+            return uiContextForCurrentUser;
+        }
+
+        DisplayContent dc = ar.mDisplayContent;
+        Context systemUiContext = dc.getDisplayPolicy().getSystemUiContext();
+        int assignedUser = getUserAssignedToDisplay(dc.getDisplayId());
+        Context uiContextForUser = systemUiContext.createContextAsUser(
+                new UserHandle(assignedUser), /* flags= */ 0);
+        return uiContextForUser;
+    }
+
+    /**
+     * Returns the main user that is assigned to the display.
+     *
+     * See {@link UserManagerInternal#getUserAssignedToDisplay(int)}.
+     */
+    private @UserIdInt int getUserAssignedToDisplay(int displayId) {
+        return mUserManagerInternal.getUserAssignedToDisplay(displayId);
     }
 
     /**
@@ -449,6 +715,7 @@ class AppWarnings {
         private static final int MSG_HIDE_DIALOGS_FOR_PACKAGE = 4;
         private static final int MSG_SHOW_DEPRECATED_TARGET_SDK_DIALOG = 5;
         private static final int MSG_SHOW_DEPRECATED_ABI_DIALOG = 6;
+        private static final int MSG_SHOW_PAGE_SIZE_APP_MISMATCH_DIALOG = 7;
 
         public UiHandler(Looper looper) {
             super(looper, null, true);
@@ -470,7 +737,8 @@ class AppWarnings {
                 } break;
                 case MSG_HIDE_DIALOGS_FOR_PACKAGE: {
                     final String name = (String) msg.obj;
-                    hideDialogsForPackageUiThread(name);
+                    final int userId = (int) msg.arg1;
+                    hideDialogsForPackageUiThread(name, userId);
                 } break;
                 case MSG_SHOW_DEPRECATED_TARGET_SDK_DIALOG: {
                     final ActivityRecord ar = (ActivityRecord) msg.obj;
@@ -479,6 +747,10 @@ class AppWarnings {
                 case MSG_SHOW_DEPRECATED_ABI_DIALOG: {
                     final ActivityRecord ar = (ActivityRecord) msg.obj;
                     showDeprecatedAbiDialogUiThread(ar);
+                } break;
+                case MSG_SHOW_PAGE_SIZE_APP_MISMATCH_DIALOG: {
+                    final ActivityRecord ar = (ActivityRecord) msg.obj;
+                    showPageSizeMismatchDialogUiThread(ar);
                 } break;
             }
         }
@@ -508,20 +780,29 @@ class AppWarnings {
             obtainMessage(MSG_SHOW_DEPRECATED_ABI_DIALOG, r).sendToTarget();
         }
 
-        public void hideDialogsForPackage(String name) {
-            obtainMessage(MSG_HIDE_DIALOGS_FOR_PACKAGE, name).sendToTarget();
+        public void hideDialogsForPackage(String name, int userId) {
+            obtainMessage(MSG_HIDE_DIALOGS_FOR_PACKAGE, userId, 0, name).sendToTarget();
+        }
+
+        public void showPageSizeMismatchDialog(ActivityRecord r) {
+            removeMessages(MSG_SHOW_PAGE_SIZE_APP_MISMATCH_DIALOG);
+            obtainMessage(MSG_SHOW_PAGE_SIZE_APP_MISMATCH_DIALOG, r).sendToTarget();
         }
     }
 
     static class BaseDialog {
         final AppWarnings mManager;
+        final Context mUiContext;
         final String mPackageName;
+        final int mUserId;
         AlertDialog mDialog;
         private BroadcastReceiver mCloseReceiver;
 
-        BaseDialog(AppWarnings manager, String packageName) {
+        BaseDialog(AppWarnings manager, Context uiContext, String packageName, int userId) {
             mManager = manager;
+            mUiContext = uiContext;
             mPackageName = packageName;
+            mUserId = userId;
         }
 
         @UiThread
@@ -532,11 +813,11 @@ class AppWarnings {
                     @Override
                     public void onReceive(Context context, Intent intent) {
                         if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(intent.getAction())) {
-                            mManager.mUiHandler.hideDialogsForPackage(mPackageName);
+                            mManager.mUiHandler.hideDialogsForPackage(mPackageName, mUserId);
                         }
                     }
                 };
-                mManager.mUiContext.registerReceiver(mCloseReceiver,
+                mUiContext.registerReceiver(mCloseReceiver,
                         new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS),
                         Context.RECEIVER_EXPORTED);
             }
@@ -548,7 +829,7 @@ class AppWarnings {
         void dismiss() {
             if (mDialog == null) return;
             if (mCloseReceiver != null) {
-                mManager.mUiContext.unregisterReceiver(mCloseReceiver);
+                mUiContext.unregisterReceiver(mCloseReceiver);
                 mCloseReceiver = null;
             }
             mDialog.dismiss();
@@ -558,12 +839,13 @@ class AppWarnings {
 
     private final class WriteConfigTask implements Runnable {
         private static final long WRITE_CONFIG_DELAY_MS = 10000;
-        final AtomicReference<ArrayMap<String, Integer>> mPendingPackageFlags =
+        final AtomicReference<ArrayMap<Pair<Integer, String>, Integer>> mPendingPackageFlags =
                 new AtomicReference<>();
 
         @Override
         public void run() {
-            final ArrayMap<String, Integer> packageFlags = mPendingPackageFlags.getAndSet(null);
+            final ArrayMap<Pair<Integer, String>, Integer> packageFlags =
+                    mPendingPackageFlags.getAndSet(null);
             if (packageFlags != null) {
                 writeConfigToFile(packageFlags);
             }
@@ -579,7 +861,7 @@ class AppWarnings {
 
     /** Writes the configuration file. */
     @WorkerThread
-    private void writeConfigToFile(@NonNull ArrayMap<String, Integer> packageFlags) {
+    private void writeConfigToFile(@NonNull ArrayMap<Pair<Integer, String>, Integer> packageFlags) {
         FileOutputStream fos = null;
         try {
             fos = mConfigFile.startWrite();
@@ -590,13 +872,16 @@ class AppWarnings {
             out.startTag(null, "packages");
 
             for (int i = 0; i < packageFlags.size(); i++) {
-                final String pkg = packageFlags.keyAt(i);
+                final Pair<Integer, String> key = packageFlags.keyAt(i);
+                final int userId = key.first;
+                final String packageName = key.second;
                 final int mode = packageFlags.valueAt(i);
                 if (mode == 0) {
                     continue;
                 }
                 out.startTag(null, "package");
-                out.attribute(null, "name", pkg);
+                out.attributeInt(null, "user", userId);
+                out.attribute(null, "name", packageName);
                 out.attributeInt(null, "flags", mode);
                 out.endTag(null, "package");
             }
@@ -616,7 +901,7 @@ class AppWarnings {
     /**
      * Reads the configuration file and populates the package flags.
      * <p>
-     * <strong>Note:</strong> Must be called from the constructor (and thus on the
+     * <strong>Note:</strong> Must be called from #onSystemReady() (and thus on the
      * ActivityManagerService thread) since we don't synchronize on config.
      */
     private void readConfigFromFileAmsThread() {
@@ -639,21 +924,58 @@ class AppWarnings {
             String tagName = parser.getName();
             if ("packages".equals(tagName)) {
                 eventType = parser.next();
+                boolean writeConfigToFileNeeded = false;
                 do {
                     if (eventType == XmlPullParser.START_TAG) {
                         tagName = parser.getName();
                         if (parser.getDepth() == 2) {
                             if ("package".equals(tagName)) {
+                                final int userId = parser.getAttributeInt(
+                                        null, "user", USER_NULL);
                                 final String name = parser.getAttributeValue(null, "name");
                                 if (name != null) {
                                     int flagsInt = parser.getAttributeInt(null, "flags", 0);
-                                    mPackageFlags.put(name, flagsInt);
+                                    if (userId != USER_NULL) {
+                                        final Pair<Integer, String> packageKey =
+                                                Pair.create(userId, name);
+                                        mPackageFlags.put(packageKey, flagsInt);
+                                    } else {
+                                        // This is for compatibility with existing configuration
+                                        // file written from legacy logic(pre-V) which does not have
+                                        // the flags per-user. (b/296334639)
+                                        writeConfigToFileNeeded = true;
+                                        if (!isVisibleBackgroundUsersEnabled()) {
+                                            // To preserve existing behavior of the devices that
+                                            // doesn't enable visible background users, populate
+                                            // the flags for a package as the system user.
+                                            final Pair<Integer, String> packageKey =
+                                                    Pair.create(USER_SYSTEM, name);
+                                            mPackageFlags.put(packageKey, flagsInt);
+                                        } else {
+                                            // To manage the flags per user in the device that
+                                            // enable visible background users, populate the flags
+                                            // for all existing non-profile human user.
+                                            UserInfo[] users = mUserManagerInternal.getUserInfos();
+                                            for (UserInfo userInfo : users) {
+                                                if (!userInfo.isFull()) {
+                                                    continue;
+                                                }
+                                                final Pair<Integer, String> packageKey =
+                                                        Pair.create(userInfo.id, name);
+                                                mPackageFlags.put(packageKey, flagsInt);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                     eventType = parser.next();
                 } while (eventType != XmlPullParser.END_DOCUMENT);
+
+                if (writeConfigToFileNeeded) {
+                    mWriteConfigTask.schedule();
+                }
             }
         } catch (XmlPullParserException e) {
             Slog.w(TAG, "Error reading package metadata", e);

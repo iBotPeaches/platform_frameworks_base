@@ -21,6 +21,7 @@ import android.annotation.SuppressLint;
 import android.app.compat.CompatChanges;
 import android.compat.annotation.ChangeId;
 import android.compat.annotation.EnabledSince;
+import android.hardware.broadcastradio.Alert;
 import android.hardware.broadcastradio.AmFmRegionConfig;
 import android.hardware.broadcastradio.Announcement;
 import android.hardware.broadcastradio.ConfigFlag;
@@ -36,6 +37,7 @@ import android.hardware.broadcastradio.VendorKeyValue;
 import android.hardware.radio.Flags;
 import android.hardware.radio.ProgramList;
 import android.hardware.radio.ProgramSelector;
+import android.hardware.radio.RadioAlert;
 import android.hardware.radio.RadioManager;
 import android.hardware.radio.RadioMetadata;
 import android.hardware.radio.RadioTuner;
@@ -446,6 +448,7 @@ final class ConversionUtils {
                         sel.secondaryIds[i]);
                 if (id == null) {
                     Slogf.e(TAG, "invalid secondary id: %s", sel.secondaryIds[i]);
+                    continue;
                 }
                 secondaryIdList.add(id);
             }
@@ -572,6 +575,86 @@ final class ConversionUtils {
         return builder.build();
     }
 
+    @Nullable private static RadioAlert.Polygon polygonFromHalPolygon(
+            android.hardware.broadcastradio.Polygon halPolygon) {
+        if (halPolygon.coordinates.length < 4) {
+            Slogf.e(TAG, "Number of coordinates in alert polygon cannot be less than 4");
+            return null;
+        } else if (halPolygon.coordinates[0].latitude
+                != halPolygon.coordinates[halPolygon.coordinates.length - 1].latitude
+                || halPolygon.coordinates[0].longitude
+                != halPolygon.coordinates[halPolygon.coordinates.length - 1].longitude) {
+            Slogf.e(TAG, "The first and the last coordinate in alert polygon cannot be different");
+            return null;
+        }
+        List<RadioAlert.Coordinate> coordinates = new ArrayList<>(halPolygon.coordinates.length);
+        for (int idx = 0; idx < halPolygon.coordinates.length; idx++) {
+            coordinates.add(new RadioAlert.Coordinate(halPolygon.coordinates[idx].latitude,
+                    halPolygon.coordinates[idx].longitude));
+        }
+        return new RadioAlert.Polygon(coordinates);
+    }
+
+    private static RadioAlert.Geocode geocodeFromHalGeocode(
+            android.hardware.broadcastradio.Geocode geocode) {
+        return new RadioAlert.Geocode(geocode.valueName, geocode.value);
+    }
+
+    private static RadioAlert.AlertArea alertAreaFromHalAlertArea(
+            android.hardware.broadcastradio.AlertArea halAlertArea) {
+        List<RadioAlert.Polygon> polygonList = new ArrayList<>();
+        for (int idx = 0; idx < halAlertArea.polygons.length; idx++) {
+            RadioAlert.Polygon polygon = polygonFromHalPolygon(halAlertArea.polygons[idx]);
+            if (polygon != null) {
+                polygonList.add(polygon);
+            }
+        }
+        List<RadioAlert.Geocode> geocodeList = new ArrayList<>(halAlertArea.geocodes.length);
+        for (int idx = 0; idx < halAlertArea.geocodes.length; idx++) {
+            geocodeList.add(geocodeFromHalGeocode(halAlertArea.geocodes[idx]));
+        }
+        return new RadioAlert.AlertArea(polygonList, geocodeList);
+    }
+
+    private static RadioAlert.AlertInfo alertInfoFromHalAlertInfo(
+            android.hardware.broadcastradio.AlertInfo halAlertInfo) {
+        int[] categoryArray = new int[halAlertInfo.categoryArray.length];
+        for (int idx = 0; idx < halAlertInfo.categoryArray.length; idx++) {
+            // Integer values in android.hardware.radio.RadioAlert.AlertCategory and
+            // android.hardware.broadcastradio.AlertCategory match.
+            categoryArray[idx] = halAlertInfo.categoryArray[idx];
+        }
+        List<RadioAlert.AlertArea> alertAreaList = new ArrayList<>();
+        for (int idx = 0; idx < halAlertInfo.areas.length; idx++) {
+            alertAreaList.add(alertAreaFromHalAlertArea(halAlertInfo.areas[idx]));
+        }
+        // Integer values in android.hardware.radio.RadioAlert.AlertUrgency and
+        // android.hardware.broadcastradio.AlertUrgency match.
+        // Integer values in android.hardware.radio.RadioAlert.AlertSeverity and
+        // android.hardware.broadcastradio.AlertSeverity match.
+        // Integer values in android.hardware.radio.RadioAlert.AlertCertainty and
+        // android.hardware.broadcastradio.AlertCertainty match.
+        return new RadioAlert.AlertInfo(categoryArray, halAlertInfo.urgency, halAlertInfo.severity,
+                halAlertInfo.certainty, halAlertInfo.description, alertAreaList,
+                halAlertInfo.language);
+    }
+
+    @VisibleForTesting
+    @Nullable static RadioAlert radioAlertFromHalAlert(Alert halAlert) {
+        if (halAlert == null) {
+            return null;
+        }
+        List<RadioAlert.AlertInfo> alertInfo = new ArrayList<>(halAlert.infoArray.length);
+        for (int idx = 0; idx < halAlert.infoArray.length; idx++) {
+            alertInfo.add(alertInfoFromHalAlertInfo(halAlert.infoArray[idx]));
+        }
+        // Integer values in android.hardware.radio.RadioAlert.AlertStatus and
+        // android.hardware.broadcastradio.AlertStatus match.
+        // Integer values in android.hardware.radio.RadioAlert.AlertMessageType and
+        // android.hardware.broadcastradio.AlertMessageType match.
+        return new RadioAlert(halAlert.status, halAlert.messageType, alertInfo);
+    }
+
     private static boolean isValidLogicallyTunedTo(ProgramIdentifier id) {
         return id.type == IdentifierType.AMFM_FREQUENCY_KHZ || id.type == IdentifierType.RDS_PI
                 || id.type == IdentifierType.HD_STATION_ID_EXT
@@ -589,15 +672,9 @@ final class ConversionUtils {
                 || isVendorIdentifierType(id.type);
     }
 
-    private static boolean isValidHalProgramInfo(ProgramInfo info) {
-        return isValidHalProgramSelector(info.selector)
-                && isValidLogicallyTunedTo(info.logicallyTunedTo)
-                && isValidPhysicallyTunedTo(info.physicallyTunedTo);
-    }
-
     @Nullable
     static RadioManager.ProgramInfo programInfoFromHalProgramInfo(ProgramInfo info) {
-        if (!isValidHalProgramInfo(info)) {
+        if (!isValidHalProgramSelector(info.selector)) {
             return null;
         }
         Collection<ProgramSelector.Identifier> relatedContent = new ArrayList<>();
@@ -610,7 +687,18 @@ final class ConversionUtils {
                 }
             }
         }
-
+        if (!Flags.hdRadioEmergencyAlertSystem()) {
+            return new RadioManager.ProgramInfo(
+                    Objects.requireNonNull(programSelectorFromHalProgramSelector(info.selector)),
+                    identifierFromHalProgramIdentifier(info.logicallyTunedTo),
+                    identifierFromHalProgramIdentifier(info.physicallyTunedTo),
+                    relatedContent,
+                    info.infoFlags,
+                    info.signalQuality,
+                    radioMetadataFromHalMetadata(info.metadata),
+                    vendorInfoFromHalVendorKeyValues(info.vendorInfo)
+            );
+        }
         return new RadioManager.ProgramInfo(
                 Objects.requireNonNull(programSelectorFromHalProgramSelector(info.selector)),
                 identifierFromHalProgramIdentifier(info.logicallyTunedTo),
@@ -619,8 +707,18 @@ final class ConversionUtils {
                 info.infoFlags,
                 info.signalQuality,
                 radioMetadataFromHalMetadata(info.metadata),
-                vendorInfoFromHalVendorKeyValues(info.vendorInfo)
+                vendorInfoFromHalVendorKeyValues(info.vendorInfo),
+                radioAlertFromHalAlert(info.emergencyAlert)
         );
+    }
+
+    @Nullable
+    static RadioManager.ProgramInfo tunedProgramInfoFromHalProgramInfo(ProgramInfo info) {
+        if (!isValidLogicallyTunedTo(info.logicallyTunedTo)
+                || !isValidPhysicallyTunedTo(info.physicallyTunedTo)) {
+            return null;
+        }
+        return programInfoFromHalProgramInfo(info);
     }
 
     static ProgramFilter filterToHalProgramFilter(@Nullable ProgramList.Filter filter) {
@@ -685,12 +783,11 @@ final class ConversionUtils {
         if (!programSelectorMeetsSdkVersionRequirement(info.getSelector(), uid)) {
             return false;
         }
-        if (!identifierMeetsSdkVersionRequirement(info.getLogicallyTunedTo(), uid)
-                || !identifierMeetsSdkVersionRequirement(info.getPhysicallyTunedTo(), uid)) {
+        if ((info.getLogicallyTunedTo() != null
+                && !identifierMeetsSdkVersionRequirement(info.getLogicallyTunedTo(), uid))
+                || (info.getPhysicallyTunedTo() != null
+                && !identifierMeetsSdkVersionRequirement(info.getPhysicallyTunedTo(), uid))) {
             return false;
-        }
-        if (info.getRelatedContent() == null) {
-            return true;
         }
         Iterator<ProgramSelector.Identifier> relatedContentIt = info.getRelatedContent().iterator();
         while (relatedContentIt.hasNext()) {

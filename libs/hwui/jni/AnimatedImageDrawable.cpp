@@ -25,7 +25,11 @@
 #include <hwui/AnimatedImageDrawable.h>
 #include <hwui/Canvas.h>
 #include <hwui/ImageDecoder.h>
+#ifdef __ANDROID__
 #include <utils/Looper.h>
+#else
+#include "utils/MessageHandler.h"
+#endif
 
 #include "ColorFilter.h"
 #include "GraphicsJNI.h"
@@ -204,6 +208,7 @@ private:
 };
 
 class JniAnimationEndListener : public OnAnimationEndListener {
+#ifdef __ANDROID__
 public:
     JniAnimationEndListener(sp<Looper>&& looper, JNIEnv* env, jobject javaObject) {
         mListener = new InvokeListener(env, javaObject);
@@ -215,6 +220,17 @@ public:
 private:
     sp<InvokeListener> mListener;
     sp<Looper> mLooper;
+#else
+public:
+    JniAnimationEndListener(JNIEnv* env, jobject javaObject) {
+        mListener = new InvokeListener(env, javaObject);
+    }
+
+    void onAnimationEnd() override { mListener->handleMessage(0); }
+
+private:
+    sp<InvokeListener> mListener;
+#endif
 };
 
 static void AnimatedImageDrawable_nSetOnAnimationEndListener(JNIEnv* env, jobject /*clazz*/,
@@ -223,6 +239,7 @@ static void AnimatedImageDrawable_nSetOnAnimationEndListener(JNIEnv* env, jobjec
     if (!jdrawable) {
         drawable->setOnAnimationEndListener(nullptr);
     } else {
+#ifdef __ANDROID__
         sp<Looper> looper = Looper::getForThread();
         if (!looper.get()) {
             doThrowISE(env,
@@ -233,6 +250,10 @@ static void AnimatedImageDrawable_nSetOnAnimationEndListener(JNIEnv* env, jobjec
 
         drawable->setOnAnimationEndListener(
                 std::make_unique<JniAnimationEndListener>(std::move(looper), env, jdrawable));
+#else
+        drawable->setOnAnimationEndListener(
+                std::make_unique<JniAnimationEndListener>(env, jdrawable));
+#endif
     }
 }
 
@@ -255,6 +276,18 @@ static void AnimatedImageDrawable_nSetBounds(JNIEnv* env, jobject /*clazz*/, jlo
     drawable->setStagingBounds(rect);
 }
 
+static jboolean AnimatedImageDrawable_nSetFilterBitmap(JNIEnv* env, jobject /*clazz*/,
+                                                       jlong nativePtr, jboolean filterBitmap) {
+    auto* drawable = reinterpret_cast<AnimatedImageDrawable*>(nativePtr);
+    return drawable->setFilterBitmap(filterBitmap);
+}
+
+static jboolean AnimatedImageDrawable_nGetFilterBitmap(JNIEnv* env, jobject /*clazz*/,
+                                                       jlong nativePtr) {
+    auto* drawable = reinterpret_cast<AnimatedImageDrawable*>(nativePtr);
+    return drawable->getFilterBitmap();
+}
+
 static const JNINativeMethod gAnimatedImageDrawableMethods[] = {
         {"nCreate", "(JLandroid/graphics/ImageDecoder;IIJZLandroid/graphics/Rect;)J",
          (void*)AnimatedImageDrawable_nCreate},
@@ -273,6 +306,8 @@ static const JNINativeMethod gAnimatedImageDrawableMethods[] = {
         {"nNativeByteSize", "(J)J", (void*)AnimatedImageDrawable_nNativeByteSize},
         {"nSetMirrored", "(JZ)V", (void*)AnimatedImageDrawable_nSetMirrored},
         {"nSetBounds", "(JLandroid/graphics/Rect;)V", (void*)AnimatedImageDrawable_nSetBounds},
+        {"nSetFilterBitmap", "(JZ)Z", (void*)AnimatedImageDrawable_nSetFilterBitmap},
+        {"nGetFilterBitmap", "(J)Z", (void*)AnimatedImageDrawable_nGetFilterBitmap},
 };
 
 int register_android_graphics_drawable_AnimatedImageDrawable(JNIEnv* env) {

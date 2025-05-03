@@ -16,6 +16,7 @@
 
 package com.android.server.stats.pull;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.StatsManager;
 import android.app.usage.NetworkStatsManager;
@@ -125,6 +126,11 @@ class AggregatedMobileDataStatsPuller {
     @GuardedBy("mLock")
     private final Map<UidProcState, MobileDataStats> mUidStats;
 
+    // No reason to keep more dimensions than 3000. The 3000 is the hard top for the statsd metrics
+    // dimensions guardrail. It also will keep the result binder transaction size capped to
+    // approximately 220kB for 3000 atoms
+    private static final int UID_STATS_MAX_SIZE = 3000;
+
     private final SparseIntArray mUidPreviousState;
 
     private NetworkStats mLastMobileUidStats = new NetworkStats(0, -1);
@@ -135,12 +141,9 @@ class AggregatedMobileDataStatsPuller {
 
     private final RateLimiter mRateLimiter;
 
-    AggregatedMobileDataStatsPuller(NetworkStatsManager networkStatsManager) {
-        if (DEBUG) {
-            if (Trace.isTagEnabled(Trace.TRACE_TAG_SYSTEM_SERVER)) {
-                Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER,
-                        TAG + "-AggregatedMobileDataStatsPullerInit");
-            }
+    AggregatedMobileDataStatsPuller(@NonNull NetworkStatsManager networkStatsManager) {
+        if (DEBUG && Trace.isTagEnabled(Trace.TRACE_TAG_SYSTEM_SERVER)) {
+            Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, TAG + "-Init");
         }
 
         mRateLimiter = new RateLimiter(/* window= */ Duration.ofSeconds(1));
@@ -167,10 +170,16 @@ class AggregatedMobileDataStatsPuller {
 
     public void noteUidProcessState(int uid, int state, long unusedElapsedRealtime,
                                     long unusedUptime) {
-        mMobileDataStatsHandler.post(
+        if (mRateLimiter.tryAcquire()) {
+            mMobileDataStatsHandler.post(
                 () -> {
                     noteUidProcessStateImpl(uid, state);
                 });
+        } else {
+            synchronized (mLock) {
+                mUidPreviousState.put(uid, state);
+            }
+        }
     }
 
     public int pullDataBytesTransfer(List<StatsEvent> data) {
@@ -188,40 +197,42 @@ class AggregatedMobileDataStatsPuller {
         }
 
         final UidProcState statsKey = new UidProcState(uid, previousState);
-        MobileDataStats stats;
         if (mUidStats.containsKey(statsKey)) {
-            stats = mUidStats.get(statsKey);
-        } else {
-            stats = new MobileDataStats();
-            mUidStats.put(statsKey, stats);
+            return mUidStats.get(statsKey);
         }
-        return stats;
+        if (mUidStats.size() < UID_STATS_MAX_SIZE) {
+            MobileDataStats stats = new MobileDataStats();
+            mUidStats.put(statsKey, stats);
+            return stats;
+        }
+        if (DEBUG) {
+            Slog.w(TAG, "getUidStatsForPreviousStateLocked() UID_STATS_MAX_SIZE reached");
+        }
+        return null;
     }
 
     private void noteUidProcessStateImpl(int uid, int state) {
-        if (mRateLimiter.tryAcquire()) {
-            // noteUidProcessStateImpl can be called back to back several times while
-            // the updateNetworkStats loops over several stats for multiple uids
-            // and during the first call in a batch of proc state change event it can
-            // contain info for uid with unknown previous state yet which can happen due to a few
-            // reasons:
-            // - app was just started
-            // - app was started before the ActivityManagerService
-            // as result stats would be created with state == ActivityManager.PROCESS_STATE_UNKNOWN
-            if (mNetworkStatsManager != null) {
-                updateNetworkStats(mNetworkStatsManager);
-            } else {
-                Slog.w(TAG, "noteUidProcessStateLocked() can not get mNetworkStatsManager");
-            }
+        // noteUidProcessStateImpl can be called back to back several times while
+        // the updateNetworkStats loops over several stats for multiple uids
+        // and during the first call in a batch of proc state change event it can
+        // contain info for uid with unknown previous state yet which can happen due to a few
+        // reasons:
+        // - app was just started
+        // - app was started before the ActivityManagerService
+        // as result stats would be created with state == ActivityManager.PROCESS_STATE_UNKNOWN
+        if (mNetworkStatsManager != null) {
+            updateNetworkStats(mNetworkStatsManager);
+        } else {
+            Slog.w(TAG, "noteUidProcessStateLocked() can not get mNetworkStatsManager");
         }
-        mUidPreviousState.put(uid, state);
+        synchronized (mLock) {
+            mUidPreviousState.put(uid, state);
+        }
     }
 
     private void updateNetworkStats(NetworkStatsManager networkStatsManager) {
-        if (DEBUG) {
-            if (Trace.isTagEnabled(Trace.TRACE_TAG_SYSTEM_SERVER)) {
-                Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, TAG + "-updateNetworkStats");
-            }
+        if (DEBUG && Trace.isTagEnabled(Trace.TRACE_TAG_SYSTEM_SERVER)) {
+            Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, TAG + "-updateNetworkStats");
         }
 
         final NetworkStats latestStats = networkStatsManager.getMobileUidStats();
@@ -246,17 +257,24 @@ class AggregatedMobileDataStatsPuller {
     }
 
     private void updateNetworkStatsDelta(NetworkStats delta) {
+        if (DEBUG && Trace.isTagEnabled(Trace.TRACE_TAG_SYSTEM_SERVER)) {
+            Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, TAG + "-updateNetworkStatsDelta");
+        }
         synchronized (mLock) {
             for (NetworkStats.Entry entry : delta) {
-                if (entry.getRxPackets() == 0 && entry.getTxPackets() == 0) {
-                    continue;
+                if (entry.getRxPackets() != 0 || entry.getTxPackets() != 0) {
+                    MobileDataStats stats = getUidStatsForPreviousStateLocked(entry.getUid());
+                    if (stats != null) {
+                        stats.addTxBytes(entry.getTxBytes());
+                        stats.addRxBytes(entry.getRxBytes());
+                        stats.addTxPackets(entry.getTxPackets());
+                        stats.addRxPackets(entry.getRxPackets());
+                    }
                 }
-                MobileDataStats stats = getUidStatsForPreviousStateLocked(entry.getUid());
-                stats.addTxBytes(entry.getTxBytes());
-                stats.addRxBytes(entry.getRxBytes());
-                stats.addTxPackets(entry.getTxPackets());
-                stats.addRxPackets(entry.getRxPackets());
             }
+        }
+        if (DEBUG) {
+            Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
         }
     }
 
@@ -286,18 +304,12 @@ class AggregatedMobileDataStatsPuller {
     }
 
     private static boolean isEmpty(NetworkStats stats) {
-        long totalRxPackets = 0;
-        long totalTxPackets = 0;
         for (NetworkStats.Entry entry : stats) {
-            if (entry.getRxPackets() == 0 && entry.getTxPackets() == 0) {
-                continue;
+            if (entry.getRxPackets() != 0 || entry.getTxPackets() != 0) {
+                // at least one non empty entry located
+                return false;
             }
-            totalRxPackets += entry.getRxPackets();
-            totalTxPackets += entry.getTxPackets();
-            // at least one non empty entry located
-            break;
         }
-        final long totalPackets = totalRxPackets + totalTxPackets;
-        return totalPackets == 0;
+        return true;
     }
 }

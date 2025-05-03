@@ -16,15 +16,16 @@
 
 package com.android.systemui.volume.dagger;
 
-import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.media.AudioManager;
 import android.os.Looper;
 
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.systemui.CoreStartable;
+import com.android.systemui.Flags;
 import com.android.systemui.dump.DumpManager;
-import com.android.systemui.media.dialog.MediaOutputDialogFactory;
+import com.android.systemui.media.dialog.MediaOutputDialogManager;
 import com.android.systemui.plugins.VolumeDialog;
 import com.android.systemui.plugins.VolumeDialogController;
 import com.android.systemui.statusbar.VibratorHelper;
@@ -38,12 +39,18 @@ import com.android.systemui.volume.CsdWarningDialog;
 import com.android.systemui.volume.VolumeComponent;
 import com.android.systemui.volume.VolumeDialogComponent;
 import com.android.systemui.volume.VolumeDialogImpl;
+import com.android.systemui.volume.VolumePanelDialogReceiver;
 import com.android.systemui.volume.VolumeUI;
+import com.android.systemui.volume.dialog.VolumeDialogPlugin;
+import com.android.systemui.volume.dialog.dagger.VolumeDialogPluginComponent;
+import com.android.systemui.volume.domain.interactor.VolumeDialogInteractor;
 import com.android.systemui.volume.domain.interactor.VolumePanelNavigationInteractor;
 import com.android.systemui.volume.panel.dagger.VolumePanelComponent;
 import com.android.systemui.volume.panel.dagger.factory.VolumePanelComponentFactory;
-import com.android.systemui.volume.panel.ui.activity.VolumePanelActivity;
+import com.android.systemui.volume.panel.shared.flag.VolumePanelFlag;
 import com.android.systemui.volume.ui.navigation.VolumeNavigator;
+
+import com.google.android.msdl.domain.MSDLPlayer;
 
 import dagger.Binds;
 import dagger.Lazy;
@@ -57,16 +64,27 @@ import dagger.multibindings.IntoSet;
 @Module(
         includes = {
                 AudioModule.class,
+                AudioSharingModule.class,
                 AncModule.class,
                 CaptioningModule.class,
                 MediaDevicesModule.class,
                 SpatializerModule.class,
         },
         subcomponents = {
-                VolumePanelComponent.class
+                VolumePanelComponent.class,
+                VolumeDialogPluginComponent.class,
         }
 )
 public interface VolumeModule {
+
+    /**
+     * Binds [VolumePanelDialogReceiver]
+     */
+    @Binds
+    @IntoMap
+    @ClassKey(VolumePanelDialogReceiver.class)
+    BroadcastReceiver bindVolumePanelDialogReceiver(VolumePanelDialogReceiver receiver);
+
     /** Starts VolumeUI. */
     @Binds
     @IntoMap
@@ -82,12 +100,6 @@ public interface VolumeModule {
     @Binds
     VolumeComponent provideVolumeComponent(VolumeDialogComponent volumeDialogComponent);
 
-    /** Inject into VolumePanelActivity. */
-    @Binds
-    @IntoMap
-    @ClassKey(VolumePanelActivity.class)
-    Activity bindVolumePanelActivity(VolumePanelActivity activity);
-
     /**  */
     @Binds
     VolumePanelComponentFactory bindVolumePanelComponentFactory(VolumePanelComponent.Factory impl);
@@ -95,42 +107,53 @@ public interface VolumeModule {
     /**  */
     @Provides
     static VolumeDialog provideVolumeDialog(
+            Lazy<VolumeDialogPlugin> volumeDialogProvider,
             Context context,
             VolumeDialogController volumeDialogController,
             AccessibilityManagerWrapper accessibilityManagerWrapper,
             DeviceProvisionedController deviceProvisionedController,
             ConfigurationController configurationController,
-            MediaOutputDialogFactory mediaOutputDialogFactory,
+            MediaOutputDialogManager mediaOutputDialogManager,
             InteractionJankMonitor interactionJankMonitor,
             VolumePanelNavigationInteractor volumePanelNavigationInteractor,
             VolumeNavigator volumeNavigator,
             CsdWarningDialog.Factory csdFactory,
             DevicePostureController devicePostureController,
+            VolumePanelFlag volumePanelFlag,
             DumpManager dumpManager,
             Lazy<SecureSettings> secureSettings,
             VibratorHelper vibratorHelper,
-            SystemClock systemClock) {
-        VolumeDialogImpl impl = new VolumeDialogImpl(
-                context,
-                volumeDialogController,
-                accessibilityManagerWrapper,
-                deviceProvisionedController,
-                configurationController,
-                mediaOutputDialogFactory,
-                interactionJankMonitor,
-                volumePanelNavigationInteractor,
-                volumeNavigator,
-                true, /* should listen for jank */
-                csdFactory,
-                devicePostureController,
-                Looper.getMainLooper(),
-                dumpManager,
-                secureSettings,
-                vibratorHelper,
-                systemClock);
-        impl.setStreamImportant(AudioManager.STREAM_SYSTEM, false);
-        impl.setAutomute(true);
-        impl.setSilentMode(false);
-        return impl;
+            MSDLPlayer msdlPlayer,
+            SystemClock systemClock,
+            VolumeDialogInteractor interactor) {
+        if (Flags.volumeRedesign()) {
+            return volumeDialogProvider.get();
+        } else {
+            VolumeDialogImpl impl = new VolumeDialogImpl(
+                    context,
+                    volumeDialogController,
+                    accessibilityManagerWrapper,
+                    deviceProvisionedController,
+                    configurationController,
+                    mediaOutputDialogManager,
+                    interactionJankMonitor,
+                    volumePanelNavigationInteractor,
+                    volumeNavigator,
+                    true, /* should listen for jank */
+                    csdFactory,
+                    devicePostureController,
+                    Looper.getMainLooper(),
+                    volumePanelFlag,
+                    dumpManager,
+                    secureSettings,
+                    vibratorHelper,
+                    msdlPlayer,
+                    systemClock,
+                    interactor);
+            impl.setStreamImportant(AudioManager.STREAM_SYSTEM, false);
+            impl.setAutomute(true);
+            impl.setSilentMode(false);
+            return impl;
+        }
     }
 }

@@ -1,45 +1,11 @@
 {
   "presubmit": [
     {
-      "name": "CtsOsTestCases",
-      "options": [
-        {
-          "include-annotation": "android.platform.test.annotations.Presubmit"
-        },
-        {
-          "exclude-annotation": "androidx.test.filters.LargeTest"
-        },
-        {
-          "exclude-annotation": "androidx.test.filters.FlakyTest"
-        },
-        {
-          "exclude-annotation": "org.junit.Ignore"
-        },
-        {
-          "include-filter": "android.os.cts.StrictModeTest"
-        }
-      ],
+      "name": "CtsOsTestCases_cts_strictmodetest_Presubmit",
       "file_patterns": ["(/|^)Context.java", "(/|^)ContextWrapper.java"]
     },
     {
-      "name": "FrameworksCoreTests",
-      "options": [
-        {
-          "exclude-annotation": "androidx.test.filters.FlakyTest"
-        },
-        {
-          "exclude-annotation": "org.junit.Ignore"
-        },
-        {
-          "include-filter": "android.content.ContextTest"
-        },
-        {
-          "include-filter": "android.content.ComponentCallbacksControllerTest"
-        },
-        {
-          "include-filter": "android.content.ContextWrapperTest"
-        }
-      ],
+      "name": "FrameworksCoreTests_android_content",
       "file_patterns": ["(/|^)Context.java", "(/|^)ContextWrapper.java", "(/|^)ComponentCallbacksController.java"]
     },
     {
@@ -56,6 +22,10 @@
         }
       ],
       "file_patterns": ["(/|^)Context.java", "(/|^)ContextWrapper.java"]
+    },
+    {
+      "name": "CtsWindowManagerBackgroundActivityTestCases",
+      "file_patterns": ["(/|^)IntentSender.java"]
     }
   ],
   "ravenwood-presubmit": [
@@ -63,5 +33,7 @@
       "name": "CtsContentTestCasesRavenwood",
       "host": true
     }
+  ],
+  "postsubmit": [
   ]
 }

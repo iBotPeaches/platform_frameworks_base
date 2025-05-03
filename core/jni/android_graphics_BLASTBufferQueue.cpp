@@ -13,19 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 #define LOG_TAG "BLASTBufferQueue"
 
-#include <nativehelper/JNIHelp.h>
-
 #include <android_runtime/AndroidRuntime.h>
 #include <android_runtime/android_view_Surface.h>
-#include <utils/Log.h>
-#include <utils/RefBase.h>
-
+#include <android_util_Binder.h>
 #include <gui/BLASTBufferQueue.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+#include <nativehelper/JNIHelp.h>
+#include <utils/Log.h>
+#include <utils/RefBase.h>
+
 #include "core_jni_helpers.h"
 
 namespace android {
@@ -209,6 +210,12 @@ static jobject nativeGatherPendingTransactions(JNIEnv* env, jclass clazz, jlong 
                           reinterpret_cast<jlong>(transaction));
 }
 
+static void nativeSetApplyToken(JNIEnv* env, jclass clazz, jlong ptr, jobject applyTokenObject) {
+    sp<BLASTBufferQueue> queue = reinterpret_cast<BLASTBufferQueue*>(ptr);
+    sp<IBinder> token(ibinderForJavaObject(env, applyTokenObject));
+    return queue->setApplyToken(std::move(token));
+}
+
 static const JNINativeMethod gMethods[] = {
         /* name, signature, funcPtr */
         // clang-format off
@@ -227,6 +234,7 @@ static const JNINativeMethod gMethods[] = {
         {"nativeSetTransactionHangCallback",
          "(JLandroid/graphics/BLASTBufferQueue$TransactionHangCallback;)V",
          (void*)nativeSetTransactionHangCallback},
+        {"nativeSetApplyToken", "(JLandroid/os/IBinder;)V", (void*)nativeSetApplyToken},
         // clang-format on
 };
 

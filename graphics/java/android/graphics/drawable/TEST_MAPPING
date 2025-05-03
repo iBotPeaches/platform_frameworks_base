@@ -1,24 +1,12 @@
 {
   "presubmit": [
     {
-
-      "name": "CtsGraphicsTestCases",
-      "file_patterns": ["(/|^)Icon\\.java"],
-      "options" : [
-        {
-          "include-filter": "android.graphics.drawable.cts.IconTest"
-        }
-      ]
+      "name": "CtsGraphicsTestCases_cts_icontest",
+      "file_patterns": ["(/|^)Icon\\.java"]
     },
     {
 
-      "name": "FrameworksCoreTests",
-      "file_patterns": ["(/|^)Icon\\.java"],
-      "options" : [
-        {
-          "include-filter": "android.graphics.drawable.IconTest"
-        }
-      ]
+      "name": "FrameworksCoreTests_drawable"
     }
   ]
 }

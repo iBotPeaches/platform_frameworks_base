@@ -18,6 +18,7 @@ package android.hardware.camera2.impl;
 
 import static com.android.internal.util.function.pooled.PooledLambda.obtainRunnable;
 
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.compat.CompatChanges;
@@ -31,7 +32,9 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraExtensionCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CameraMetadataInfo;
 import android.hardware.camera2.CameraOfflineSession;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
@@ -40,12 +43,15 @@ import android.hardware.camera2.ICameraDeviceCallbacks;
 import android.hardware.camera2.ICameraDeviceUser;
 import android.hardware.camera2.ICameraOfflineSession;
 import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.params.DynamicRangeProfiles;
 import android.hardware.camera2.params.ExtensionSessionConfiguration;
 import android.hardware.camera2.params.InputConfiguration;
 import android.hardware.camera2.params.MultiResolutionStreamConfigurationMap;
 import android.hardware.camera2.params.MultiResolutionStreamInfo;
 import android.hardware.camera2.params.OutputConfiguration;
 import android.hardware.camera2.params.SessionConfiguration;
+import android.hardware.camera2.params.SharedSessionConfiguration;
+import android.hardware.camera2.params.SharedSessionConfiguration.SharedOutputConfiguration;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.hardware.camera2.utils.SubmitInfo;
 import android.hardware.camera2.utils.SurfaceUtils;
@@ -54,6 +60,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
@@ -79,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -88,6 +97,17 @@ public class CameraDeviceImpl extends CameraDevice
         implements IBinder.DeathRecipient {
     private final String TAG;
     private final boolean DEBUG = false;
+
+    private static final ThreadFactory sThreadFactory = new ThreadFactory() {
+        private static final ThreadFactory mFactory = Executors.defaultThreadFactory();
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread thread = mFactory.newThread(r);
+            thread.setName("CameraDeviceExecutor");
+            return thread;
+        }
+    };
 
     private static final int REQUEST_ID_NONE = -1;
 
@@ -111,6 +131,8 @@ public class CameraDeviceImpl extends CameraDevice
     // Lock to synchronize cross-thread access to device public interface
     final Object mInterfaceLock = new Object(); // access from this class and Session only!
     private final CameraDeviceCallbacks mCallbacks = new CameraDeviceCallbacks();
+
+    private long mFMQReader; // native fmq reader ptr
 
     private final StateCallback mDeviceCallback;
     private volatile StateCallbackKK mSessionStateCallback;
@@ -146,7 +168,8 @@ public class CameraDeviceImpl extends CameraDevice
 
     private final String mCameraId;
     private final CameraCharacteristics mCharacteristics;
-    private final Map<String, CameraCharacteristics> mPhysicalIdsToChars;
+    private Map<String, CameraCharacteristics> mPhysicalIdsToChars;
+    private final CameraManager mCameraManager;
     private final int mTotalPartialCount;
     private final Context mContext;
 
@@ -174,6 +197,8 @@ public class CameraDeviceImpl extends CameraDevice
 
     private ExecutorService mOfflineSwitchService;
     private CameraOfflineSessionImpl mOfflineSessionImpl;
+    private boolean mSharedMode;
+    private boolean mIsPrimaryClient;
 
     // Runnables for all state transitions, except error, which needs the
     // error code argument
@@ -191,6 +216,25 @@ public class CameraDeviceImpl extends CameraDevice
                 sessionCallback.onOpened(CameraDeviceImpl.this);
             }
             mDeviceCallback.onOpened(CameraDeviceImpl.this);
+        }
+    };
+
+    private final Runnable mCallOnOpenedInSharedMode = new Runnable() {
+        @Override
+        public void run() {
+            if (!Flags.cameraMultiClient()) {
+                return;
+            }
+            StateCallbackKK sessionCallback = null;
+            synchronized (mInterfaceLock) {
+                if (mRemoteDevice == null) return; // Camera already closed
+
+                sessionCallback = mSessionStateCallback;
+            }
+            if (sessionCallback != null) {
+                sessionCallback.onOpenedInSharedMode(CameraDeviceImpl.this, mIsPrimaryClient);
+            }
+            mDeviceCallback.onOpenedInSharedMode(CameraDeviceImpl.this, mIsPrimaryClient);
         }
     };
 
@@ -290,23 +334,105 @@ public class CameraDeviceImpl extends CameraDevice
         }
     };
 
+    private class ClientStateCallback extends StateCallback {
+        private final Executor mClientExecutor;
+        private final StateCallback mClientStateCallback;
+
+        private ClientStateCallback(@NonNull Executor clientExecutor,
+                @NonNull StateCallback clientStateCallback) {
+            mClientExecutor = clientExecutor;
+            mClientStateCallback = clientStateCallback;
+        }
+
+        public void onClosed(@NonNull CameraDevice camera) {
+            mClientExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClientStateCallback.onClosed(camera);
+                }
+            });
+        }
+
+        public void onOpenedInSharedMode(@NonNull CameraDevice camera, boolean primaryClient) {
+            if (!Flags.cameraMultiClient()) {
+                return;
+            }
+            mClientExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClientStateCallback.onOpenedInSharedMode(camera, primaryClient);
+                }
+            });
+        }
+
+        public void onClientSharedAccessPriorityChanged(@NonNull CameraDevice camera,
+                boolean primaryClient) {
+            if (!Flags.cameraMultiClient()) {
+                return;
+            }
+            mClientExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClientStateCallback.onClientSharedAccessPriorityChanged(camera, primaryClient);
+                }
+            });
+        }
+
+        @Override
+        public void onOpened(@NonNull CameraDevice camera) {
+            mClientExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClientStateCallback.onOpened(camera);
+                }
+            });
+        }
+
+        @Override
+        public void onDisconnected(@NonNull CameraDevice camera) {
+            mClientExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClientStateCallback.onDisconnected(camera);
+                }
+            });
+        }
+
+        @Override
+        public void onError(@NonNull CameraDevice camera, int error) {
+            mClientExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClientStateCallback.onError(camera, error);
+                }
+            });
+        }
+    }
+
     public CameraDeviceImpl(String cameraId, StateCallback callback, Executor executor,
                         CameraCharacteristics characteristics,
-                        Map<String, CameraCharacteristics> physicalIdsToChars,
+                        @NonNull CameraManager manager,
                         int appTargetSdkVersion,
                         Context ctx,
-                        @Nullable CameraDevice.CameraDeviceSetup cameraDeviceSetup) {
-        if (cameraId == null || callback == null || executor == null || characteristics == null) {
+                        @Nullable CameraDevice.CameraDeviceSetup cameraDeviceSetup,
+                        boolean sharedMode) {
+        if (cameraId == null || callback == null || executor == null || characteristics == null
+                || manager == null) {
             throw new IllegalArgumentException("Null argument given");
         }
         mCameraId = cameraId;
-        mDeviceCallback = callback;
-        mDeviceExecutor = executor;
+        mDeviceCallback = new ClientStateCallback(executor, callback);
+        if (Flags.singleThreadExecutorNaming()) {
+            mDeviceExecutor = Executors.newSingleThreadExecutor(sThreadFactory);
+        } else {
+            mDeviceExecutor = Executors.newSingleThreadExecutor();
+        }
         mCharacteristics = characteristics;
-        mPhysicalIdsToChars = physicalIdsToChars;
+        mCameraManager = manager;
         mAppTargetSdkVersion = appTargetSdkVersion;
         mContext = ctx;
         mCameraDeviceSetup = cameraDeviceSetup;
+        mSharedMode = sharedMode;
 
         final int MAX_TAG_LEN = 23;
         String tag = String.format("CameraDevice-JV-%s", mCameraId);
@@ -323,6 +449,18 @@ public class CameraDeviceImpl extends CameraDevice
         } else {
             mTotalPartialCount = partialCount;
         }
+    }
+
+    private Map<String, CameraCharacteristics> getPhysicalIdToChars() {
+        if (mPhysicalIdsToChars == null) {
+            try {
+                mPhysicalIdsToChars = mCameraManager.getPhysicalIdToCharsMap(mCharacteristics);
+            } catch (CameraAccessException e) {
+                Log.e(TAG, "Unable to query the physical characteristics map!");
+            }
+        }
+
+        return mPhysicalIdsToChars;
     }
 
     public CameraDeviceCallbacks getCallbacks() {
@@ -343,6 +481,9 @@ public class CameraDeviceImpl extends CameraDevice
             if (mInError) return;
 
             mRemoteDevice = new ICameraDeviceUserWrapper(remoteDevice);
+            Parcel resultParcel = Parcel.obtain();
+            mRemoteDevice.getCaptureResultMetadataQueue().writeToParcel(resultParcel, 0);
+            mFMQReader = nativeCreateFMQReader(resultParcel);
 
             IBinder remoteDeviceBinder = remoteDevice.asBinder();
             // For legacy camera device, remoteDevice is in the same process, and
@@ -358,7 +499,12 @@ public class CameraDeviceImpl extends CameraDevice
                 }
             }
 
-            mDeviceExecutor.execute(mCallOnOpened);
+            if (Flags.cameraMultiClient() && mSharedMode) {
+                mIsPrimaryClient = mRemoteDevice.isPrimaryClient();
+                mDeviceExecutor.execute(mCallOnOpenedInSharedMode);
+            } else {
+                mDeviceExecutor.execute(mCallOnOpened);
+            }
             mDeviceExecutor.execute(mCallOnUnconfigured);
 
             mRemoteDeviceInit = true;
@@ -496,7 +642,11 @@ public class CameraDeviceImpl extends CameraDevice
             stopRepeating();
 
             try {
-                waitUntilIdle();
+                // if device is opened in shared mode, there can be multiple clients accessing the
+                // camera device. So do not wait for idle if the device is opened in shared mode.
+                if (!mSharedMode) {
+                    waitUntilIdle();
+                }
 
                 mRemoteDevice.beginConfigure();
 
@@ -684,6 +834,54 @@ public class CameraDeviceImpl extends CameraDevice
                 checkAndWrapHandler(handler), operatingMode, /*sessionParams*/ null);
     }
 
+    private boolean checkSharedOutputConfiguration(OutputConfiguration outConfig) {
+        if (!Flags.cameraMultiClient()) {
+            return false;
+        }
+        SharedSessionConfiguration sharedSessionConfiguration =
+                mCharacteristics.get(CameraCharacteristics.SHARED_SESSION_CONFIGURATION);
+        if (sharedSessionConfiguration == null) {
+            return false;
+        }
+
+        List<SharedOutputConfiguration> sharedConfigs =
+                sharedSessionConfiguration.getOutputStreamsInformation();
+        for (SharedOutputConfiguration sharedConfig : sharedConfigs) {
+            if (outConfig.getConfiguredSize().equals(sharedConfig.getSize())
+                    && (outConfig.getConfiguredFormat() == sharedConfig.getFormat())
+                    && (outConfig.getSurfaceGroupId() == OutputConfiguration.SURFACE_GROUP_ID_NONE)
+                    && (outConfig.getSurfaceType() == sharedConfig.getSurfaceType())
+                    && (outConfig.getMirrorMode() == sharedConfig.getMirrorMode())
+                    && (outConfig.getUsage() == sharedConfig.getUsage())
+                    && (outConfig.isReadoutTimestampEnabled()
+                    == sharedConfig.isReadoutTimestampEnabled())
+                    && (outConfig.getTimestampBase() == sharedConfig.getTimestampBase())
+                    && (outConfig.getStreamUseCase() == sharedConfig.getStreamUseCase())
+                    && (outConfig.getColorSpace().equals(
+                    sharedSessionConfiguration.getColorSpace()))
+                    && (outConfig.getDynamicRangeProfile()
+                    == DynamicRangeProfiles.STANDARD)
+                    && (outConfig.getConfiguredDataspace() == sharedConfig.getDataspace())
+                    && (Objects.equals(outConfig.getPhysicalCameraId(),
+                    sharedConfig.getPhysicalCameraId()))
+                    && (outConfig.getSensorPixelModes().isEmpty())
+                    && (!outConfig.isShared())) {
+                //Found valid config, return true
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean checkSharedSessionConfiguration(List<OutputConfiguration> outputConfigs) {
+        for (OutputConfiguration out : outputConfigs) {
+            if (!checkSharedOutputConfiguration(out)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public void createCaptureSession(SessionConfiguration config)
             throws CameraAccessException {
@@ -697,6 +895,14 @@ public class CameraDeviceImpl extends CameraDevice
         }
         if (config.getExecutor() == null) {
             throw new IllegalArgumentException("Invalid executor");
+        }
+        if (mSharedMode) {
+            if (config.getSessionType() != SessionConfiguration.SESSION_SHARED) {
+                throw new IllegalArgumentException("Invalid session type");
+            }
+            if (!checkSharedSessionConfiguration(outputConfigs)) {
+                throw new IllegalArgumentException("Invalid output configurations");
+            }
         }
         createCaptureSessionInternal(config.getInputConfiguration(), outputConfigs,
                 config.getStateCallback(), config.getExecutor(), config.getSessionType(),
@@ -719,6 +925,11 @@ public class CameraDeviceImpl extends CameraDevice
                     (operatingMode == ICameraDeviceUser.CONSTRAINED_HIGH_SPEED_MODE);
             if (isConstrainedHighSpeed && inputConfig != null) {
                 throw new IllegalArgumentException("Constrained high speed session doesn't support"
+                        + " input configuration yet.");
+            }
+            boolean isSharedSession = (operatingMode == ICameraDeviceUser.SHARED_MODE);
+            if (isSharedSession && inputConfig != null) {
+                throw new IllegalArgumentException("Shared capture session doesn't support"
                         + " input configuration yet.");
             }
 
@@ -780,6 +991,10 @@ public class CameraDeviceImpl extends CameraDevice
                 newSession = new CameraConstrainedHighSpeedCaptureSessionImpl(mNextSessionId++,
                         callback, executor, this, mDeviceExecutor, configureSuccess,
                         mCharacteristics);
+            } else if (isSharedSession) {
+                newSession = new CameraSharedCaptureSessionImpl(mNextSessionId++,
+                        callback, executor, this, mDeviceExecutor, configureSuccess,
+                        mIsPrimaryClient);
             } else {
                 newSession = new CameraCaptureSessionImpl(mNextSessionId++, input,
                         callback, executor, this, mDeviceExecutor, configureSuccess);
@@ -849,7 +1064,7 @@ public class CameraDeviceImpl extends CameraDevice
             checkIfCameraClosedOrInError();
 
             for (String physicalId : physicalCameraIdSet) {
-                if (physicalId == getId()) {
+                if (Objects.equals(physicalId, getId())) {
                     throw new IllegalStateException("Physical id matches the logical id!");
                 }
             }
@@ -1475,6 +1690,7 @@ public class CameraDeviceImpl extends CameraDevice
             if (mRemoteDevice != null || mInError) {
                 mDeviceExecutor.execute(mCallOnClosed);
             }
+            nativeClose(mFMQReader);
 
             mRemoteDevice = null;
         }
@@ -1502,8 +1718,7 @@ public class CameraDeviceImpl extends CameraDevice
         }
 
         // Allow RAW formats, even when not advertised.
-        if (inputFormat == ImageFormat.RAW_PRIVATE || inputFormat == ImageFormat.RAW10
-                || inputFormat == ImageFormat.RAW12 || inputFormat == ImageFormat.RAW_SENSOR) {
+        if (isRawFormat(inputFormat)) {
             return true;
         }
 
@@ -1544,7 +1759,7 @@ public class CameraDeviceImpl extends CameraDevice
             return true;
         }
 
-        for (Map.Entry<String, CameraCharacteristics> entry : mPhysicalIdsToChars.entrySet()) {
+        for (Map.Entry<String, CameraCharacteristics> entry : getPhysicalIdToChars().entrySet()) {
             configMap = entry.getValue().get(ck);
 
             if (configMap != null &&
@@ -1571,6 +1786,11 @@ public class CameraDeviceImpl extends CameraDevice
                 if (format == inputFormat) {
                     validFormat = true;
                 }
+            }
+
+            // Allow RAW formats, even when not advertised.
+            if (Flags.multiResRawReprocessing() && isRawFormat(inputFormat)) {
+                return;
             }
 
             if (validFormat == false) {
@@ -1795,6 +2015,40 @@ public class CameraDeviceImpl extends CameraDevice
                     requestLastFrameNumbers.markInflightCompleted();
                 }
             }
+        }
+    }
+
+    /**
+     * Callback when client access priorities change when camera is opened in shared mode.
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_MULTI_CLIENT)
+    public void onClientSharedAccessPriorityChanged(boolean primaryClient) {
+        if (DEBUG) {
+            Log.d(TAG, String.format(
+                    "onClientSharedAccessPriorityChanged received, primary client = "
+                    + primaryClient));
+        }
+        synchronized (mInterfaceLock) {
+            if (mRemoteDevice == null && mRemoteDeviceInit) {
+                return; // Camera already closed, user is not interested in this callback anymore.
+            }
+            final long ident = Binder.clearCallingIdentity();
+            try {
+                mDeviceExecutor.execute(obtainRunnable(
+                        CameraDeviceImpl::notifyClientSharedAccessPriorityChanged, this,
+                        primaryClient).recycleOnUse());
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
+        }
+    }
+
+    @FlaggedApi(Flags.FLAG_CAMERA_MULTI_CLIENT)
+    private void notifyClientSharedAccessPriorityChanged(boolean primaryClient) {
+        if (!CameraDeviceImpl.this.isClosed()) {
+            mIsPrimaryClient = primaryClient;
+            mDeviceCallback.onClientSharedAccessPriorityChanged(CameraDeviceImpl.this,
+                    primaryClient);
         }
     }
 
@@ -2171,27 +2425,61 @@ public class CameraDeviceImpl extends CameraDevice
                 }
             }
         }
+        private PhysicalCaptureResultInfo[] readMetadata(
+            PhysicalCaptureResultInfo[] srcPhysicalResults) {
+            PhysicalCaptureResultInfo[] retVal =
+                    new PhysicalCaptureResultInfo[srcPhysicalResults.length];
+            int i = 0;
+            long fmqSize = 0;
+            for (PhysicalCaptureResultInfo srcPhysicalResult : srcPhysicalResults) {
+                CameraMetadataNative physicalCameraMetadata = null;
+                if (srcPhysicalResult.getCameraMetadataInfo().getTag() ==
+                        CameraMetadataInfo.fmqSize) {
+                    fmqSize = srcPhysicalResult.getCameraMetadataInfo().getFmqSize();
+                    physicalCameraMetadata =
+                            new CameraMetadataNative(nativeReadResultMetadata(mFMQReader, fmqSize));
+                } else {
+                    physicalCameraMetadata = srcPhysicalResult.getCameraMetadata();
+                }
+                PhysicalCaptureResultInfo physicalResultInfo =
+                        new PhysicalCaptureResultInfo(
+                                srcPhysicalResult.getCameraId(), physicalCameraMetadata);
+                retVal[i] = physicalResultInfo;
+                i++;
+            }
+           return retVal;
+        }
 
         @Override
-        public void onResultReceived(CameraMetadataNative result,
+        public void onResultReceived(CameraMetadataInfo resultInfo,
                 CaptureResultExtras resultExtras, PhysicalCaptureResultInfo physicalResults[])
                 throws RemoteException {
             int requestId = resultExtras.getRequestId();
             long frameNumber = resultExtras.getFrameNumber();
-
-            if (DEBUG) {
-                Log.v(TAG, "Received result frame " + frameNumber + " for id "
-                        + requestId);
-            }
-
             synchronized(mInterfaceLock) {
                 if (mRemoteDevice == null) return; // Camera already closed
-
+                PhysicalCaptureResultInfo savedPhysicalResults[] = physicalResults;
+                CameraMetadataNative result;
+                if (resultInfo.getTag() == CameraMetadataInfo.fmqSize) {
+                    CameraMetadataNative fmqMetadata =
+                            new CameraMetadataNative(
+                                    nativeReadResultMetadata(mFMQReader, resultInfo.getFmqSize()));
+                    result = fmqMetadata;
+                } else {
+                    result = resultInfo.getMetadata();
+                }
+                physicalResults = readMetadata(savedPhysicalResults);
+                if (DEBUG) {
+                    Log.v(TAG, "Received result frame " + frameNumber + " for id "
+                            + requestId);
+                }
 
                 // Redirect device callback to the offline session in case we are in the middle
                 // of an offline switch
                 if (mOfflineSessionImpl != null) {
-                    mOfflineSessionImpl.getCallbacks().onResultReceived(result, resultExtras,
+                    CameraMetadataInfo resultInfoOffline = CameraMetadataInfo.metadata(result);
+                    mOfflineSessionImpl.getCallbacks().onResultReceived(resultInfoOffline,
+                            resultExtras,
                             physicalResults);
                     return;
                 }
@@ -2199,6 +2487,19 @@ public class CameraDeviceImpl extends CameraDevice
                 // TODO: Handle CameraCharacteristics access from CaptureResult correctly.
                 result.set(CameraCharacteristics.LENS_INFO_SHADING_MAP_SIZE,
                         getCharacteristics().get(CameraCharacteristics.LENS_INFO_SHADING_MAP_SIZE));
+                Map<String, CameraCharacteristics> physicalIdToChars = getPhysicalIdToChars();
+                for (PhysicalCaptureResultInfo oneResultInfo : physicalResults) {
+                    String physicalId = oneResultInfo.getCameraId();
+                    CameraMetadataNative physicalResult = oneResultInfo.getCameraMetadata();
+                    CameraCharacteristics ch = physicalIdToChars.get(physicalId);
+                    if (ch != null)  {
+                        physicalResult.set(CameraCharacteristics.LENS_INFO_SHADING_MAP_SIZE,
+                                ch.get(CameraCharacteristics.LENS_INFO_SHADING_MAP_SIZE));
+                    } else {
+                        Log.e(TAG, "Unable to find characteristics for physical camera "
+                                + physicalId);
+                    }
+                }
 
                 final CaptureCallbackHolder holder =
                         CameraDeviceImpl.this.mCaptureCallbackMap.get(requestId);
@@ -2347,6 +2648,12 @@ public class CameraDeviceImpl extends CameraDevice
                     checkAndFireSequenceComplete();
                 }
             }
+        }
+
+        @Override
+        @FlaggedApi(Flags.FLAG_CAMERA_MULTI_CLIENT)
+        public void onClientSharedAccessPriorityChanged(boolean primaryClient) {
+            CameraDeviceImpl.this.onClientSharedAccessPriorityChanged(primaryClient);
         }
 
         @Override
@@ -2515,6 +2822,11 @@ public class CameraDeviceImpl extends CameraDevice
         return mCharacteristics;
     }
 
+    private boolean isRawFormat(int format) {
+        return (format == ImageFormat.RAW_PRIVATE || format == ImageFormat.RAW10
+                || format == ImageFormat.RAW12 || format == ImageFormat.RAW_SENSOR);
+    }
+
     /**
      * Listener for binder death.
      *
@@ -2555,6 +2867,11 @@ public class CameraDeviceImpl extends CameraDevice
         }
     }
 
+    private static native long nativeCreateFMQReader(Parcel resultQueue);
+    //TODO: Investigate adding FastNative b/62791857
+    private static native long nativeReadResultMetadata(long ptr, long metadataSize);
+    private static native void nativeClose(long ptr);
+
     @Override
     public @CAMERA_AUDIO_RESTRICTION int getCameraAudioRestriction() throws CameraAccessException {
         synchronized(mInterfaceLock) {
@@ -2567,7 +2884,7 @@ public class CameraDeviceImpl extends CameraDevice
     public void createExtensionSession(ExtensionSessionConfiguration extensionConfiguration)
             throws CameraAccessException {
         HashMap<String, CameraCharacteristics> characteristicsMap = new HashMap<>(
-                mPhysicalIdsToChars);
+                getPhysicalIdToChars());
         characteristicsMap.put(mCameraId, mCharacteristics);
         boolean initializationFailed = true;
         IBinder token = new Binder(TAG + " : " + mNextSessionId++);

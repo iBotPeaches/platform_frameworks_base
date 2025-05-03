@@ -34,7 +34,7 @@ import org.junit.runners.Parameterized
 /**
  * Test opening a secondary activity that will split with the main activity.
  *
- * To run this test: `atest FlickerTestsOther:OpenActivityEmbeddingSecondaryToSplitTest`
+ * To run this test: `atest FlickerTestsActivityEmbedding:OpenActivityEmbeddingSecondaryToSplitTest`
  */
 @RequiresDevice
 @RunWith(Parameterized::class)
@@ -90,7 +90,10 @@ class OpenActivityEmbeddingSecondaryToSplitTest(flicker: LegacyFlickerTest) :
         flicker.assertWm {
             notContains(ActivityEmbeddingAppHelper.SECONDARY_ACTIVITY_COMPONENT)
                 .then()
-                .isAppWindowInvisible(ActivityEmbeddingAppHelper.SECONDARY_ACTIVITY_COMPONENT)
+                .isAppWindowInvisible(
+                    ActivityEmbeddingAppHelper.SECONDARY_ACTIVITY_COMPONENT,
+                    isOptional = true
+                )
                 .then()
                 .isAppWindowVisible(ActivityEmbeddingAppHelper.SECONDARY_ACTIVITY_COMPONENT)
         }

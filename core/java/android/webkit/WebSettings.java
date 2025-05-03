@@ -16,10 +16,12 @@
 
 package android.webkit;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.compat.annotation.ChangeId;
+import android.compat.annotation.EnabledAfter;
 import android.compat.annotation.EnabledSince;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
@@ -149,6 +151,24 @@ public abstract class WebSettings {
     @EnabledSince(targetSdkVersion = android.os.Build.VERSION_CODES.TIRAMISU)
     @SystemApi
     public static final long ENABLE_SIMPLIFIED_DARK_MODE = 214741472L;
+
+    /**
+     * Enable User-Agent Reduction for webview.
+     * The OS, CPU, and Build information in the default User-Agent will be
+     * reduced to the static "Linux; Android 10; K" string.
+     * Minor/build/patch version information in the default User-Agent is
+     * reduced to "0.0.0". The rest of the default User-Agent remains unchanged.
+     *
+     * See https://developers.google.com/privacy-sandbox/protections/user-agent
+     * for details related to User-Agent Reduction.
+     *
+     * @hide
+     */
+    @ChangeId
+    @EnabledAfter(targetSdkVersion = android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @FlaggedApi(android.webkit.Flags.FLAG_USER_AGENT_REDUCTION)
+    @SystemApi
+    public static final long ENABLE_USER_AGENT_REDUCTION = 371034303L;
 
     /**
      * Default cache usage mode. If the navigation type doesn't impose any
@@ -497,25 +517,32 @@ public abstract class WebSettings {
     public abstract  boolean getUseWebViewBackgroundForOverscrollBackground();
 
     /**
-     * Sets whether the WebView should save form data. In Android O, the
-     * platform has implemented a fully functional Autofill feature to store
-     * form data. Therefore, the Webview form data save feature is disabled.
+     * Sets whether the WebView should save form data. In {@link android.os.Build.VERSION_CODES#O},
+     * the platform has implemented a fully functional Autofill feature to store form data.
+     * Therefore, the Webview form data save feature is disabled.
      *
-     * Note that the feature will continue to be supported on older versions of
+     * <p>Note that the feature will continue to be supported on older versions of
      * Android as before.
      *
-     * @deprecated In Android O and afterwards, this function does not have
-     * any effect, the form data will be saved to platform's autofill service
-     * if applicable.
+     * @see #getSaveFormData
+     * @deprecated In Android O and afterwards, this function does not have any effect. Form data
+     * will be saved to platform's autofill service if applicable.
      */
     @Deprecated
     public abstract  void setSaveFormData(boolean save);
 
     /**
-     * Gets whether the WebView saves form data.
+     * Gets whether the WebView saves form data. In {@link android.os.Build.VERSION_CODES#O}, the
+     * platform has implemented a fully functional Autofill feature to store form data. Therefore,
+     * the Webview form data save feature is disabled.
+     *
+     * <p>Note that the feature will continue to be supported on older versions of
+     * Android as before.
      *
      * @return whether the WebView saves form data
      * @see #setSaveFormData
+     * @deprecated In Android O and afterwards, this function does not have any effect. Form data
+     * will be filled from the platform's autofill service if applicable.
      */
     @Deprecated
     public abstract boolean getSaveFormData();
@@ -741,9 +768,17 @@ public abstract class WebSettings {
     public abstract boolean getUseWideViewPort();
 
     /**
-     * Sets whether the WebView whether supports multiple windows. If set to
-     * true, {@link WebChromeClient#onCreateWindow} must be implemented by the
-     * host application. The default is {@code false}.
+     * Sets whether the WebView should support multiple windows.
+     *
+     * <p>If set to {@code true}, the {@link WebChromeClient#onCreateWindow}
+     * callback must be implemented by the application to handle the
+     * creation of new windows.
+     *
+     * <p>The default is {@code false}. When multiple window support is disabled,
+     * requests to open new windows (either from the {@code window.open()}
+     * JavaScript API or from links with {@code target="_blank"}) will instead
+     * be treated as top-level navigations, replacing the current page in the
+     * same WebView.
      *
      * @param support whether to support multiple windows
      */
@@ -1203,7 +1238,11 @@ public abstract class WebSettings {
      * changes to this setting after that point.
      *
      * @param flag {@code true} if the WebView should use the database storage API
+     * @deprecated WebSQL is deprecated and this method will become a no-op on all
+     * Android versions once support is removed in Chromium. See
+     * https://developer.chrome.com/blog/deprecating-web-sql for more information.
      */
+    @Deprecated
     public abstract void setDatabaseEnabled(boolean flag);
 
     /**
@@ -1236,7 +1275,11 @@ public abstract class WebSettings {
      *
      * @return {@code true} if the database storage API is enabled
      * @see #setDatabaseEnabled
+     * @deprecated WebSQL is deprecated and this method will become a no-op on all
+     * Android versions once support is removed in Chromium. See
+     * https://developer.chrome.com/blog/deprecating-web-sql for more information.
      */
+    @Deprecated
     public abstract boolean getDatabaseEnabled();
 
     /**
@@ -1330,18 +1373,24 @@ public abstract class WebSettings {
     }
 
     /**
-     * Tells JavaScript to open windows automatically. This applies to the
-     * JavaScript function {@code window.open()}. The default is {@code false}.
+     * Allows JavaScript to open windows without a user gesture. This applies to
+     * the JavaScript function {@code window.open()}. The default is
+     * {@code false}: attempts without a user gesture will fail and do nothing.
+     * <p>
+     * This is not affected by the {@link #setSupportMultipleWindows} setting;
+     * the user gesture requirement is enforced even if multiple windows are
+     * disabled.
      *
-     * @param flag {@code true} if JavaScript can open windows automatically
+     * @param flag {@code true} if JavaScript can open windows without a user
+     *             gesture.
      */
     public abstract void setJavaScriptCanOpenWindowsAutomatically(boolean flag);
 
     /**
-     * Gets whether JavaScript can open windows automatically.
+     * Gets whether JavaScript can open windows without a user gesture.
      *
-     * @return {@code true} if JavaScript can open windows automatically during
-     *         {@code window.open()}
+     * @return {@code true} if JavaScript can open windows without a user
+     *         gesture using {@code window.open()}
      * @see #setJavaScriptCanOpenWindowsAutomatically
      */
     public abstract boolean getJavaScriptCanOpenWindowsAutomatically();

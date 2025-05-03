@@ -17,6 +17,7 @@
 package com.android.server.power;
 
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.annotation.UserIdInt;
 import android.app.ActivityManagerInternal;
 import android.app.AppOpsManager;
@@ -32,6 +33,7 @@ import android.media.RingtoneManager;
 import android.metrics.LogMaker;
 import android.net.Uri;
 import android.os.BatteryStats;
+import android.os.BatteryStatsInternal;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IWakeLockCallback;
@@ -47,11 +49,13 @@ import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.WorkSource;
+import android.os.WorkSource.WorkChain;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.util.EventLog;
 import android.util.Slog;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.view.WindowManagerPolicyConstants;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -64,9 +68,12 @@ import com.android.server.LocalServices;
 import com.android.server.input.InputManagerInternal;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.policy.WindowManagerPolicy;
+import com.android.server.power.FrameworkStatsLogger.WakelockEventType;
+import com.android.server.power.feature.PowerManagerFlags;
 import com.android.server.statusbar.StatusBarManagerInternal;
 
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -129,6 +136,7 @@ public class Notifier {
     private final WindowManagerPolicy mPolicy;
     private final FaceDownDetector mFaceDownDetector;
     private final ScreenUndimDetector mScreenUndimDetector;
+    private final WakefulnessSessionObserver mWakefulnessSessionObserver;
     private final ActivityManagerInternal mActivityManagerInternal;
     private final InputManagerInternal mInputManagerInternal;
     private final InputMethodManagerInternal mInputMethodManagerInternal;
@@ -160,6 +168,7 @@ public class Notifier {
     }
 
     private final SparseArray<Interactivity> mInteractivityByGroupId = new SparseArray<>();
+    private SparseBooleanArray mDisplayInteractivities = new SparseBooleanArray();
 
     // The current global interactive state.  This is set as soon as an interactive state
     // transition begins so as to capture the reason that it happened.  At some point
@@ -186,13 +195,22 @@ public class Notifier {
 
     private final AtomicBoolean mIsPlayingChargingStartedFeedback = new AtomicBoolean(false);
 
+    private final Injector mInjector;
+
+    private final PowerManagerFlags mFlags;
+
+    private final BatteryStatsInternal mBatteryStatsInternal;
+    private final FrameworkStatsLogger mFrameworkStatsLogger;
+
     public Notifier(Looper looper, Context context, IBatteryStats batteryStats,
             SuspendBlocker suspendBlocker, WindowManagerPolicy policy,
             FaceDownDetector faceDownDetector, ScreenUndimDetector screenUndimDetector,
-            Executor backgroundExecutor) {
+            Executor backgroundExecutor, PowerManagerFlags powerManagerFlags, Injector injector) {
         mContext = context;
+        mInjector = (injector == null) ? new RealInjector() : injector;
+        mFlags = powerManagerFlags;
         mBatteryStats = batteryStats;
-        mAppOps = mContext.getSystemService(AppOpsManager.class);
+        mAppOps = mInjector.getAppOpsManager(context);
         mSuspendBlocker = suspendBlocker;
         mPolicy = policy;
         mFaceDownDetector = faceDownDetector;
@@ -204,6 +222,7 @@ public class Notifier {
         mDisplayManagerInternal = LocalServices.getService(DisplayManagerInternal.class);
         mTrustManager = mContext.getSystemService(TrustManager.class);
         mVibrator = mContext.getSystemService(Vibrator.class);
+        mWakefulnessSessionObserver = new WakefulnessSessionObserver(mContext, null);
 
         mHandler = new NotifierHandler(looper);
         mBackgroundExecutor = backgroundExecutor;
@@ -222,14 +241,21 @@ public class Notifier {
         mShowWirelessChargingAnimationConfig = context.getResources().getBoolean(
                 com.android.internal.R.bool.config_showBuiltinWirelessChargingAnim);
 
-        mWakeLockLog = new WakeLockLog(context);
-
+        mWakeLockLog = mInjector.getWakeLockLog(context);
         // Initialize interactive state for battery stats.
         try {
             mBatteryStats.noteInteractive(true);
         } catch (RemoteException ex) { }
         FrameworkStatsLog.write(FrameworkStatsLog.INTERACTIVE_STATE_CHANGED,
                 FrameworkStatsLog.INTERACTIVE_STATE_CHANGED__STATE__ON);
+
+        if (mFlags.isMoveWscLoggingToNotifierEnabled()) {
+            mBatteryStatsInternal = mInjector.getBatteryStatsInternal();
+            mFrameworkStatsLogger = mInjector.getFrameworkStatsLogger();
+        } else {
+            mBatteryStatsInternal = null;
+            mFrameworkStatsLogger = null;
+        }
     }
 
     /**
@@ -256,6 +282,7 @@ public class Notifier {
     /**
      * Called when a wake lock is acquired.
      */
+    @SuppressLint("AndroidFrameworkRequiresPermission")
     public void onWakeLockAcquired(int flags, String tag, String packageName,
             int ownerUid, int ownerPid, WorkSource workSource, String historyTag,
             IWakeLockCallback callback) {
@@ -265,27 +292,32 @@ public class Notifier {
                     + ", ownerUid=" + ownerUid + ", ownerPid=" + ownerPid
                     + ", workSource=" + workSource);
         }
-        notifyWakeLockListener(callback, tag, true);
-        final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
-        if (monitorType >= 0) {
-            try {
-                final boolean unimportantForLogging = ownerUid == Process.SYSTEM_UID
-                        && (flags & PowerManager.UNIMPORTANT_FOR_LOGGING) != 0;
-                if (workSource != null) {
-                    mBatteryStats.noteStartWakelockFromSource(workSource, ownerPid, tag,
-                            historyTag, monitorType, unimportantForLogging);
-                } else {
-                    mBatteryStats.noteStartWakelock(ownerUid, ownerPid, tag, historyTag,
-                            monitorType, unimportantForLogging);
-                    // XXX need to deal with disabled operations.
-                    mAppOps.startOpNoThrow(AppOpsManager.OP_WAKE_LOCK, ownerUid, packageName);
+        logWakelockStateChanged(flags, tag, ownerUid, workSource, WakelockEventType.ACQUIRE);
+        notifyWakeLockListener(callback, tag, true, ownerUid, ownerPid, flags, workSource,
+                packageName, historyTag);
+        if (!mFlags.improveWakelockLatency()) {
+            final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
+            if (monitorType >= 0) {
+                try {
+                    final boolean unimportantForLogging = ownerUid == Process.SYSTEM_UID
+                            && (flags & PowerManager.UNIMPORTANT_FOR_LOGGING) != 0;
+                    if (workSource != null) {
+                        mBatteryStats.noteStartWakelockFromSource(workSource, ownerPid, tag,
+                                historyTag, monitorType, unimportantForLogging);
+                    } else {
+                        mBatteryStats.noteStartWakelock(ownerUid, ownerPid, tag, historyTag,
+                                monitorType, unimportantForLogging);
+                        // XXX need to deal with disabled operations.
+                        mAppOps.startOpNoThrow(AppOpsManager.OP_WAKE_LOCK, ownerUid, packageName,
+                                false, null, null);
+                    }
+                } catch (RemoteException ex) {
+                    // Ignore
                 }
-            } catch (RemoteException ex) {
-                // Ignore
             }
+            mWakeLockLog.onWakeLockAcquired(tag, ownerUid, flags, /*eventTime=*/ -1);
         }
-
-        mWakeLockLog.onWakeLockAcquired(tag, ownerUid, flags);
+        mWakefulnessSessionObserver.onWakeLockAcquired(flags);
     }
 
     public void onLongPartialWakeLockStart(String tag, int ownerUid, WorkSource workSource,
@@ -346,7 +378,13 @@ public class Notifier {
             IWakeLockCallback callback, int newFlags, String newTag, String newPackageName,
             int newOwnerUid, int newOwnerPid, WorkSource newWorkSource, String newHistoryTag,
             IWakeLockCallback newCallback) {
-
+        // Todo(b/359154665): We do this because the newWorkSource can potentially be updated
+        // before the request is processed on the notifier thread. This would generally happen is
+        // the Worksource's set method is called, which as of this comment happens only in
+        // PowerManager#setWorksource and WifiManager#WifiLock#setWorksource. Both these places
+        // need to be updated and the WorkSource#set should be deprecated to avoid falling into
+        // such traps
+        newWorkSource = (newWorkSource == null) ? null : new WorkSource(newWorkSource);
         final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
         final int newMonitorType = getBatteryStatsWakeLockMonitorType(newFlags);
         if (workSource != null && newWorkSource != null
@@ -358,12 +396,16 @@ public class Notifier {
                         + ", workSource=" + newWorkSource);
             }
 
+            logWakelockStateChanged(flags, tag, ownerUid, workSource, WakelockEventType.RELEASE);
+            logWakelockStateChanged(
+                    newFlags, newTag, newOwnerUid, newWorkSource, WakelockEventType.ACQUIRE);
+
             final boolean unimportantForLogging = newOwnerUid == Process.SYSTEM_UID
                     && (newFlags & PowerManager.UNIMPORTANT_FOR_LOGGING) != 0;
             try {
-                mBatteryStats.noteChangeWakelockFromSource(workSource, ownerPid, tag, historyTag,
-                        monitorType, newWorkSource, newOwnerPid, newTag, newHistoryTag,
-                        newMonitorType, unimportantForLogging);
+                notifyWakelockChanging(workSource, ownerPid, tag,
+                            historyTag, monitorType, newWorkSource, newOwnerPid, newTag,
+                            newHistoryTag, newMonitorType, unimportantForLogging);
             } catch (RemoteException ex) {
                 // Ignore
             }
@@ -386,29 +428,45 @@ public class Notifier {
     public void onWakeLockReleased(int flags, String tag, String packageName,
             int ownerUid, int ownerPid, WorkSource workSource, String historyTag,
             IWakeLockCallback callback) {
+        onWakeLockReleased(flags, tag, packageName, ownerUid, ownerPid, workSource, historyTag,
+                callback, ScreenTimeoutOverridePolicy.RELEASE_REASON_UNKNOWN);
+    }
+
+    /**
+     * Called when a wake lock is released.
+     */
+    @SuppressLint("AndroidFrameworkRequiresPermission")
+    public void onWakeLockReleased(int flags, String tag, String packageName,
+            int ownerUid, int ownerPid, WorkSource workSource, String historyTag,
+            IWakeLockCallback callback, int releaseReason) {
         if (DEBUG) {
             Slog.d(TAG, "onWakeLockReleased: flags=" + flags + ", tag=\"" + tag
                     + "\", packageName=" + packageName
                     + ", ownerUid=" + ownerUid + ", ownerPid=" + ownerPid
                     + ", workSource=" + workSource);
         }
-        notifyWakeLockListener(callback, tag, false);
-        final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
-        if (monitorType >= 0) {
-            try {
-                if (workSource != null) {
-                    mBatteryStats.noteStopWakelockFromSource(workSource, ownerPid, tag,
-                            historyTag, monitorType);
-                } else {
-                    mBatteryStats.noteStopWakelock(ownerUid, ownerPid, tag,
-                            historyTag, monitorType);
-                    mAppOps.finishOp(AppOpsManager.OP_WAKE_LOCK, ownerUid, packageName);
+        logWakelockStateChanged(flags, tag, ownerUid, workSource, WakelockEventType.RELEASE);
+        notifyWakeLockListener(callback, tag, false, ownerUid, ownerPid, flags, workSource,
+                packageName, historyTag);
+        if (!mFlags.improveWakelockLatency()) {
+            final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
+            if (monitorType >= 0) {
+                try {
+                    if (workSource != null) {
+                        mBatteryStats.noteStopWakelockFromSource(workSource, ownerPid, tag,
+                                historyTag, monitorType);
+                    } else {
+                        mBatteryStats.noteStopWakelock(ownerUid, ownerPid, tag,
+                                historyTag, monitorType);
+                        mAppOps.finishOp(AppOpsManager.OP_WAKE_LOCK, ownerUid, packageName, null);
+                    }
+                } catch (RemoteException ex) {
+                    // Ignore
                 }
-            } catch (RemoteException ex) {
-                // Ignore
             }
+            mWakeLockLog.onWakeLockReleased(tag, ownerUid, /*eventTime=*/ -1);
         }
-        mWakeLockLog.onWakeLockReleased(tag, ownerUid);
+        mWakefulnessSessionObserver.onWakeLockReleased(flags, releaseReason);
     }
 
     /** Shows the keyguard without requesting the device to immediately lock. */
@@ -477,8 +535,17 @@ public class Notifier {
             }
 
             // Start input as soon as we start waking up or going to sleep.
-            mInputManagerInternal.setInteractive(interactive);
             mInputMethodManagerInternal.setInteractive(interactive);
+            if (!mFlags.isPerDisplayWakeByTouchEnabled()) {
+                // Since wakefulness is a global property in original logic, all displays should
+                // be set to the same interactive state, matching system's global wakefulness
+                SparseBooleanArray displayInteractivities = new SparseBooleanArray();
+                int[] displayIds = mDisplayManagerInternal.getDisplayIds().toArray();
+                for (int displayId : displayIds) {
+                    displayInteractivities.put(displayId, interactive);
+                }
+                mInputManagerInternal.setDisplayInteractivities(displayInteractivities);
+            }
 
             // Notify battery stats.
             try {
@@ -645,6 +712,42 @@ public class Notifier {
     }
 
     /**
+     * Update the interactivities of the displays in given DisplayGroup.
+     *
+     * @param groupId The group id of the DisplayGroup to update display interactivities for.
+     */
+    private void updateDisplayInteractivities(int groupId, boolean interactive) {
+        final int[] displayIds = mDisplayManagerInternal.getDisplayIdsForGroup(groupId);
+        for (int displayId : displayIds) {
+            mDisplayInteractivities.put(displayId, interactive);
+        }
+
+    }
+
+    private void resetDisplayInteractivities() {
+        final SparseArray<int[]> displaysByGroupId =
+                mDisplayManagerInternal.getDisplayIdsByGroupsIds();
+        SparseBooleanArray newDisplayInteractivities = new SparseBooleanArray();
+        for (int i = 0; i < displaysByGroupId.size(); i++) {
+            final int groupId = displaysByGroupId.keyAt(i);
+            for (int displayId : displaysByGroupId.get(groupId)) {
+                // If we already know display interactivity, use that
+                if (mDisplayInteractivities.indexOfKey(displayId) > 0) {
+                    newDisplayInteractivities.put(
+                            displayId, mDisplayInteractivities.get(displayId));
+                } else { // If display is new to Notifier, use the power group's interactive value
+                    final Interactivity groupInteractivity = mInteractivityByGroupId.get(groupId);
+                    // If group Interactivity hasn't been initialized, assume group is interactive
+                    final boolean groupInteractive =
+                            groupInteractivity == null || groupInteractivity.isInteractive;
+                    newDisplayInteractivities.put(displayId, groupInteractive);
+                }
+            }
+        }
+        mDisplayInteractivities = newDisplayInteractivities;
+    }
+
+    /**
      * Called when an individual PowerGroup changes wakefulness.
      */
     public void onGroupWakefulnessChangeStarted(int groupId, int wakefulness, int changeReason,
@@ -670,6 +773,14 @@ public class Notifier {
             interactivity.changeStartTime = eventTime;
             interactivity.isChanging = true;
             handleEarlyInteractiveChange(groupId);
+            mWakefulnessSessionObserver.onWakefulnessChangeStarted(groupId, wakefulness,
+                    changeReason, eventTime);
+
+            // Update input on which displays are interactive
+            if (mFlags.isPerDisplayWakeByTouchEnabled()) {
+                updateDisplayInteractivities(groupId, isInteractive);
+                mInputManagerInternal.setDisplayInteractivities(mDisplayInteractivities);
+            }
         }
     }
 
@@ -680,6 +791,21 @@ public class Notifier {
      */
     public void onGroupRemoved(int groupId) {
         mInteractivityByGroupId.remove(groupId);
+        mWakefulnessSessionObserver.removePowerGroup(groupId);
+        if (mFlags.isPerDisplayWakeByTouchEnabled()) {
+            resetDisplayInteractivities();
+            mInputManagerInternal.setDisplayInteractivities(mDisplayInteractivities);
+        }
+    }
+
+    /**
+     * Called when a PowerGroup has been changed.
+     */
+    public void onGroupChanged() {
+        if (mFlags.isPerDisplayWakeByTouchEnabled()) {
+            resetDisplayInteractivities();
+            mInputManagerInternal.setDisplayInteractivities(mDisplayInteractivities);
+        }
     }
 
     /**
@@ -693,6 +819,8 @@ public class Notifier {
 
         try {
             mBatteryStats.noteUserActivity(uid, event);
+            mWakefulnessSessionObserver.notifyUserActivity(
+                    SystemClock.uptimeMillis(), displayGroupId, event);
         } catch (RemoteException ex) {
             // Ignore
         }
@@ -779,6 +907,8 @@ public class Notifier {
         if (DEBUG) {
             Slog.d(TAG, "onScreenPolicyUpdate: newPolicy=" + newPolicy);
         }
+        mWakefulnessSessionObserver.onScreenPolicyUpdate(
+                SystemClock.uptimeMillis(), displayGroupId, newPolicy);
 
         synchronized (mLock) {
             Message msg = mHandler.obtainMessage(MSG_SCREEN_POLICY);
@@ -798,6 +928,8 @@ public class Notifier {
         if (mWakeLockLog != null) {
             mWakeLockLog.dump(pw);
         }
+
+        mWakefulnessSessionObserver.dump(pw);
     }
 
     private void updatePendingBroadcastLocked() {
@@ -902,9 +1034,9 @@ public class Notifier {
         }
 
         if (mActivityManagerInternal.isSystemReady()) {
-            final boolean ordered = !mActivityManagerInternal.isModernQueueEnabled();
-            mActivityManagerInternal.broadcastIntent(mScreenOnIntent, mWakeUpBroadcastDone,
-                    null, ordered, UserHandle.USER_ALL, null, null, mScreenOnOffOptions);
+            mActivityManagerInternal.broadcastIntentWithCallback(mScreenOnIntent,
+                    mWakeUpBroadcastDone, null, UserHandle.USER_ALL,
+                    null, null, mScreenOnOffOptions);
         } else {
             EventLog.writeEvent(EventLogTags.POWER_SCREEN_BROADCAST_STOP, 2, 1);
             sendNextBroadcast();
@@ -927,9 +1059,9 @@ public class Notifier {
         }
 
         if (mActivityManagerInternal.isSystemReady()) {
-            final boolean ordered = !mActivityManagerInternal.isModernQueueEnabled();
-            mActivityManagerInternal.broadcastIntent(mScreenOffIntent, mGoToSleepBroadcastDone,
-                    null, ordered, UserHandle.USER_ALL, null, null, mScreenOnOffOptions);
+            mActivityManagerInternal.broadcastIntentWithCallback(mScreenOffIntent,
+                    mGoToSleepBroadcastDone, null, UserHandle.USER_ALL,
+                    null, null, mScreenOnOffOptions);
         } else {
             EventLog.writeEvent(EventLogTags.POWER_SCREEN_BROADCAST_STOP, 3, 1);
             sendNextBroadcast();
@@ -1017,13 +1149,96 @@ public class Notifier {
         return enabled && dndOff;
     }
 
-    private void notifyWakeLockListener(IWakeLockCallback callback, String tag, boolean isEnabled) {
-        if (callback != null) {
-            mHandler.post(() -> {
+    private void notifyWakeLockListener(IWakeLockCallback callback, String tag, boolean isEnabled,
+            int ownerUid, int ownerPid, int flags, WorkSource workSource, String packageName,
+            String historyTag) {
+        long currentTime = mInjector.currentTimeMillis();
+        mHandler.post(() -> {
+            if (mFlags.improveWakelockLatency()) {
+                if (isEnabled) {
+                    notifyWakelockAcquisition(tag, ownerUid, ownerPid, flags,
+                            workSource, packageName, historyTag, currentTime);
+                } else {
+                    notifyWakelockRelease(tag, ownerUid, ownerPid, flags,
+                            workSource, packageName, historyTag, currentTime);
+                }
+            }
+
+            if (callback != null) {
                 try {
                     callback.onStateChanged(isEnabled);
                 } catch (RemoteException e) {
                     Slog.e(TAG, "Wakelock.mCallback [" + tag + "] is already dead.", e);
+                }
+            }
+        });
+    }
+
+    @SuppressLint("AndroidFrameworkRequiresPermission")
+    private void notifyWakelockAcquisition(String tag, int ownerUid, int ownerPid, int flags,
+            WorkSource workSource, String packageName, String historyTag, long currentTime) {
+        final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
+        if (monitorType >= 0) {
+            try {
+                final boolean unimportantForLogging = ownerUid == Process.SYSTEM_UID
+                        && (flags & PowerManager.UNIMPORTANT_FOR_LOGGING) != 0;
+                if (workSource != null) {
+                    mBatteryStats.noteStartWakelockFromSource(workSource, ownerPid, tag,
+                            historyTag, monitorType, unimportantForLogging);
+                } else {
+                    mBatteryStats.noteStartWakelock(ownerUid, ownerPid, tag, historyTag,
+                            monitorType, unimportantForLogging);
+                    // XXX need to deal with disabled operations.
+                    mAppOps.startOpNoThrow(
+                            AppOpsManager.OP_WAKE_LOCK, ownerUid, packageName,
+                            false, null, null);
+                }
+            } catch (RemoteException ex) {
+                // Do Nothing
+            }
+        }
+        mWakeLockLog.onWakeLockAcquired(tag, ownerUid, flags, currentTime);
+    }
+
+    @SuppressLint("AndroidFrameworkRequiresPermission")
+    private void notifyWakelockRelease(String tag, int ownerUid, int ownerPid, int flags,
+            WorkSource workSource, String packageName, String historyTag, long currentTime) {
+        final int monitorType = getBatteryStatsWakeLockMonitorType(flags);
+        if (monitorType >= 0) {
+            try {
+                if (workSource != null) {
+                    mBatteryStats.noteStopWakelockFromSource(workSource, ownerPid, tag,
+                            historyTag, monitorType);
+                } else {
+                    mBatteryStats.noteStopWakelock(ownerUid, ownerPid, tag,
+                            historyTag, monitorType);
+                    mAppOps.finishOp(AppOpsManager.OP_WAKE_LOCK, ownerUid, packageName, null);
+                }
+            } catch (RemoteException ex) {
+                // Ignore
+            }
+        }
+        mWakeLockLog.onWakeLockReleased(tag, ownerUid, currentTime);
+    }
+
+    @SuppressLint("AndroidFrameworkRequiresPermission")
+    private void notifyWakelockChanging(WorkSource workSource, int ownerPid, String tag,
+            String historyTag, int monitorType, WorkSource newWorkSource, int newOwnerPid,
+            String newTag, String newHistoryTag, int newMonitorType, boolean unimportantForLogging)
+            throws RemoteException {
+        if (!mFlags.improveWakelockLatency()) {
+            mBatteryStats.noteChangeWakelockFromSource(workSource, ownerPid, tag,
+                    historyTag, monitorType, newWorkSource, newOwnerPid, newTag,
+                    newHistoryTag, newMonitorType, unimportantForLogging);
+        } else {
+            mHandler.post(() -> {
+                try {
+                    mBatteryStats.noteChangeWakelockFromSource(workSource, ownerPid, tag,
+                            historyTag, monitorType, newWorkSource, newOwnerPid, newTag,
+                            newHistoryTag, newMonitorType, unimportantForLogging);
+                } catch (RemoteException e) {
+                    Slog.e(TAG, "Failed to notify the wakelock changing from source via "
+                            + "Notifier." + e.getLocalizedMessage());
                 }
             });
         }
@@ -1034,6 +1249,7 @@ public class Notifier {
         public NotifierHandler(Looper looper) {
             super(looper, null, true /*async*/);
         }
+
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -1060,6 +1276,94 @@ public class Notifier {
                     screenPolicyChanging(msg.arg1, msg.arg2);
                     break;
             }
+        }
+    }
+
+    private void logWakelockStateChanged(
+            int flags,
+            String tag,
+            int ownerUid,
+            WorkSource workSource,
+            WakelockEventType eventType) {
+        if (mBatteryStatsInternal == null) {
+            return;
+        }
+        final int type = flags & PowerManager.WAKE_LOCK_LEVEL_MASK;
+        if (workSource == null || workSource.isEmpty()) {
+            final int mappedUid = mBatteryStatsInternal.getOwnerUid(ownerUid);
+            mFrameworkStatsLogger.wakelockStateChanged(mappedUid, tag, type, eventType);
+        } else {
+            for (int i = 0; i < workSource.size(); ++i) {
+                final int mappedUid = mBatteryStatsInternal.getOwnerUid(workSource.getUid(i));
+                mFrameworkStatsLogger.wakelockStateChanged(mappedUid, tag, type, eventType);
+            }
+
+            List<WorkChain> workChains = workSource.getWorkChains();
+            if (workChains != null) {
+                for (WorkChain workChain : workChains) {
+                    WorkChain mappedWorkChain = new WorkChain();
+                    // Cache getUids() and getTags() because they make an arraycopy.
+                    int[] uids = workChain.getUids();
+                    String[] tags = workChain.getTags();
+
+                    for (int i = 0; i < workChain.getSize(); ++i) {
+                        final int mappedUid = mBatteryStatsInternal.getOwnerUid(uids[i]);
+                        mappedWorkChain.addNode(mappedUid, tags[i]);
+                    }
+                    mFrameworkStatsLogger.wakelockStateChanged(
+                            tag, mappedWorkChain, type, eventType);
+                }
+            }
+        }
+    }
+
+    public interface Injector {
+        /**
+         * Gets the current time in millis
+         */
+        long currentTimeMillis();
+
+        /**
+         * Gets the WakeLockLog object
+         */
+        WakeLockLog getWakeLockLog(Context context);
+
+        /**
+         * Gets the AppOpsManager system service
+         */
+        AppOpsManager getAppOpsManager(Context context);
+
+        /** Gets the BatteryStatsInternal object */
+        BatteryStatsInternal getBatteryStatsInternal();
+
+        /** Get the FrameworkStatsLogger object */
+        FrameworkStatsLogger getFrameworkStatsLogger();
+    }
+
+    class RealInjector implements Injector {
+        @Override
+        public long currentTimeMillis() {
+            return System.currentTimeMillis();
+        }
+
+        @Override
+        public WakeLockLog getWakeLockLog(Context context) {
+            return new WakeLockLog(context);
+        }
+
+        @Override
+        public AppOpsManager getAppOpsManager(Context context) {
+            return context.getSystemService(AppOpsManager.class);
+        }
+
+        @Override
+        public BatteryStatsInternal getBatteryStatsInternal() {
+            return LocalServices.getService(BatteryStatsInternal.class);
+        }
+
+        @Override
+        public FrameworkStatsLogger getFrameworkStatsLogger() {
+            return new FrameworkStatsLogger();
         }
     }
 }

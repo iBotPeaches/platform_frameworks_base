@@ -17,6 +17,7 @@
 package com.android.server.location;
 
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
+import static android.Manifest.permission.LOCATION_BYPASS;
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
 import static android.app.compat.CompatChanges.isChangeEnabled;
 import static android.content.pm.PackageManager.MATCH_DIRECT_BOOT_AWARE;
@@ -34,6 +35,7 @@ import static android.location.provider.LocationProviderBase.ACTION_NETWORK_PROV
 
 import static com.android.server.location.LocationPermissions.PERMISSION_COARSE;
 import static com.android.server.location.LocationPermissions.PERMISSION_FINE;
+import static com.android.server.location.LocationPermissions.PERMISSION_NONE;
 import static com.android.server.location.eventlog.LocationEventLog.EVENT_LOG;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -73,6 +75,7 @@ import android.location.LocationManagerInternal.LocationPackageTagsListener;
 import android.location.LocationProvider;
 import android.location.LocationRequest;
 import android.location.LocationTime;
+import android.location.flags.Flags;
 import android.location.provider.ForwardGeocodeRequest;
 import android.location.provider.IGeocodeCallback;
 import android.location.provider.IProviderRequestListener;
@@ -105,6 +108,7 @@ import com.android.server.FgThread;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.location.eventlog.LocationEventLog;
+import com.android.server.location.fudger.LocationFudgerCache;
 import com.android.server.location.geofence.GeofenceManager;
 import com.android.server.location.geofence.GeofenceProxy;
 import com.android.server.location.gnss.GnssConfiguration;
@@ -144,6 +148,7 @@ import com.android.server.location.provider.PassiveLocationProviderManager;
 import com.android.server.location.provider.StationaryThrottlingLocationProvider;
 import com.android.server.location.provider.proxy.ProxyGeocodeProvider;
 import com.android.server.location.provider.proxy.ProxyLocationProvider;
+import com.android.server.location.provider.proxy.ProxyPopulationDensityProvider;
 import com.android.server.location.settings.LocationSettings;
 import com.android.server.location.settings.LocationUserSettings;
 import com.android.server.pm.permission.LegacyPermissionManagerInternal;
@@ -256,6 +261,11 @@ public class LocationManagerService extends ILocationManager.Stub implements
     private final GeofenceManager mGeofenceManager;
     private volatile @Nullable GnssManagerService mGnssManagerService = null;
     private ProxyGeocodeProvider mGeocodeProvider;
+
+    private @Nullable ProxyPopulationDensityProvider mPopulationDensityProvider = null;
+
+    // A cache for population density lookups. Used if density-based coarse locations are enabled.
+    private @Nullable LocationFudgerCache mLocationFudgerCache = null;
 
     private final Object mDeprecatedGnssBatchingLock = new Object();
     @GuardedBy("mDeprecatedGnssBatchingLock")
@@ -373,6 +383,11 @@ public class LocationManagerService extends ILocationManager.Stub implements
                             mContext.getContentResolver(),
                             Settings.Global.LOCATION_ENABLE_STATIONARY_THROTTLE,
                             defaultStationaryThrottlingSetting) != 0;
+                    if (Flags.disableStationaryThrottling() && !(
+                            Flags.keepGnssStationaryThrottling() && enableStationaryThrottling
+                                    && GPS_PROVIDER.equals(manager.getName()))) {
+                        enableStationaryThrottling = false;
+                    }
                     if (enableStationaryThrottling) {
                         realProvider = new StationaryThrottlingLocationProvider(manager.getName(),
                                 mInjector, realProvider);
@@ -381,6 +396,25 @@ public class LocationManagerService extends ILocationManager.Stub implements
                 manager.setRealProvider(realProvider);
             }
             mProviderManagers.add(manager);
+        }
+    }
+
+    @VisibleForTesting
+    protected void setProxyPopulationDensityProvider(ProxyPopulationDensityProvider provider) {
+        if (Flags.populationDensityProvider()) {
+            mPopulationDensityProvider = provider;
+        }
+    }
+
+    @VisibleForTesting
+    protected void setLocationFudgerCache(LocationFudgerCache cache) {
+        if (!Flags.densityBasedCoarseLocations()) {
+            return;
+        }
+
+        mLocationFudgerCache = cache;
+        for (LocationProviderManager manager : mProviderManagers) {
+            manager.setLocationFudgerCache(cache);
         }
     }
 
@@ -500,6 +534,17 @@ public class LocationManagerService extends ILocationManager.Stub implements
         mGeocodeProvider = ProxyGeocodeProvider.createAndRegister(mContext);
         if (mGeocodeProvider == null) {
             Log.e(TAG, "no geocoder provider found");
+        }
+
+        if (Flags.populationDensityProvider()) {
+            setProxyPopulationDensityProvider(
+                    ProxyPopulationDensityProvider.createAndRegister(mContext));
+            if (mPopulationDensityProvider == null) {
+                Log.e(TAG, "no population density provider found");
+            }
+        }
+        if (mPopulationDensityProvider != null && Flags.densityBasedCoarseLocations()) {
+            setLocationFudgerCache(new LocationFudgerCache(mPopulationDensityProvider));
         }
 
         // bind to hardware activity recognition
@@ -776,8 +821,19 @@ public class LocationManagerService extends ILocationManager.Stub implements
                 listenerId);
         int permissionLevel = LocationPermissions.getPermissionLevel(mContext, identity.getUid(),
                 identity.getPid());
-        LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
-                PERMISSION_COARSE);
+        if (Flags.enableLocationBypass()) {
+            if (permissionLevel == PERMISSION_NONE) {
+                if (mContext.checkCallingPermission(LOCATION_BYPASS) != PERMISSION_GRANTED) {
+                    LocationPermissions.enforceLocationPermission(
+                            identity.getUid(), permissionLevel, PERMISSION_COARSE);
+                } else {
+                    permissionLevel = PERMISSION_FINE;
+                }
+            }
+        } else {
+            LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
+                    PERMISSION_COARSE);
+        }
 
         // clients in the system process must have an attribution tag set
         Preconditions.checkState(identity.getPid() != Process.myPid() || attributionTag != null);
@@ -805,8 +861,19 @@ public class LocationManagerService extends ILocationManager.Stub implements
                 listenerId);
         int permissionLevel = LocationPermissions.getPermissionLevel(mContext, identity.getUid(),
                 identity.getPid());
-        LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
-                PERMISSION_COARSE);
+        if (Flags.enableLocationBypass()) {
+            if (permissionLevel == PERMISSION_NONE) {
+                if (mContext.checkCallingPermission(LOCATION_BYPASS) != PERMISSION_GRANTED) {
+                    LocationPermissions.enforceLocationPermission(
+                            identity.getUid(), permissionLevel, PERMISSION_COARSE);
+                } else {
+                    permissionLevel = PERMISSION_FINE;
+                }
+            }
+        } else {
+            LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
+                    PERMISSION_COARSE);
+        }
 
         // clients in the system process should have an attribution tag set
         if (identity.getPid() == Process.myPid() && attributionTag == null) {
@@ -830,8 +897,19 @@ public class LocationManagerService extends ILocationManager.Stub implements
                 AppOpsManager.toReceiverId(pendingIntent));
         int permissionLevel = LocationPermissions.getPermissionLevel(mContext, identity.getUid(),
                 identity.getPid());
-        LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
-                PERMISSION_COARSE);
+        if (Flags.enableLocationBypass()) {
+            if (permissionLevel == PERMISSION_NONE) {
+                if (mContext.checkCallingPermission(LOCATION_BYPASS) != PERMISSION_GRANTED) {
+                    LocationPermissions.enforceLocationPermission(
+                            identity.getUid(), permissionLevel, PERMISSION_COARSE);
+                } else {
+                    permissionLevel = PERMISSION_FINE;
+                }
+            }
+        } else {
+            LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
+                    PERMISSION_COARSE);
+        }
 
         // clients in the system process must have an attribution tag set
         Preconditions.checkArgument(identity.getPid() != Process.myPid() || attributionTag != null);
@@ -982,8 +1060,19 @@ public class LocationManagerService extends ILocationManager.Stub implements
         CallerIdentity identity = CallerIdentity.fromBinder(mContext, packageName, attributionTag);
         int permissionLevel = LocationPermissions.getPermissionLevel(mContext, identity.getUid(),
                 identity.getPid());
-        LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
-                PERMISSION_COARSE);
+        if (Flags.enableLocationBypass()) {
+            if (permissionLevel == PERMISSION_NONE) {
+                if (mContext.checkCallingPermission(LOCATION_BYPASS) != PERMISSION_GRANTED) {
+                    LocationPermissions.enforceLocationPermission(
+                            identity.getUid(), permissionLevel, PERMISSION_COARSE);
+                } else {
+                    permissionLevel = PERMISSION_FINE;
+                }
+            }
+        } else {
+            LocationPermissions.enforceLocationPermission(identity.getUid(), permissionLevel,
+                    PERMISSION_COARSE);
+        }
 
         // clients in the system process must have an attribution tag set
         Preconditions.checkArgument(identity.getPid() != Process.myPid() || attributionTag != null);

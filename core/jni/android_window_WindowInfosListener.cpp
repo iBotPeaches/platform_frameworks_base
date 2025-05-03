@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 #define LOG_TAG "WindowInfosListener"
 
@@ -60,7 +61,7 @@ jobject fromDisplayInfo(JNIEnv* env, gui::DisplayInfo displayInfo) {
     }
     ScopedLocalRef<jobject> matrixObj(env, AMatrix_newInstance(env, transformValues));
     return env->NewObject(gDisplayInfoClassInfo.clazz, gDisplayInfoClassInfo.ctor,
-                          displayInfo.displayId, displayInfo.logicalWidth,
+                          displayInfo.displayId.val(), displayInfo.logicalWidth,
                           displayInfo.logicalHeight, matrixObj.get());
 }
 

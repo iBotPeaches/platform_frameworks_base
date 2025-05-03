@@ -40,14 +40,20 @@ import android.net.vcn.VcnManager.VcnStatusCallbackBinder;
 import android.net.vcn.VcnManager.VcnUnderlyingNetworkPolicyListener;
 import android.os.ParcelUuid;
 
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class VcnManagerTest {
     private static final ParcelUuid SUB_GROUP = new ParcelUuid(new UUID(0, 0));
     private static final String GATEWAY_CONNECTION_NAME = "gatewayConnectionName";

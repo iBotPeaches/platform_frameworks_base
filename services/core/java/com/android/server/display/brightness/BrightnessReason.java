@@ -16,6 +16,7 @@
 
 package com.android.server.display.brightness;
 
+import android.annotation.Nullable;
 import android.util.Slog;
 
 import java.util.Objects;
@@ -40,8 +41,8 @@ public final class BrightnessReason {
     public static final int REASON_SCREEN_OFF_BRIGHTNESS_SENSOR = 9;
     public static final int REASON_FOLLOWER = 10;
     public static final int REASON_OFFLOAD = 11;
-    public static final int REASON_DOZE_INITIAL = 12;
-    public static final int REASON_MAX = REASON_DOZE_INITIAL;
+    public static final int REASON_DOZE_MANUAL = 12;
+    public static final int REASON_MAX = REASON_DOZE_MANUAL;
 
     public static final int MODIFIER_DIMMED = 0x1;
     public static final int MODIFIER_LOW_POWER = 0x2;
@@ -49,8 +50,10 @@ public final class BrightnessReason {
     public static final int MODIFIER_THROTTLED = 0x8;
     public static final int MODIFIER_MIN_LUX = 0x10;
     public static final int MODIFIER_MIN_USER_SET_LOWER_BOUND = 0x20;
+    public static final int MODIFIER_STYLUS_UNDER_USE = 0x40;
     public static final int MODIFIER_MASK = MODIFIER_DIMMED | MODIFIER_LOW_POWER | MODIFIER_HDR
-            | MODIFIER_THROTTLED | MODIFIER_MIN_LUX | MODIFIER_MIN_USER_SET_LOWER_BOUND;
+            | MODIFIER_THROTTLED | MODIFIER_MIN_LUX | MODIFIER_MIN_USER_SET_LOWER_BOUND
+            | MODIFIER_STYLUS_UNDER_USE;
 
     // ADJUSTMENT_*
     // These things can happen at any point, even if the main brightness reason doesn't
@@ -66,6 +69,16 @@ public final class BrightnessReason {
     // Any number of MODIFIER_*
     private int mModifier;
 
+    // Tag used to identify the source of the brightness (usually a specific activity/window).
+    private CharSequence mTag;
+
+    public BrightnessReason() {
+    }
+
+    public BrightnessReason(int reason) {
+        setReason(reason);
+    }
+
     /**
      * A utility to clone a BrightnessReason from another BrightnessReason event
      *
@@ -74,6 +87,7 @@ public final class BrightnessReason {
     public void set(BrightnessReason other) {
         setReason(other == null ? REASON_UNKNOWN : other.mReason);
         setModifier(other == null ? 0 : other.mModifier);
+        setTag(other == null ? null : other.mTag);
     }
 
     /**
@@ -85,19 +99,20 @@ public final class BrightnessReason {
         setModifier(modifier | this.mModifier);
     }
 
-
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof BrightnessReason)) {
             return false;
         }
         BrightnessReason other = (BrightnessReason) obj;
-        return other.mReason == mReason && other.mModifier == mModifier;
+        return other.mReason == mReason
+                && other.mModifier == mModifier
+                && Objects.equals(other.mTag != null ? other.mTag.toString() : null, mTag);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mReason, mModifier);
+        return Objects.hash(mReason, mModifier, mTag);
     }
 
     @Override
@@ -115,6 +130,11 @@ public final class BrightnessReason {
     public String toString(int adjustments) {
         final StringBuilder sb = new StringBuilder();
         sb.append(reasonToString(mReason));
+
+        if (mTag != null) {
+            sb.append("(").append(mTag).append(")");
+        }
+
         sb.append(" [");
         if ((adjustments & ADJUSTMENT_AUTO_TEMP) != 0) {
             sb.append(" temp_adj");
@@ -140,6 +160,9 @@ public final class BrightnessReason {
         if ((mModifier & MODIFIER_MIN_USER_SET_LOWER_BOUND) != 0) {
             sb.append(" user_min_pref");
         }
+        if ((mModifier & MODIFIER_STYLUS_UNDER_USE) != 0) {
+            sb.append(" stylus_under_use");
+        }
         int strlen = sb.length();
         if (sb.charAt(strlen - 1) == '[') {
             sb.setLength(strlen - 2);
@@ -149,8 +172,23 @@ public final class BrightnessReason {
         return sb.toString();
     }
 
+    public void setTag(@Nullable CharSequence tag) {
+        mTag = tag;
+    }
+
     /**
-     * A utility to set the reason of the BrightnessReason object
+     * Gets the tag to identify who requested the brightness.
+     */
+    @Nullable public CharSequence getTag() {
+        return mTag;
+    }
+
+    public int getReason() {
+        return mReason;
+    }
+
+    /**
+     * Sets the reason of the BrightnessReason object
      *
      * @param reason The value to which the reason is to be updated.
      */
@@ -162,16 +200,12 @@ public final class BrightnessReason {
         }
     }
 
-    public int getReason() {
-        return mReason;
-    }
-
     public int getModifier() {
         return mModifier;
     }
 
     /**
-     * A utility to set the modified of the current BrightnessReason object
+     * Sets the modifier bitflags of the current BrightnessReason object
      *
      * @param modifier The value to which the modifier is to be updated
      */
@@ -208,8 +242,8 @@ public final class BrightnessReason {
                 return "follower";
             case REASON_OFFLOAD:
                 return "offload";
-            case REASON_DOZE_INITIAL:
-                return "doze_initial";
+            case REASON_DOZE_MANUAL:
+                return "doze_manual";
             default:
                 return Integer.toString(reason);
         }

@@ -27,8 +27,15 @@ import com.android.systemui.coroutines.collectValues
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.deviceentry.data.repository.FaceWakeUpTriggersConfigModule
+import com.android.systemui.deviceentry.domain.interactor.DeviceEntryFaceAuthInteractor
+import com.android.systemui.deviceentry.domain.interactor.SystemUIDeviceEntryFaceAuthInteractor
+import com.android.systemui.dump.DumpManager
+import com.android.systemui.keyguard.data.repository.PulseExpansionRepository
+import com.android.systemui.keyguard.ui.composable.blueprint.DefaultBlueprintModule
 import com.android.systemui.scene.SceneContainerFrameworkModule
-import com.android.systemui.scene.shared.flag.SceneContainerFlags
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.SceneContainerConfig
 import com.android.systemui.scene.shared.model.SceneDataSource
 import com.android.systemui.scene.shared.model.SceneDataSourceDelegator
 import com.android.systemui.shade.domain.interactor.BaseShadeInteractor
@@ -42,6 +49,7 @@ import dagger.Provides
 import javax.inject.Provider
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -55,19 +63,36 @@ import kotlinx.coroutines.test.runTest
             TestMocksModule::class,
             CoroutineTestScopeModule::class,
             FakeSystemUiModule::class,
+            DefaultBlueprintModule::class,
             SceneContainerFrameworkModule::class,
+            FaceWakeUpTriggersConfigModule::class,
         ]
 )
+@Deprecated("Use Kosmos instead. See com.android.systemui.kosmos.Kosmos.")
 interface SysUITestModule {
 
     @Binds fun bindTestableContext(sysuiTestableContext: SysuiTestableContext): TestableContext
+
     @Binds fun bindContext(testableContext: TestableContext): Context
+
     @Binds @Application fun bindAppContext(context: Context): Context
+
     @Binds @Application fun bindAppResources(resources: Resources): Resources
+
     @Binds @Main fun bindMainResources(resources: Resources): Resources
+
     @Binds fun bindBroadcastDispatcher(fake: FakeBroadcastDispatcher): BroadcastDispatcher
+
     @Binds @SysUISingleton fun bindsShadeInteractor(sii: ShadeInteractorImpl): ShadeInteractor
-    @Binds fun bindSceneDataSource(delegator: SceneDataSourceDelegator): SceneDataSource
+
+    @Binds
+    @SysUISingleton
+    fun bindSceneDataSource(delegator: SceneDataSourceDelegator): SceneDataSource
+
+    @Binds
+    fun provideFaceAuthInteractor(
+        sysUIFaceAuthInteractor: SystemUIDeviceEntryFaceAuthInteractor
+    ): DeviceEntryFaceAuthInteractor
 
     companion object {
         @Provides
@@ -90,19 +115,34 @@ interface SysUITestModule {
 
         @Provides
         fun provideBaseShadeInteractor(
-            sceneContainerFlags: SceneContainerFlags,
             sceneContainerOn: Provider<ShadeInteractorSceneContainerImpl>,
-            sceneContainerOff: Provider<ShadeInteractorLegacyImpl>
+            sceneContainerOff: Provider<ShadeInteractorLegacyImpl>,
         ): BaseShadeInteractor {
-            return if (sceneContainerFlags.isEnabled()) {
+            return if (SceneContainerFlag.isEnabled) {
                 sceneContainerOn.get()
             } else {
                 sceneContainerOff.get()
             }
         }
+
+        @Provides
+        @SysUISingleton
+        fun providesSceneDataSourceDelegator(
+            @Application applicationScope: CoroutineScope,
+            config: SceneContainerConfig,
+        ): SceneDataSourceDelegator {
+            return SceneDataSourceDelegator(applicationScope, config)
+        }
+
+        @Provides
+        @SysUISingleton
+        fun providesPulseExpansionRepository(dumpManager: DumpManager): PulseExpansionRepository {
+            return PulseExpansionRepository(dumpManager)
+        }
     }
 }
 
+@Deprecated("Use Kosmos instead. See com.android.systemui.kosmos.Kosmos.")
 interface SysUITestComponent<out T> {
     val testScope: TestScope
     val underTest: T

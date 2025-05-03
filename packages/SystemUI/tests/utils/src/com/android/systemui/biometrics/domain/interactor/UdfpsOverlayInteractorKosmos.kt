@@ -18,6 +18,7 @@ package com.android.systemui.biometrics.domain.interactor
 
 import android.content.applicationContext
 import com.android.systemui.biometrics.authController
+import com.android.systemui.biometrics.fingerprintManager
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
 import com.android.systemui.kosmos.applicationCoroutineScope
@@ -28,6 +29,7 @@ val Kosmos.udfpsOverlayInteractor by Fixture {
         context = applicationContext,
         authController = authController,
         selectedUserInteractor = selectedUserInteractor,
+        fingerprintManager = fingerprintManager,
         scope = applicationCoroutineScope,
     )
 }

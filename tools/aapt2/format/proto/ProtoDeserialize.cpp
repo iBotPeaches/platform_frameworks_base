@@ -16,6 +16,7 @@
 
 #include "format/proto/ProtoDeserialize.h"
 
+#include "Resource.h"
 #include "ResourceTable.h"
 #include "ResourceUtils.h"
 #include "ResourceValues.h"
@@ -535,6 +536,32 @@ static bool DeserializePackageFromPb(const pb::Package& pb_package, const ResStr
 
         config_value->value = DeserializeValueFromPb(pb_config_value.value(), src_pool, config,
                                                      &out_table->string_pool, files, out_error);
+
+        if (config_value->value == nullptr) {
+          return false;
+        }
+      }
+
+      // flag disabled
+      for (const pb::ConfigValue& pb_config_value : pb_entry.flag_disabled_config_value()) {
+        const pb::Configuration& pb_config = pb_config_value.config();
+
+        ConfigDescription config;
+        if (!DeserializeConfigFromPb(pb_config, &config, out_error)) {
+          return false;
+        }
+
+        ResourceConfigValue* config_value = entry->FindOrCreateFlagDisabledValue(
+            FeatureFlagAttribute{.name = pb_config_value.value().item().flag_name(),
+                                 .negated = pb_config_value.value().item().flag_negated()},
+            config, pb_config.product());
+        if (config_value->value != nullptr) {
+          *out_error = "duplicate configuration in resource table";
+          return false;
+        }
+
+        config_value->value = DeserializeValueFromPb(pb_config_value.value(), src_pool, config,
+                                                     &out_table->string_pool, files, out_error);
         if (config_value->value == nullptr) {
           return false;
         }
@@ -613,6 +640,12 @@ bool DeserializeCompiledFileFromPb(const pb::internal::CompiledFile& pb_file,
   out_file->name = name_ref.ToResourceName();
   out_file->source.path = pb_file.source_path();
   out_file->type = DeserializeFileReferenceTypeFromPb(pb_file.type());
+
+  out_file->flag_status = (FlagStatus)pb_file.flag_status();
+  if (!pb_file.flag_name().empty()) {
+    out_file->flag =
+        FeatureFlagAttribute{.name = pb_file.flag_name(), .negated = pb_file.flag_negated()};
+  }
 
   std::string config_error;
   if (!DeserializeConfigFromPb(pb_file.config(), &out_file->config, &config_error)) {
@@ -747,7 +780,6 @@ std::unique_ptr<Value> DeserializeValueFromPb(const pb::Value& pb_value,
     if (value == nullptr) {
       return {};
     }
-
   } else if (pb_value.has_compound_value()) {
     const pb::CompoundValue& pb_compound_value = pb_value.compound_value();
     switch (pb_compound_value.value_case()) {
@@ -862,6 +894,9 @@ std::unique_ptr<Value> DeserializeValueFromPb(const pb::Value& pb_value,
         LOG(FATAL) << "unknown compound value: " << (int)pb_compound_value.value_case();
         break;
     }
+    value->SetFlagStatus((FlagStatus)pb_compound_value.flag_status());
+    value->SetFlag(FeatureFlagAttribute{.name = pb_compound_value.flag_name(),
+                                        .negated = pb_compound_value.flag_negated()});
   } else {
     LOG(FATAL) << "unknown value: " << (int)pb_value.value_case();
     return {};
@@ -874,11 +909,12 @@ std::unique_ptr<Value> DeserializeValueFromPb(const pb::Value& pb_value,
   return value;
 }
 
-std::unique_ptr<Item> DeserializeItemFromPb(const pb::Item& pb_item,
-                                            const android::ResStringPool& src_pool,
-                                            const ConfigDescription& config,
-                                            android::StringPool* value_pool,
-                                            io::IFileCollection* files, std::string* out_error) {
+std::unique_ptr<Item> DeserializeItemFromPbInternal(const pb::Item& pb_item,
+                                                    const android::ResStringPool& src_pool,
+                                                    const ConfigDescription& config,
+                                                    android::StringPool* value_pool,
+                                                    io::IFileCollection* files,
+                                                    std::string* out_error) {
   switch (pb_item.value_case()) {
     case pb::Item::kRef: {
       const pb::Reference& pb_ref = pb_item.ref();
@@ -1005,6 +1041,23 @@ std::unique_ptr<Item> DeserializeItemFromPb(const pb::Item& pb_item,
       break;
   }
   return {};
+}
+
+std::unique_ptr<Item> DeserializeItemFromPb(const pb::Item& pb_item,
+                                            const android::ResStringPool& src_pool,
+                                            const ConfigDescription& config,
+                                            android::StringPool* value_pool,
+                                            io::IFileCollection* files, std::string* out_error) {
+  auto item =
+      DeserializeItemFromPbInternal(pb_item, src_pool, config, value_pool, files, out_error);
+  if (item) {
+    item->SetFlagStatus((FlagStatus)pb_item.flag_status());
+    if (!pb_item.flag_name().empty()) {
+      item->SetFlag(
+          FeatureFlagAttribute{.name = pb_item.flag_name(), .negated = pb_item.flag_negated()});
+    }
+  }
+  return item;
 }
 
 std::unique_ptr<xml::XmlResource> DeserializeXmlResourceFromPb(const pb::XmlNode& pb_node,

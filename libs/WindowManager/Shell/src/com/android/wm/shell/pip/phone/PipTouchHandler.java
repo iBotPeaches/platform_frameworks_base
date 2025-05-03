@@ -48,7 +48,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.R;
 import com.android.wm.shell.common.FloatingContentCoordinator;
 import com.android.wm.shell.common.ShellExecutor;
@@ -213,12 +213,13 @@ public class PipTouchHandler {
         mPipResizeGestureHandler =
                 new PipResizeGestureHandler(context, pipBoundsAlgorithm, pipBoundsState,
                         mMotionHelper, mTouchState, pipTaskOrganizer, mPipDismissTargetHandler,
-                        this::updateMovementBounds, pipUiEventLogger,
+                        this::getMovementBounds, this::updateMovementBounds, pipUiEventLogger,
                         menuController, mainExecutor, mPipPerfHintController);
         mConnection = new PipAccessibilityInteractionConnection(mContext, pipBoundsState,
                 mMotionHelper, pipTaskOrganizer, mPipBoundsAlgorithm.getSnapAlgorithm(),
                 this::onAccessibilityShowMenu, this::updateMovementBounds,
                 this::animateToUnStashedState, mainExecutor);
+        mPipBoundsState.addOnAspectRatioChangedCallback(this::updateMinMaxSize);
 
         // TODO(b/181599115): This should really be initializes as part of the pip controller, but
         // until all PIP implementations derive from the controller, just initialize the touch handler

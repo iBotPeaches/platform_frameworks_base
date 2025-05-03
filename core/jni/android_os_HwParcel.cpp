@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "android_os_HwParcel"
@@ -233,6 +234,10 @@ void JHwParcel::send() {
 
 bool JHwParcel::wasSent() const {
     return mWasSent;
+}
+
+void JHwParcel::addBlob(const sp<JHwBlob> &blob) {
+    mBlobs.emplace_back(blob);
 }
 
 }  // namespace android
@@ -1059,6 +1064,7 @@ static void JHwParcel_native_writeBuffer(
         JHwParcel::GetNativeContext(env, thiz)->getParcel();
 
     sp<JHwBlob> blob = JHwBlob::GetNativeContext(env, blobObj);
+    JHwParcel::GetNativeContext(env, thiz)->addBlob(blob);
     status_t err = blob->writeToParcel(parcel);
 
     if (err != OK) {

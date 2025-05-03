@@ -16,14 +16,14 @@
 
 package com.android.server.wm;
 
-import static com.android.internal.protolog.ProtoLogGroup.WM_DEBUG_CONTENT_RECORDING;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_CONTENT_RECORDING;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.view.ContentRecordingSession;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 
 /**
  * Orchestrates the handoff between displays if the recording session changes, and keeps track of

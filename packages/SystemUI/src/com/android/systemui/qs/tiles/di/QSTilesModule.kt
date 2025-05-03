@@ -22,11 +22,13 @@ import com.android.systemui.qs.external.CustomTileStatePersister
 import com.android.systemui.qs.external.CustomTileStatePersisterImpl
 import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandler
 import com.android.systemui.qs.tiles.base.actions.QSTileIntentUserInputHandlerImpl
+import com.android.systemui.qs.tiles.base.interactor.QSTileAvailabilityInteractor
 import com.android.systemui.qs.tiles.impl.custom.di.CustomTileComponent
 import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
 import com.android.systemui.qs.tiles.viewmodel.QSTileConfigProvider
 import com.android.systemui.qs.tiles.viewmodel.QSTileConfigProviderImpl
 import com.android.systemui.qs.tiles.viewmodel.QSTileViewModel
+import com.android.systemui.shade.ShadeDisplayAware
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -51,6 +53,8 @@ interface QSTilesModule {
      */
     @Multibinds fun tileViewModelMap(): Map<String, QSTileViewModel>
 
+    @Multibinds fun tileAvailabilityInteractors(): Map<String, QSTileAvailabilityInteractor>
+
     @Binds fun bindQSTileConfigProvider(impl: QSTileConfigProviderImpl): QSTileConfigProvider
 
     @Binds
@@ -63,6 +67,6 @@ interface QSTilesModule {
 
     companion object {
 
-        @Provides fun provideTilesTheme(context: Context): Theme = context.theme
+        @Provides fun provideTilesTheme(@ShadeDisplayAware context: Context): Theme = context.theme
     }
 }

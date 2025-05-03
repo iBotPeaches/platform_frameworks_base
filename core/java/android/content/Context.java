@@ -16,7 +16,10 @@
 
 package android.content;
 
+import static android.app.appfunctions.flags.Flags.FLAG_ENABLE_APP_FUNCTION_MANAGER;
 import static android.content.flags.Flags.FLAG_ENABLE_BIND_PACKAGE_ISOLATED_PROCESS;
+import static android.app.ondeviceintelligence.flags.Flags.FLAG_ENABLE_ON_DEVICE_INTELLIGENCE_MODULE;
+import static android.security.Flags.FLAG_SECURE_LOCKDOWN;
 
 import android.annotation.AttrRes;
 import android.annotation.CallbackExecutor;
@@ -32,6 +35,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.PermissionMethod;
 import android.annotation.PermissionName;
+import android.annotation.RequiresFeature;
 import android.annotation.RequiresPermission;
 import android.annotation.StringDef;
 import android.annotation.StringRes;
@@ -51,6 +55,7 @@ import android.app.IApplicationThread;
 import android.app.IServiceConnection;
 import android.app.VrManager;
 import android.app.ambientcontext.AmbientContextManager;
+import android.app.appfunctions.AppFunctionManager;
 import android.app.people.PeopleManager;
 import android.app.time.TimeManager;
 import android.companion.virtual.VirtualDeviceManager;
@@ -85,6 +90,8 @@ import android.os.UserManager;
 import android.os.storage.StorageManager;
 import android.provider.E2eeContactKeysManager;
 import android.provider.MediaStore;
+import android.ravenwood.annotation.RavenwoodKeep;
+import android.ravenwood.annotation.RavenwoodKeepPartialClass;
 import android.telephony.TelephonyRegistryManager;
 import android.util.AttributeSet;
 import android.view.Display;
@@ -102,6 +109,7 @@ import android.window.WindowContext;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.compat.IPlatformCompat;
 import com.android.internal.compat.IPlatformCompatNative;
+import com.android.internal.protolog.ProtoLogConfigurationService;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -126,6 +134,7 @@ import java.util.function.IntConsumer;
  * up-calls for application-level operations such as launching activities,
  * broadcasting and receiving intents, etc.
  */
+@RavenwoodKeepPartialClass
 public abstract class Context {
     /**
      * After {@link Build.VERSION_CODES#TIRAMISU},
@@ -632,12 +641,15 @@ public abstract class Context {
     public static final int BIND_FOREGROUND_SERVICE_WHILE_AWAKE = 0x02000000;
 
     /**
-     * @hide Flag for {@link #bindService}: For only the case where the binding
+     * Flag for {@link #bindService}: For only the case where the binding
      * is coming from the system, set the process state to BOUND_FOREGROUND_SERVICE
      * instead of the normal maximum of IMPORTANT_FOREGROUND.  That is, this is
      * saying that the process shouldn't participate in the normal power reduction
      * modes (removing network access etc).
+     * @hide
      */
+    @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
+    @FlaggedApi(FLAG_ENABLE_ON_DEVICE_INTELLIGENCE_MODULE)
     public static final int BIND_FOREGROUND_SERVICE = 0x04000000;
 
     /**
@@ -929,6 +941,7 @@ public abstract class Context {
      * @param resId Resource id for the CharSequence text
      */
     @NonNull
+    @RavenwoodKeep
     public final CharSequence getText(@StringRes int resId) {
         return getResources().getText(resId);
     }
@@ -942,6 +955,7 @@ public abstract class Context {
      *         text information.
      */
     @NonNull
+    @RavenwoodKeep
     public final String getString(@StringRes int resId) {
         return getResources().getString(resId);
     }
@@ -958,6 +972,7 @@ public abstract class Context {
      *         stripped of styled text information.
      */
     @NonNull
+    @RavenwoodKeep
     public final String getString(@StringRes int resId, Object... formatArgs) {
         return getResources().getString(resId, formatArgs);
     }
@@ -974,6 +989,7 @@ public abstract class Context {
      *         does not exist.
      */
     @ColorInt
+    @RavenwoodKeep
     public final int getColor(@ColorRes int id) {
         return getResources().getColor(id, getTheme());
     }
@@ -1041,6 +1057,7 @@ public abstract class Context {
      * @see android.content.res.Resources.Theme#obtainStyledAttributes(int[])
      */
     @NonNull
+    @RavenwoodKeep
     public final TypedArray obtainStyledAttributes(@NonNull @StyleableRes int[] attrs) {
         return getTheme().obtainStyledAttributes(attrs);
     }
@@ -1053,6 +1070,7 @@ public abstract class Context {
      * @see android.content.res.Resources.Theme#obtainStyledAttributes(int, int[])
      */
     @NonNull
+    @RavenwoodKeep
     public final TypedArray obtainStyledAttributes(@StyleRes int resid,
             @NonNull @StyleableRes int[] attrs) throws Resources.NotFoundException {
         return getTheme().obtainStyledAttributes(resid, attrs);
@@ -1066,6 +1084,7 @@ public abstract class Context {
      * @see android.content.res.Resources.Theme#obtainStyledAttributes(AttributeSet, int[], int, int)
      */
     @NonNull
+    @RavenwoodKeep
     public final TypedArray obtainStyledAttributes(
             @Nullable AttributeSet set, @NonNull @StyleableRes int[] attrs) {
         return getTheme().obtainStyledAttributes(set, attrs, 0, 0);
@@ -1079,6 +1098,7 @@ public abstract class Context {
      * @see android.content.res.Resources.Theme#obtainStyledAttributes(AttributeSet, int[], int, int)
      */
     @NonNull
+    @RavenwoodKeep
     public final TypedArray obtainStyledAttributes(@Nullable AttributeSet set,
             @NonNull @StyleableRes int[] attrs, @AttrRes int defStyleAttr,
             @StyleRes int defStyleRes) {
@@ -3288,6 +3308,14 @@ public abstract class Context {
      *
      * <p>See {@link BroadcastReceiver} for more information on Intent broadcasts.
      *
+     * <p>As of {@link android.os.Build.VERSION_CODES#UPSIDE_DOWN_CAKE}, the system can <a
+     * href="{@docRoot}develop/background-work/background-tasks/broadcasts#android-14">place
+     * context-registered broadcasts in a queue while the app is in the <a
+     * href="{@docRoot}guide/components/activities/process-lifecycle">cached state</a>.
+     * When the app leaves the cached state, such as returning to the
+     * foreground, the system delivers any queued broadcasts. Multiple instances
+     * of certain broadcasts might be merged into one broadcast.
+     *
      * <p>As of {@link android.os.Build.VERSION_CODES#ICE_CREAM_SANDWICH}, receivers
      * registered with this method will correctly respect the
      * {@link Intent#setPackage(String)} specified for an Intent being broadcast.
@@ -3333,6 +3361,14 @@ public abstract class Context {
      *
      * <p>See {@link BroadcastReceiver} for more information on Intent broadcasts.
      *
+     * <p>As of {@link android.os.Build.VERSION_CODES#UPSIDE_DOWN_CAKE}, the system can <a
+     * href="{@docRoot}develop/background-work/background-tasks/broadcasts#android-14">place
+     * context-registered broadcasts in a queue while the app is in the <a
+     * href="{@docRoot}guide/components/activities/process-lifecycle">cached state</a>.
+     * When the app leaves the cached state, such as returning to the
+     * foreground, the system delivers any queued broadcasts. Multiple instances
+     * of certain broadcasts might be merged into one broadcast.
+     *
      * <p>As of {@link android.os.Build.VERSION_CODES#ICE_CREAM_SANDWICH}, receivers
      * registered with this method will correctly respect the
      * {@link Intent#setPackage(String)} specified for an Intent being broadcast.
@@ -3373,6 +3409,14 @@ public abstract class Context {
      * a different thread than the main application thread.
      *
      * <p>See {@link BroadcastReceiver} for more information on Intent broadcasts.
+     *
+     * <p>As of {@link android.os.Build.VERSION_CODES#UPSIDE_DOWN_CAKE}, the system can <a
+     * href="{@docRoot}develop/background-work/background-tasks/broadcasts#android-14">place
+     * context-registered broadcasts in a queue while the app is in the <a
+     * href="{@docRoot}guide/components/activities/process-lifecycle">cached state</a>.
+     * When the app leaves the cached state, such as returning to the
+     * foreground, the system delivers any queued broadcasts. Multiple instances
+     * of certain broadcasts might be merged into one broadcast.
      *
      * <p>As of {@link android.os.Build.VERSION_CODES#ICE_CREAM_SANDWICH}, receivers
      * registered with this method will correctly respect the
@@ -3416,6 +3460,14 @@ public abstract class Context {
      * for more information.
      *
      * <p>See {@link BroadcastReceiver} for more information on Intent broadcasts.
+     *
+     * <p>As of {@link android.os.Build.VERSION_CODES#UPSIDE_DOWN_CAKE}, the system can <a
+     * href="{@docRoot}develop/background-work/background-tasks/broadcasts#android-14">place
+     * context-registered broadcasts in a queue while the app is in the <a
+     * href="{@docRoot}guide/components/activities/process-lifecycle">cached state</a>.
+     * When the app leaves the cached state, such as returning to the
+     * foreground, the system delivers any queued broadcasts. Multiple instances
+     * of certain broadcasts might be merged into one broadcast.
      *
      * <p>As of {@link android.os.Build.VERSION_CODES#ICE_CREAM_SANDWICH}, receivers
      * registered with this method will correctly respect the
@@ -3609,6 +3661,27 @@ public abstract class Context {
      * @see #registerReceiver
      */
     public abstract void unregisterReceiver(BroadcastReceiver receiver);
+
+    /**
+     * Returns the list of {@link IntentFilter} objects that have been registered for the given
+     * {@link BroadcastReceiver}.
+     *
+     * @param receiver The {@link BroadcastReceiver} whose registered intent filters
+     *                 should be retrieved.
+     *
+     * @return A list of registered intent filters, or an empty list if the given receiver is not
+     *         registered.
+     *
+     * @throws NullPointerException if the {@code receiver} is {@code null}.
+     *
+     * @hide
+     */
+    @SuppressLint("UnflaggedApi") // TestApi
+    @TestApi
+    @NonNull
+    public List<IntentFilter> getRegisteredIntentFilters(@NonNull BroadcastReceiver receiver) {
+        throw new RuntimeException("Not implemented. Must override in a subclass.");
+    }
 
     /**
      * Request that a given application service be started.  The Intent
@@ -4163,6 +4236,7 @@ public abstract class Context {
             //@hide: STATUS_BAR_SERVICE,
             THREAD_NETWORK_SERVICE,
             CONNECTIVITY_SERVICE,
+            TETHERING_SERVICE,
             PAC_PROXY_SERVICE,
             VCN_MANAGEMENT_SERVICE,
             //@hide: IP_MEMORY_STORE_SERVICE,
@@ -4181,6 +4255,7 @@ public abstract class Context {
             //@hide: WIFI_RTT_SERVICE,
             //@hide: ETHERNET_SERVICE,
             WIFI_RTT_RANGING_SERVICE,
+            WIFI_USD_SERVICE,
             NSD_SERVICE,
             AUDIO_SERVICE,
             AUDIO_DEVICE_VOLUME_SERVICE,
@@ -4188,6 +4263,7 @@ public abstract class Context {
             FINGERPRINT_SERVICE,
             //@hide: FACE_SERVICE,
             BIOMETRIC_SERVICE,
+            AUTHENTICATION_POLICY_SERVICE,
             MEDIA_ROUTER_SERVICE,
             TELEPHONY_SERVICE,
             TELEPHONY_SUBSCRIPTION_SERVICE,
@@ -4240,7 +4316,7 @@ public abstract class Context {
             MEDIA_COMMUNICATION_SERVICE,
             BATTERY_SERVICE,
             JOB_SCHEDULER_SERVICE,
-            //@hide: PERSISTENT_DATA_BLOCK_SERVICE,
+            PERSISTENT_DATA_BLOCK_SERVICE,
             //@hide: OEM_LOCK_SERVICE,
             MEDIA_PROJECTION_SERVICE,
             MIDI_SERVICE,
@@ -4277,6 +4353,9 @@ public abstract class Context {
             SECURITY_STATE_SERVICE,
            //@hide: ECM_ENHANCED_CONFIRMATION_SERVICE,
             CONTACT_KEYS_SERVICE,
+            RANGING_SERVICE,
+            MEDIA_QUALITY_SERVICE,
+            ADVANCED_PROTECTION_SERVICE,
 
     })
     @Retention(RetentionPolicy.SOURCE)
@@ -4366,6 +4445,9 @@ public abstract class Context {
      * web domain approval state.
      * <dt> {@link #DISPLAY_HASH_SERVICE} ("display_hash")
      * <dd> A {@link android.view.displayhash.DisplayHashManager} for management of display hashes.
+     * <dt> {@link #AUTHENTICATION_POLICY_SERVICE} ("authentication_policy")
+     * <dd> A {@link android.security.authenticationpolicy.AuthenticationPolicyManager}
+     * for managing authentication related policies on the device.
      * </dl>
      *
      * <p>Note:  System services obtained via this API may be closely associated with
@@ -4450,8 +4532,9 @@ public abstract class Context {
      * @see android.content.pm.verify.domain.DomainVerificationManager
      * @see #DISPLAY_HASH_SERVICE
      * @see android.view.displayhash.DisplayHashManager
+     * @see #AUTHENTICATION_POLICY_SERVICE
+     * @see android.security.authenticationpolicy.AuthenticationPolicyManager
      */
-    // TODO(b/347269120): Re-add @Nullable
     public abstract Object getSystemService(@ServiceName @NonNull String name);
 
     /**
@@ -4472,7 +4555,8 @@ public abstract class Context {
      * {@link android.os.BatteryManager}, {@link android.app.job.JobScheduler},
      * {@link android.app.usage.NetworkStatsManager},
      * {@link android.content.pm.verify.domain.DomainVerificationManager},
-     * {@link android.view.displayhash.DisplayHashManager}.
+     * {@link android.view.displayhash.DisplayHashManager}
+     * {@link android.security.authenticationpolicy.AuthenticationPolicyManager}.
      * </p>
      *
      * <p>
@@ -4496,7 +4580,7 @@ public abstract class Context {
      * <b>never</b> throw a {@link RuntimeException} if the name is not supported.
      */
     @SuppressWarnings("unchecked")
-    // TODO(b/347269120): Re-add @Nullable
+    @RavenwoodKeep
     public final <T> T getSystemService(@NonNull Class<T> serviceClass) {
         // Because subclasses may override getSystemService(String) we cannot
         // perform a lookup by class alone.  We must first map the class to its
@@ -4720,6 +4804,18 @@ public abstract class Context {
 
     /**
      * Use with {@link #getSystemService(String)} to retrieve a {@link
+     * android.security.keystore.KeyStoreManager} for accessing
+     * <a href="/privacy-and-security/keystore">Android Keystore</a>
+     * functions.
+     *
+     * @see #getSystemService(String)
+     * @see android.security.keystore.KeyStoreManager
+     */
+    @FlaggedApi(android.security.Flags.FLAG_KEYSTORE_GRANT_API)
+    public static final String KEYSTORE_SERVICE = "keystore";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve a {@link
      * android.os.storage.StorageManager} for accessing system storage
      * functions.
      *
@@ -4810,6 +4906,8 @@ public abstract class Context {
      * @see android.net.vcn.VcnManager
      * @hide
      */
+    @FlaggedApi(android.os.Flags.FLAG_MAINLINE_VCN_PLATFORM_API)
+    @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
     public static final String VCN_MANAGEMENT_SERVICE = "vcn_management";
 
     /**
@@ -4833,10 +4931,10 @@ public abstract class Context {
     /**
      * Use with {@link #getSystemService(String)} to retrieve a {@link android.net.TetheringManager}
      * for managing tethering functions.
-     * @hide
+     *
      * @see android.net.TetheringManager
      */
-    @SystemApi
+    @SuppressLint("UnflaggedApi")
     public static final String TETHERING_SERVICE = "tethering";
 
     /**
@@ -5004,6 +5102,19 @@ public abstract class Context {
      */
     public static final String WIFI_RTT_RANGING_SERVICE = "wifirtt";
 
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve a {@link
+     * android.net.wifi.usd.UsdManager} for Unsynchronized Service Discovery (USD) operation.
+     *
+     * @see #getSystemService(String)
+     * @see android.net.wifi.usd.UsdManager
+     * @hide
+     */
+    @FlaggedApi(android.net.wifi.flags.Flags.FLAG_USD)
+    @SystemApi
+    public static final String WIFI_USD_SERVICE = "wifi_usd";
+
     /**
      * Use with {@link #getSystemService(String)} to retrieve a {@link
      * android.net.lowpan.LowpanManager} for handling management of
@@ -5095,6 +5206,18 @@ public abstract class Context {
      * @hide
      */
     public static final String AUTH_SERVICE = "auth";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve an {@link
+     * android.security.authenticationpolicy.AuthenticationPolicyManager}.
+     * @see #getSystemService
+     * @see android.security.authenticationpolicy.AuthenticationPolicyManager
+     *
+     * @hide
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_SECURE_LOCKDOWN)
+    public static final String AUTHENTICATION_POLICY_SERVICE = "authentication_policy";
 
     /**
      * Use with {@link #getSystemService(String)} to retrieve a
@@ -5429,6 +5552,19 @@ public abstract class Context {
     public static final String SMARTSPACE_SERVICE = "smartspace";
 
     /**
+     * Used for getting the contextual search service.
+     *
+     * <p><b>NOTE: </b> this service is optional; callers of
+     * {@code Context.getSystemServiceName(CONTEXTUAL_SEARCH_SERVICE)} must check for {@code null}.
+     *
+     * @hide
+     * @see #getSystemService(String)
+     */
+    @FlaggedApi(android.app.contextualsearch.flags.Flags.FLAG_ENABLE_SERVICE)
+    @SystemApi
+    public static final String CONTEXTUAL_SEARCH_SERVICE = "contextual_search";
+
+    /**
      * Used for getting the cloudsearch service.
      *
      * <p><b>NOTE: </b> this service is optional; callers of
@@ -5594,6 +5730,14 @@ public abstract class Context {
      */
     @SuppressLint("ServiceName")
     public static final String BINARY_TRANSPARENCY_SERVICE = "transparency";
+
+    /**
+     * System service name for IntrusionDetectionService.
+     * The service manages the intrusion detection info on device.
+     * @hide
+     */
+    @FlaggedApi(android.security.Flags.FLAG_AFL_API)
+    public static final String INTRUSION_DETECTION_SERVICE = "intrusion_detection";
 
     /**
      * System service name for the DeviceIdleManager.
@@ -5935,24 +6079,14 @@ public abstract class Context {
     public static final String JOB_SCHEDULER_SERVICE = "jobscheduler";
 
     /**
-     * Use with {@link #getSystemService(String)} to retrieve a
-     * {@link android.app.tare.EconomyManager} instance for understanding economic standing.
-     * @see #getSystemService(String)
-     * @hide
-     * @see android.app.tare.EconomyManager
-     */
-    public static final String RESOURCE_ECONOMY_SERVICE = "tare";
-
-    /**
      * Use with {@link #getSystemService(String)} to retrieve a {@link
      * android.service.persistentdata.PersistentDataBlockManager} instance
      * for interacting with a storage device that lives across factory resets.
      *
      * @see #getSystemService(String)
      * @see android.service.persistentdata.PersistentDataBlockManager
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(android.security.Flags.FLAG_FRP_ENFORCEMENT)
     public static final String PERSISTENT_DATA_BLOCK_SERVICE = "persistent_data_block";
 
     /**
@@ -6275,6 +6409,16 @@ public abstract class Context {
 
     /**
      * Use with {@link #getSystemService(String)} to retrieve an
+     * {@link AppFunctionManager} for
+     * executing app functions.
+     *
+     * @see #getSystemService(String)
+     */
+    @FlaggedApi(FLAG_ENABLE_APP_FUNCTION_MANAGER)
+    public static final String APP_FUNCTION_SERVICE = "app_function";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve an
      * {@link android.content.integrity.AppIntegrityManager}.
      * @hide
      */
@@ -6303,6 +6447,15 @@ public abstract class Context {
      * @hide
      */
     public static final String ATTESTATION_VERIFICATION_SERVICE = "attestation_verification";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve an
+     * {@link android.security.advancedprotection.AdvancedProtectionManager}
+     * @see #getSystemService(String)
+     * @see android.security.advancedprotection.AdvancedProtectionManager
+     */
+    @FlaggedApi(android.security.Flags.FLAG_AAPM_API)
+    public static final String ADVANCED_PROTECTION_SERVICE = "advanced_protection";
 
     /**
      * Use with {@link #getSystemService(String)} to retrieve an
@@ -6338,6 +6491,17 @@ public abstract class Context {
      */
     @SystemApi
     public static final String UWB_SERVICE = "uwb";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve a
+     * {@link android.ranging.RangingManager}.
+     *
+     * @see #getSystemService(String)
+     * @hide
+     */
+    @FlaggedApi(com.android.ranging.flags.Flags.FLAG_RANGING_STACK_ENABLED)
+    @SystemApi
+    public static final String RANGING_SERVICE = "ranging";
 
     /**
      * Use with {@link #getSystemService(String)} to retrieve a
@@ -6550,8 +6714,8 @@ public abstract class Context {
      *
      * @see #getSystemService(String)
      * @see android.telephony.satellite.SatelliteManager
-     * @hide
      */
+    @FlaggedApi(com.android.internal.telephony.flags.Flags.FLAG_SATELLITE_STATE_CHANGE_LISTENER)
     public static final String SATELLITE_SERVICE = "satellite";
 
     /**
@@ -6618,6 +6782,8 @@ public abstract class Context {
      * Use with {@link #getSystemService(String)} to retrieve a {@link
      * android.webkit.WebViewUpdateManager} for accessing the WebView update service.
      *
+     * <p>This can only be used on devices with {@link PackageManager#FEATURE_WEBVIEW}.
+     *
      * @see #getSystemService(String)
      * @see android.webkit.WebViewUpdateManager
      * @hide
@@ -6625,7 +6791,58 @@ public abstract class Context {
     @FlaggedApi(android.webkit.Flags.FLAG_UPDATE_SERVICE_IPC_WRAPPER)
     @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
     @SuppressLint("ServiceName")
+    @RequiresFeature(PackageManager.FEATURE_WEBVIEW)
     public static final String WEBVIEW_UPDATE_SERVICE = "webviewupdate";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve a
+     * {@link android.provider.BlockedNumbersManager} for accessing the blocked number service.
+     *
+     * @see #getSystemService(String)
+     * @see android.provider.BlockedNumbersManager
+     * @hide
+     */
+    @FlaggedApi(
+            com.android.server.telecom.flags.Flags.FLAG_TELECOM_MAINLINE_BLOCKED_NUMBERS_MANAGER)
+    @SystemApi
+    public static final String BLOCKED_NUMBERS_SERVICE = "blocked_numbers";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve the
+     * {@link ProtoLogConfigurationService} for registering ProtoLog clients.
+     *
+     * @see #getSystemService(String)
+     * @see ProtoLogConfigurationService
+     * @hide
+     */
+    public static final String PROTOLOG_CONFIGURATION_SERVICE = "protolog_configuration";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve a
+     * {@link android.app.supervision.SupervisionManager}.
+     *
+     * @see #getSystemService(String)
+     * @see android.app.supervision.SupervisionManager
+     * @hide
+     */
+    public static final String SUPERVISION_SERVICE = "supervision";
+
+    /**
+     * Use with {@link #getSystemService(String)} to retrieve a
+     * {@link android.media.quality.MediaQuality} for standardize picture and audio
+     * API parameters.
+     *
+     * @see #getSystemService(String)
+     * @see android.media.quality.MediaQuality
+     */
+    @FlaggedApi(android.media.tv.flags.Flags.FLAG_MEDIA_QUALITY_FW)
+    public static final String MEDIA_QUALITY_SERVICE = "media_quality";
+
+    /**
+     * Service to perform operations needed for dynamic instrumentation.
+     * @hide
+     */
+    public static final String DYNAMIC_INSTRUMENTATION_SERVICE = "dynamic_instrumentation";
 
     /**
      * Determine whether the given permission is allowed for a particular
@@ -7174,9 +7391,10 @@ public abstract class Context {
      * as the package remains in the foreground, or has any active manifest components (e.g. when
      * another app is accessing a content provider in the package).
      * <p>
-     * If you want to revoke the permissions right away, you could call {@code System.exit()}, but
-     * this could affect other apps that are accessing your app at the moment. For example, apps
-     * accessing a content provider in your app will all crash.
+     * If you want to revoke the permissions right away, you could call {@code System.exit()} in
+     * {@code Handler.postDelayed} with a delay to allow completion of async IPC, But
+     * {@code System.exit()} could affect other apps that are accessing your app at the moment.
+     * For example, apps accessing a content provider in your app will all crash.
      * <p>
      * Note that the settings UI shows a permission group as granted as long as at least one
      * permission in the group is granted. If you want the user to observe the revocation in the

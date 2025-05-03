@@ -17,6 +17,7 @@
 package com.android.systemui.biometrics;
 
 import static android.hardware.biometrics.BiometricAuthenticator.TYPE_FINGERPRINT;
+import static android.view.Display.INVALID_DISPLAY;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -42,6 +43,7 @@ import static org.mockito.Mockito.when;
 
 import android.app.ActivityManager;
 import android.app.ActivityTaskManager;
+import android.app.KeyguardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -68,10 +70,12 @@ import android.hardware.fingerprint.FingerprintSensorPropertiesInternal;
 import android.hardware.fingerprint.IFingerprintAuthenticatorsRegisteredCallback;
 import android.os.Handler;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.testing.TestableContext;
 import android.testing.TestableLooper;
 import android.testing.TestableLooper.RunWithLooper;
+import android.view.Display;
 import android.view.DisplayInfo;
 import android.view.Surface;
 import android.view.WindowManager;
@@ -79,12 +83,12 @@ import android.view.WindowManager;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.app.viewcapture.ViewCapture;
 import com.android.internal.R;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.biometrics.domain.interactor.LogContextInteractor;
-import com.android.systemui.biometrics.domain.interactor.PromptCredentialInteractor;
 import com.android.systemui.biometrics.domain.interactor.PromptSelectorInteractor;
 import com.android.systemui.biometrics.ui.viewmodel.CredentialViewModel;
 import com.android.systemui.biometrics.ui.viewmodel.PromptViewModel;
@@ -96,6 +100,10 @@ import com.android.systemui.util.concurrency.Execution;
 import com.android.systemui.util.concurrency.FakeExecution;
 import com.android.systemui.util.concurrency.FakeExecutor;
 import com.android.systemui.util.time.FakeSystemClock;
+
+import com.google.android.msdl.domain.MSDLPlayer;
+
+import dagger.Lazy;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -110,6 +118,7 @@ import org.mockito.junit.MockitoRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 @RunWith(AndroidJUnit4.class)
@@ -145,13 +154,9 @@ public class AuthControllerTest extends SysuiTestCase {
     @Mock
     private UdfpsController mUdfpsController;
     @Mock
-    private SideFpsController mSideFpsController;
-    @Mock
     private DisplayManager mDisplayManager;
     @Mock
     private WakefulnessLifecycle mWakefulnessLifecycle;
-    @Mock
-    private AuthDialogPanelInteractionDetector mPanelInteractionDetector;
     @Mock
     private UserManager mUserManager;
     @Mock
@@ -163,8 +168,6 @@ public class AuthControllerTest extends SysuiTestCase {
     @Mock
     private InteractionJankMonitor mInteractionJankMonitor;
     @Mock
-    private PromptCredentialInteractor mBiometricPromptCredentialInteractor;
-    @Mock
     private PromptSelectorInteractor mPromptSelectionInteractor;
     @Mock
     private CredentialViewModel mCredentialViewModel;
@@ -172,11 +175,15 @@ public class AuthControllerTest extends SysuiTestCase {
     private PromptViewModel mPromptViewModel;
     @Mock
     private UdfpsUtils mUdfpsUtils;
+    @Mock
+    private Lazy<ViewCapture> mLazyViewCapture;
 
     @Captor
     private ArgumentCaptor<IFingerprintAuthenticatorsRegisteredCallback> mFpAuthenticatorsRegisteredCaptor;
     @Captor
     private ArgumentCaptor<IFaceAuthenticatorsRegisteredCallback> mFaceAuthenticatorsRegisteredCaptor;
+    @Captor
+    private ArgumentCaptor<KeyguardManager.KeyguardLockedStateListener> mKeyguardLockedStateCaptor;
     @Captor
     private ArgumentCaptor<BiometricStateListener> mBiometricStateCaptor;
     @Captor
@@ -187,6 +194,10 @@ public class AuthControllerTest extends SysuiTestCase {
     private Resources mResources;
     @Mock
     private VibratorHelper mVibratorHelper;
+    @Mock
+    private KeyguardManager mKeyguardManager;
+    @Mock
+    private MSDLPlayer mMSDLPlayer;
 
     private TestableContext mContextSpy;
     private Execution mExecution;
@@ -208,6 +219,7 @@ public class AuthControllerTest extends SysuiTestCase {
                 .thenReturn(true);
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT))
                 .thenReturn(true);
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(false);
 
         when(mDialog1.getOpPackageName()).thenReturn("Dialog1");
         when(mDialog2.getOpPackageName()).thenReturn("Dialog2");
@@ -264,6 +276,9 @@ public class AuthControllerTest extends SysuiTestCase {
 
         mFpAuthenticatorsRegisteredCaptor.getValue().onAllAuthenticatorsRegistered(fpProps);
         mFaceAuthenticatorsRegisteredCaptor.getValue().onAllAuthenticatorsRegistered(faceProps);
+
+        verify(mKeyguardManager).addKeyguardLockedStateListener(any(),
+                mKeyguardLockedStateCaptor.capture());
 
         // Ensures that the operations posted on the handler get executed.
         waitForIdleSync();
@@ -444,12 +459,23 @@ public class AuthControllerTest extends SysuiTestCase {
                 AdditionalMatchers.aryEq(credentialAttestation));
     }
 
+    @Test
+    public void testSendsReasonContentViewMoreOptions_whenButtonPressed() throws Exception {
+        showDialog(new int[]{1} /* sensorIds */, false /* credentialAllowed */);
+        mAuthController.onDismissed(AuthDialogCallback.DISMISSED_BUTTON_CONTENT_VIEW_MORE_OPTIONS,
+                null, /* credentialAttestation */
+                mAuthController.mCurrentDialog.getRequestId());
+        verify(mReceiver).onDialogDismissed(
+                eq(BiometricPrompt.DISMISSED_REASON_CONTENT_VIEW_MORE_OPTIONS),
+                eq(null) /* credentialAttestation */);
+    }
+
     // Statusbar tests
 
     @Test
     public void testShowInvoked_whenSystemRequested() {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        verify(mDialog1).show(any());
+        verify(mDialog1).show(mWindowManager);
     }
 
     @Test
@@ -666,7 +692,7 @@ public class AuthControllerTest extends SysuiTestCase {
         // 2) Client cancels authentication
 
         showDialog(new int[0] /* sensorIds */, true /* credentialAllowed */);
-        verify(mDialog1).show(any());
+        verify(mDialog1).show(mWindowManager);
 
         final byte[] credentialAttestation = generateRandomHAT();
 
@@ -682,7 +708,7 @@ public class AuthControllerTest extends SysuiTestCase {
     @Test
     public void testShowNewDialog_beforeOldDialogDismissed_SkipsAnimations() {
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
-        verify(mDialog1).show(any());
+        verify(mDialog1).show(mWindowManager);
 
         showDialog(new int[] {1} /* sensorIds */, false /* credentialAllowed */);
 
@@ -690,7 +716,7 @@ public class AuthControllerTest extends SysuiTestCase {
         verify(mDialog1).dismissWithoutCallback(eq(false) /* animate */);
 
         // Second dialog should be shown without animation
-        verify(mDialog2).show(any());
+        verify(mDialog2).show(mWindowManager);
     }
 
     @Test
@@ -959,6 +985,18 @@ public class AuthControllerTest extends SysuiTestCase {
     }
 
     @Test
+    public void testCloseDialog_whenDeviceLocks() throws Exception {
+        showDialog(new int[]{1} /* sensorIds */, false /* credentialAllowed */);
+
+        mKeyguardLockedStateCaptor.getValue().onKeyguardLockedStateChanged(
+                true /* isKeyguardLocked */);
+
+        verify(mReceiver).onDialogDismissed(
+                eq(BiometricPrompt.DISMISSED_REASON_USER_CANCEL),
+                eq(null) /* credentialAttestation */);
+    }
+
+    @Test
     public void testShowDialog_whenOwnerNotInForeground() {
         PromptInfo promptInfo = createTestPromptInfo();
         promptInfo.setAllowBackgroundAuthentication(false);
@@ -977,13 +1015,97 @@ public class AuthControllerTest extends SysuiTestCase {
         verify(mDialog1, never()).show(any());
     }
 
+    @Test
+    public void testShowDialog_visibleBackgroundUser() {
+        int backgroundUserId = 1001;
+        int backgroundDisplayId = 1001;
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(true);
+        WindowManager wm = mockBackgroundUser(backgroundUserId, backgroundDisplayId,
+                true /* isVisible */, true /* hasUserManager */, true /* hasDisplay */);
+
+        showDialog(new int[]{1} /* sensorIds */, backgroundUserId /* userId */,
+                false /* credentialAllowed */);
+
+        verify(mDialog1).show(wm);
+    }
+
+    @Test
+    public void testShowDialog_invisibleBackgroundUser_defaultWM() {
+        int backgroundUserId = 1001;
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(true);
+        mockBackgroundUser(backgroundUserId, INVALID_DISPLAY,
+                false /* isVisible */, true /* hasUserManager */, true /* hasDisplay */);
+
+        showDialog(new int[]{1} /* sensorIds */, backgroundUserId /* userId */,
+                false /* credentialAllowed */);
+
+        verify(mDialog1).show(mWindowManager);
+    }
+
+    @Test
+    public void testShowDialog_visibleBackgroundUser_noUserManager_dismissError()
+            throws RemoteException {
+        int backgroundUserId = 1001;
+        int backgroundDisplayId = 1001;
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(true);
+        mockBackgroundUser(backgroundUserId, backgroundDisplayId,
+                true /* isVisible */, false /* hasUserManager */, true /* hasDisplay */);
+
+        showDialog(new int[]{1} /* sensorIds */, backgroundUserId /* userId */,
+                false /* credentialAllowed */);
+
+        verify(mDialog1, never()).show(any());
+        verify(mReceiver).onDialogDismissed(
+                eq(BiometricPrompt.DISMISSED_REASON_ERROR_NO_WM),
+                eq(null) /* credentialAttestation */);
+    }
+
+    @Test
+    public void testShowDialog_visibleBackgroundUser_invalidDisplayId_dismissError()
+            throws RemoteException {
+        int backgroundUserId = 1001;
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(true);
+        mockBackgroundUser(backgroundUserId, INVALID_DISPLAY,
+                true /* isVisible */, true /* hasUserManager */, false /* hasDisplay */);
+
+        showDialog(new int[]{1} /* sensorIds */, backgroundUserId /* userId */,
+                false /* credentialAllowed */);
+
+        verify(mDialog1, never()).show(any());
+        verify(mReceiver).onDialogDismissed(
+                eq(BiometricPrompt.DISMISSED_REASON_ERROR_NO_WM),
+                eq(null) /* credentialAttestation */);
+    }
+
+    @Test
+    public void testShowDialog_visibleBackgroundUser_invalidDisplay_dismissError()
+            throws RemoteException {
+        int backgroundUserId = 1001;
+        int backgroundDisplayId = 1001;
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(true);
+        mockBackgroundUser(backgroundUserId, backgroundDisplayId,
+                true /* isVisible */, true /* hasUserManager */, false /* hasDisplay */);
+
+        showDialog(new int[]{1} /* sensorIds */, backgroundUserId /* userId */,
+                false /* credentialAllowed */);
+
+        verify(mDialog1, never()).show(any());
+        verify(mReceiver).onDialogDismissed(
+                eq(BiometricPrompt.DISMISSED_REASON_ERROR_NO_WM),
+                eq(null) /* credentialAttestation */);
+    }
+
     private void showDialog(int[] sensorIds, boolean credentialAllowed) {
+        showDialog(sensorIds, 0 /* userId */, credentialAllowed);
+    }
+
+    private void showDialog(int[] sensorIds, int userId, boolean credentialAllowed) {
         mAuthController.showAuthenticationDialog(createTestPromptInfo(),
                 mReceiver /* receiver */,
                 sensorIds,
                 credentialAllowed,
                 true /* requireConfirmation */,
-                0 /* userId */,
+                userId /* userId */,
                 0 /* operationId */,
                 "testPackage",
                 REQUEST_ID);
@@ -1046,21 +1168,53 @@ public class AuthControllerTest extends SysuiTestCase {
         assertTrue(mAuthController.isFaceAuthEnrolled(userId));
     }
 
+    /**
+     * Create mocks related to visible background users.
+     *
+     * @param userId the user id of the background user to mock
+     * @param displayId display id of the background user
+     * @param isVisible whether the background user is a visible background user or not
+     * @param hasUserManager simulate whether the background user's context will return a mock
+     *                       UserManager instance or null
+     * @param hasDisplay simulate whether the background user's context will return a mock Display
+     *                   instance or null
+     * @return mock WindowManager instance associated with the background user's display context
+     */
+    private WindowManager mockBackgroundUser(int userId, int displayId, boolean isVisible,
+            boolean hasUserManager, boolean hasDisplay) {
+        Context mockUserContext = mock(Context.class);
+        Context mockDisplayContext = mock(Context.class);
+        UserManager mockUserManager = mock(UserManager.class);
+        Display mockDisplay = mock(Display.class);
+        WindowManager mockDisplayWM = mock(WindowManager.class);
+        doReturn(mockUserContext).when(mContextSpy).createContextAsUser(eq(UserHandle.of(userId)),
+                anyInt());
+        if (hasUserManager) {
+            when(mockUserContext.getSystemService(UserManager.class)).thenReturn(mockUserManager);
+        }
+        when(mockUserManager.isUserVisible()).thenReturn(isVisible);
+        when(mockUserManager.getMainDisplayIdAssignedToUser()).thenReturn(displayId);
+        if (hasDisplay) {
+            when(mDisplayManager.getDisplay(displayId)).thenReturn(mockDisplay);
+        }
+        doReturn(mockDisplayContext).when(mContextSpy).createDisplayContext(mockDisplay);
+        when(mockDisplayContext.getSystemService(WindowManager.class)).thenReturn(mockDisplayWM);
+        return mockDisplayWM;
+    }
+
     private final class TestableAuthController extends AuthController {
         private int mBuildCount = 0;
-        private PromptInfo mLastBiometricPromptInfo;
 
         TestableAuthController(Context context) {
             super(context, null /* applicationCoroutineScope */,
                     mExecution, mCommandQueue, mActivityTaskManager, mWindowManager,
-                    mFingerprintManager, mFaceManager, () -> mUdfpsController,
-                    () -> mSideFpsController, mDisplayManager, mWakefulnessLifecycle,
-                    mPanelInteractionDetector, mUserManager, mLockPatternUtils, () -> mUdfpsLogger,
-                    () -> mLogContextInteractor,
-                    () -> mBiometricPromptCredentialInteractor,
-                    () -> mPromptSelectionInteractor, () -> mCredentialViewModel,
-                    () -> mPromptViewModel, mInteractionJankMonitor, mHandler, mBackgroundExecutor,
-                    mUdfpsUtils, mVibratorHelper);
+                    mFingerprintManager, mFaceManager, Optional.empty(),
+                    () -> mUdfpsController, mDisplayManager,
+                    mWakefulnessLifecycle, mUserManager, mLockPatternUtils, () -> mUdfpsLogger,
+                    () -> mLogContextInteractor, () -> mPromptSelectionInteractor,
+                    () -> mCredentialViewModel, () -> mPromptViewModel, mInteractionJankMonitor,
+                    mHandler, mBackgroundExecutor, mUdfpsUtils, mVibratorHelper, mKeyguardManager,
+                    mLazyViewCapture, mMSDLPlayer);
         }
 
         @Override
@@ -1068,11 +1222,8 @@ public class AuthControllerTest extends SysuiTestCase {
                 boolean requireConfirmation, int userId, int[] sensorIds,
                 String opPackageName, boolean skipIntro, long operationId, long requestId,
                 WakefulnessLifecycle wakefulnessLifecycle,
-                AuthDialogPanelInteractionDetector panelInteractionDetector,
                 UserManager userManager,
                 LockPatternUtils lockPatternUtils, PromptViewModel viewModel) {
-
-            mLastBiometricPromptInfo = promptInfo;
 
             AuthDialog dialog;
             if (mBuildCount == 0) {

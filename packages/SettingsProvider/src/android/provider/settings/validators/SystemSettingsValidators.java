@@ -26,6 +26,12 @@ import static android.provider.settings.validators.SettingsValidators.NON_NEGATI
 import static android.provider.settings.validators.SettingsValidators.NON_NEGATIVE_INTEGER_VALIDATOR;
 import static android.provider.settings.validators.SettingsValidators.URI_VALIDATOR;
 import static android.provider.settings.validators.SettingsValidators.VIBRATION_INTENSITY_VALIDATOR;
+import static android.view.PointerIcon.DEFAULT_POINTER_SCALE;
+import static android.view.PointerIcon.LARGE_POINTER_SCALE;
+import static android.view.PointerIcon.POINTER_ICON_VECTOR_STYLE_FILL_BEGIN;
+import static android.view.PointerIcon.POINTER_ICON_VECTOR_STYLE_FILL_END;
+import static android.view.PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_BEGIN;
+import static android.view.PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_END;
 
 import android.annotation.Nullable;
 import android.compat.annotation.UnsupportedAppUsage;
@@ -194,6 +200,7 @@ public class SystemSettingsValidators {
         VALIDATORS.put(System.POINTER_LOCATION, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.SHOW_TOUCHES, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.SHOW_KEY_PRESSES, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(System.TOUCHPAD_VISUALIZER, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.SHOW_ROTARY_INPUT, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.WINDOW_ORIENTATION_LISTENER_LOG, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.LOCKSCREEN_SOUNDS_ENABLED, BOOLEAN_VALIDATOR);
@@ -206,11 +213,24 @@ public class SystemSettingsValidators {
         VALIDATORS.put(System.SIP_ADDRESS_ONLY, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.SIP_ASK_ME_EACH_TIME, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.POINTER_SPEED, new InclusiveFloatRangeValidator(-7, 7));
+        VALIDATORS.put(System.TOUCHPAD_THREE_FINGER_TAP_CUSTOMIZATION,
+                NON_NEGATIVE_INTEGER_VALIDATOR);
+        VALIDATORS.put(System.POINTER_FILL_STYLE,
+                new InclusiveIntegerRangeValidator(POINTER_ICON_VECTOR_STYLE_FILL_BEGIN,
+                        POINTER_ICON_VECTOR_STYLE_FILL_END));
+        VALIDATORS.put(System.POINTER_STROKE_STYLE,
+                new InclusiveIntegerRangeValidator(POINTER_ICON_VECTOR_STYLE_STROKE_BEGIN,
+                        POINTER_ICON_VECTOR_STYLE_STROKE_END));
+        VALIDATORS.put(System.POINTER_SCALE,
+                new InclusiveFloatRangeValidator(DEFAULT_POINTER_SCALE, LARGE_POINTER_SCALE));
+        VALIDATORS.put(System.MOUSE_REVERSE_VERTICAL_SCROLLING, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(System.MOUSE_SWAP_PRIMARY_BUTTON, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.TOUCHPAD_POINTER_SPEED, new InclusiveIntegerRangeValidator(-7, 7));
         VALIDATORS.put(System.TOUCHPAD_NATURAL_SCROLLING, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.TOUCHPAD_TAP_TO_CLICK, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.TOUCHPAD_TAP_DRAGGING, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.TOUCHPAD_RIGHT_CLICK_ZONE, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(System.TOUCHPAD_SYSTEM_GESTURES, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.LOCK_TO_APP_ENABLED, BOOLEAN_VALIDATOR);
         VALIDATORS.put(
                 System.EGG_MODE,
@@ -246,5 +266,6 @@ public class SystemSettingsValidators {
         VALIDATORS.put(System.NOTIFICATION_COOLDOWN_ENABLED, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.NOTIFICATION_COOLDOWN_ALL, BOOLEAN_VALIDATOR);
         VALIDATORS.put(System.NOTIFICATION_COOLDOWN_VIBRATE_UNLOCKED, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(System.PREFERRED_REGION, ANY_STRING_VALIDATOR);
     }
 }

@@ -14,6 +14,9 @@
 
 package com.android.systemui.qs.tileimpl;
 
+import static com.android.systemui.Flags.qsNewTiles;
+import static com.android.systemui.Flags.removeUpdateListenerInQsIconViewImpl;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ArgbEvaluator;
@@ -64,11 +67,21 @@ public class QSIconViewImpl extends QSIconView {
 
     private ValueAnimator mColorAnimator = new ValueAnimator();
 
+    private int mColorUnavailable;
+    private int mColorInactive;
+    private int mColorActive;
+
     public QSIconViewImpl(Context context) {
         super(context);
 
         final Resources res = context.getResources();
         mIconSizePx = res.getDimensionPixelSize(R.dimen.qs_icon_size);
+
+        if (qsNewTiles()) { // pre-load icon tint colors
+            mColorUnavailable = Utils.getColorAttrDefaultColor(context, R.attr.outline);
+            mColorInactive = Utils.getColorAttrDefaultColor(context, R.attr.onShadeInactiveVariant);
+            mColorActive = Utils.getColorAttrDefaultColor(context, R.attr.onShadeActive);
+        }
 
         mIcon = createIcon();
         addView(mIcon);
@@ -193,7 +206,11 @@ public class QSIconViewImpl extends QSIconView {
     }
 
     protected int getColor(QSTile.State state) {
-        return getIconColorForState(getContext(), state);
+        if (qsNewTiles()) {
+            return getCachedIconColorForState(state);
+        } else {
+            return getIconColorForState(getContext(), state);
+        }
     }
 
     private void animateGrayScale(int fromColor, int toColor, ImageView iv,
@@ -204,6 +221,9 @@ public class QSIconViewImpl extends QSIconView {
             values.setEvaluator(ArgbEvaluator.getInstance());
             mColorAnimator.setValues(values);
             mColorAnimator.removeAllListeners();
+            if (removeUpdateListenerInQsIconViewImpl()) {
+                mColorAnimator.removeAllUpdateListeners();
+            }
             mColorAnimator.addUpdateListener(animation -> {
                 setTint(iv, (int) animation.getAnimatedValue());
             });
@@ -256,6 +276,19 @@ public class QSIconViewImpl extends QSIconView {
             return Utils.getColorAttrDefaultColor(context, R.attr.onShadeInactiveVariant);
         } else if (state.state == Tile.STATE_ACTIVE) {
             return Utils.getColorAttrDefaultColor(context, R.attr.onShadeActive);
+        } else {
+            Log.e("QSIconView", "Invalid state " + state);
+            return 0;
+        }
+    }
+
+    private int getCachedIconColorForState(QSTile.State state) {
+        if (state.disabledByPolicy || state.state == Tile.STATE_UNAVAILABLE) {
+            return mColorUnavailable;
+        } else if (state.state == Tile.STATE_INACTIVE) {
+            return mColorInactive;
+        } else if (state.state == Tile.STATE_ACTIVE) {
+            return mColorActive;
         } else {
             Log.e("QSIconView", "Invalid state " + state);
             return 0;

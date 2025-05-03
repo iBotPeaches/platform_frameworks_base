@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.notification.row;
 
+import static android.app.NotificationChannel.SYSTEM_RESERVED_IDS;
 import static android.view.HapticFeedbackConstants.CLOCK_TICK;
 
 import static com.android.systemui.SwipeHelper.SWIPED_FAR_ENOUGH_SIZE_FRACTION;
@@ -41,8 +42,8 @@ import android.widget.FrameLayout.LayoutParams;
 
 import com.android.app.animation.Interpolators;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.systemui.res.R;
 import com.android.systemui.plugins.statusbar.NotificationMenuRowPlugin;
+import com.android.systemui.res.R;
 import com.android.systemui.statusbar.AlphaOptimizedImageView;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.people.PeopleNotificationIdentifier;
@@ -242,7 +243,7 @@ public class NotificationMenuRow implements NotificationMenuRowPlugin, View.OnCl
     public void onLayout() {
         mIconsPlaced = false; // Force icons to be re-placed
         setMenuLocation();
-        mParent.removeListener();
+        mParent.setLayoutListener(null);
     }
 
     private void createMenuViews(boolean resetState) {
@@ -261,7 +262,11 @@ public class NotificationMenuRow implements NotificationMenuRowPlugin, View.OnCl
         mFeedbackItem = createFeedbackItem(mContext);
         NotificationEntry entry = mParent.getEntry();
         int personNotifType = mPeopleNotificationIdentifier.getPeopleNotificationType(entry);
-        if (personNotifType == PeopleNotificationIdentifier.TYPE_PERSON) {
+        if (android.app.Flags.notificationClassificationUi()
+                && SYSTEM_RESERVED_IDS.contains(entry.getChannel().getId())) {
+            // Bundled notification; create bundle-specific guts.
+            mInfoItem = createBundleItem(mContext);
+        } else if (personNotifType == PeopleNotificationIdentifier.TYPE_PERSON) {
             mInfoItem = createPartialConversationItem(mContext);
         } else if (personNotifType >= PeopleNotificationIdentifier.TYPE_FULL_PERSON) {
             mInfoItem = createConversationItem(mContext);
@@ -673,6 +678,16 @@ public class NotificationMenuRow implements NotificationMenuRowPlugin, View.OnCl
         NotificationConversationInfo infoContent =
                 (NotificationConversationInfo) LayoutInflater.from(context).inflate(
                         R.layout.notification_conversation_info, null, false);
+        return new NotificationMenuItem(context, infoDescription, infoContent,
+                R.drawable.ic_settings);
+    }
+
+    static NotificationMenuItem createBundleItem(Context context) {
+        Resources res = context.getResources();
+        String infoDescription = res.getString(R.string.notification_menu_gear_description);
+        BundleNotificationInfo infoContent =
+                (BundleNotificationInfo) LayoutInflater.from(context).inflate(
+                        R.layout.bundle_notification_info, null, false);
         return new NotificationMenuItem(context, infoDescription, infoContent,
                 R.drawable.ic_settings);
     }

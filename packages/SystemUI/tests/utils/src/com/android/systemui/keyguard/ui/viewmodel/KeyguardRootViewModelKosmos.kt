@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 @file:OptIn(ExperimentalCoroutinesApi::class)
 
 package com.android.systemui.keyguard.ui.viewmodel
@@ -22,9 +21,13 @@ import com.android.systemui.communal.domain.interactor.communalInteractor
 import com.android.systemui.deviceentry.domain.interactor.deviceEntryInteractor
 import com.android.systemui.keyguard.domain.interactor.keyguardInteractor
 import com.android.systemui.keyguard.domain.interactor.keyguardTransitionInteractor
+import com.android.systemui.keyguard.domain.interactor.pulseExpansionInteractor
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
+import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.shade.domain.interactor.shadeInteractor
+import com.android.systemui.shade.ui.viewmodel.notificationShadeWindowModel
+import com.android.systemui.statusbar.notification.icon.ui.viewmodel.notificationIconContainerAlwaysOnDisplayViewModel
 import com.android.systemui.statusbar.notification.stack.domain.interactor.notificationsKeyguardInteractor
 import com.android.systemui.statusbar.phone.dozeParameters
 import com.android.systemui.statusbar.phone.screenOffAnimationController
@@ -32,20 +35,36 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 val Kosmos.keyguardRootViewModel by Fixture {
     KeyguardRootViewModel(
+        applicationScope = applicationCoroutineScope,
         deviceEntryInteractor = deviceEntryInteractor,
         dozeParameters = dozeParameters,
         keyguardInteractor = keyguardInteractor,
         communalInteractor = communalInteractor,
         keyguardTransitionInteractor = keyguardTransitionInteractor,
         notificationsKeyguardInteractor = notificationsKeyguardInteractor,
+        pulseExpansionInteractor = pulseExpansionInteractor,
+        aodNotificationIconViewModel = notificationIconContainerAlwaysOnDisplayViewModel,
+        notificationShadeWindowModel = notificationShadeWindowModel,
+        alternateBouncerToAodTransitionViewModel = alternateBouncerToAodTransitionViewModel,
         alternateBouncerToGoneTransitionViewModel = alternateBouncerToGoneTransitionViewModel,
+        alternateBouncerToLockscreenTransitionViewModel =
+            alternateBouncerToLockscreenTransitionViewModel,
+        alternateBouncerToOccludedTransitionViewModel =
+            alternateBouncerToOccludedTransitionViewModel,
         aodToGoneTransitionViewModel = aodToGoneTransitionViewModel,
         aodToLockscreenTransitionViewModel = aodToLockscreenTransitionViewModel,
+        aodToOccludedTransitionViewModel = aodToOccludedTransitionViewModel,
         dozingToGoneTransitionViewModel = dozingToGoneTransitionViewModel,
         dozingToLockscreenTransitionViewModel = dozingToLockscreenTransitionViewModel,
+        dozingToOccludedTransitionViewModel = dozingToOccludedTransitionViewModel,
+        dreamingToAodTransitionViewModel = dreamingToAodTransitionViewModel,
+        dreamingToGoneTransitionViewModel = dreamingToGoneTransitionViewModel,
+        dreamingToLockscreenTransitionViewModel = dreamingToLockscreenTransitionViewModel,
         glanceableHubToLockscreenTransitionViewModel = glanceableHubToLockscreenTransitionViewModel,
         goneToAodTransitionViewModel = goneToAodTransitionViewModel,
         goneToDozingTransitionViewModel = goneToDozingTransitionViewModel,
+        goneToDreamingTransitionViewModel = goneToDreamingTransitionViewModel,
+        goneToLockscreenTransitionViewModel = goneToLockscreenTransitionViewModel,
         lockscreenToAodTransitionViewModel = lockscreenToAodTransitionViewModel,
         lockscreenToDozingTransitionViewModel = lockscreenToDozingTransitionViewModel,
         lockscreenToDreamingTransitionViewModel = lockscreenToDreamingTransitionViewModel,
@@ -54,8 +73,12 @@ val Kosmos.keyguardRootViewModel by Fixture {
         lockscreenToOccludedTransitionViewModel = lockscreenToOccludedTransitionViewModel,
         lockscreenToPrimaryBouncerTransitionViewModel =
             lockscreenToPrimaryBouncerTransitionViewModel,
+        occludedToAlternateBouncerTransitionViewModel =
+            occludedToAlternateBouncerTransitionViewModel,
         occludedToAodTransitionViewModel = occludedToAodTransitionViewModel,
+        occludedToDozingTransitionViewModel = occludedToDozingTransitionViewModel,
         occludedToLockscreenTransitionViewModel = occludedToLockscreenTransitionViewModel,
+        offToLockscreenTransitionViewModel = offToLockscreenTransitionViewModel,
         primaryBouncerToAodTransitionViewModel = primaryBouncerToAodTransitionViewModel,
         primaryBouncerToGoneTransitionViewModel = primaryBouncerToGoneTransitionViewModel,
         primaryBouncerToLockscreenTransitionViewModel =

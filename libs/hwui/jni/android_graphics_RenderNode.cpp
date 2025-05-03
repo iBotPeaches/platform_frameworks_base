@@ -15,19 +15,17 @@
  */
 
 #define ATRACE_TAG ATRACE_TAG_VIEW
-#include "GraphicsJNI.h"
-
 #include <Animator.h>
 #include <DamageAccumulator.h>
 #include <Matrix.h>
 #include <RenderNode.h>
-#ifdef __ANDROID__ // Layoutlib does not support CanvasContext
-#include <renderthread/CanvasContext.h>
-#endif
 #include <TreeInfo.h>
 #include <effects/StretchEffect.h>
 #include <gui/TraceUtils.h>
 #include <hwui/Paint.h>
+#include <renderthread/CanvasContext.h>
+
+#include "GraphicsJNI.h"
 
 namespace android {
 
@@ -595,15 +593,13 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
 
             Matrix4 transform;
             SkIRect clipBounds;
+            uirenderer::Rect initialClipBounds;
             if (enableClip) {
-                uirenderer::Rect initialClipBounds;
+                // SurfaceView never draws beyond its bounds regardless of if it can or not,
+                // so if clip-to-bounds is disabled just use the bounds as the starting point
+                // regardless
                 const auto clipFlags = props.getClippingFlags();
-                if (clipFlags) {
-                    props.getClippingRectForFlags(clipFlags, &initialClipBounds);
-                } else {
-                    // Works for RenderNode::damageSelf()
-                    initialClipBounds.set(DIRTY_MIN, DIRTY_MIN, DIRTY_MAX, DIRTY_MAX);
-                }
+                props.getClippingRectForFlags(clipFlags | CLIP_TO_BOUNDS, &initialClipBounds);
                 clipBounds =
                         info.damageAccumulator
                                 ->computeClipAndTransform(initialClipBounds.toSkRect(), &transform)
@@ -640,7 +636,6 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
 
             ATRACE_NAME("Update SurfaceView position");
 
-#ifdef __ANDROID__ // Layoutlib does not support CanvasContext
             JNIEnv* env = jnienv();
             // Update the new position synchronously. We cannot defer this to
             // a worker pool to process asynchronously because the UI thread
@@ -662,14 +657,13 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
                         static_cast<jint>(bounds.left), static_cast<jint>(bounds.top),
                         static_cast<jint>(bounds.right), static_cast<jint>(bounds.bottom),
                         static_cast<jint>(clipBounds.fLeft), static_cast<jint>(clipBounds.fTop),
-                        static_cast<jint>(clipBounds.fRight),
-                        static_cast<jint>(clipBounds.fBottom));
+                        static_cast<jint>(clipBounds.fRight), static_cast<jint>(clipBounds.fBottom),
+                        static_cast<jint>(props.getWidth()), static_cast<jint>(props.getHeight()));
             }
             if (!keepListening) {
                 env->DeleteGlobalRef(mListener);
                 mListener = nullptr;
             }
-#endif
         }
 
         virtual void onPositionLost(RenderNode& node, const TreeInfo* info) override {
@@ -682,7 +676,6 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
 
             ATRACE_NAME("SurfaceView position lost");
             JNIEnv* env = jnienv();
-#ifdef __ANDROID__ // Layoutlib does not support CanvasContext
             // Update the lost position synchronously. We cannot defer this to
             // a worker pool to process asynchronously because the UI thread
             // may be unblocked by the time a worker thread can process this,
@@ -698,7 +691,6 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
                 env->DeleteGlobalRef(mListener);
                 mListener = nullptr;
             }
-#endif
         }
 
     private:
@@ -750,7 +742,6 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
                 StretchEffectBehavior::Shader) {
                 JNIEnv* env = jnienv();
 
-#ifdef __ANDROID__  // Layoutlib does not support CanvasContext
                 SkVector stretchDirection = effect->getStretchDirection();
                 jboolean keepListening = env->CallStaticBooleanMethod(
                         gPositionListener.clazz, gPositionListener.callApplyStretch, mListener,
@@ -762,7 +753,6 @@ static void android_view_RenderNode_requestPositionUpdates(JNIEnv* env, jobject,
                     env->DeleteGlobalRef(mListener);
                     mListener = nullptr;
                 }
-#endif
             }
         }
 
@@ -899,7 +889,7 @@ int register_android_view_RenderNode(JNIEnv* env) {
     gPositionListener.callPositionChanged = GetStaticMethodIDOrDie(
             env, clazz, "callPositionChanged", "(Ljava/lang/ref/WeakReference;JIIII)Z");
     gPositionListener.callPositionChanged2 = GetStaticMethodIDOrDie(
-            env, clazz, "callPositionChanged2", "(Ljava/lang/ref/WeakReference;JIIIIIIII)Z");
+            env, clazz, "callPositionChanged2", "(Ljava/lang/ref/WeakReference;JIIIIIIIIII)Z");
     gPositionListener.callApplyStretch = GetStaticMethodIDOrDie(
             env, clazz, "callApplyStretch", "(Ljava/lang/ref/WeakReference;JFFFFFFFFFF)Z");
     gPositionListener.callPositionLost = GetStaticMethodIDOrDie(

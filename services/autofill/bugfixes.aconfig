@@ -9,6 +9,16 @@ flag {
 }
 
 flag {
+  name: "improve_fill_dialog_aconfig"
+  namespace: "autofill"
+  description: "Improvements for Fill Dialog. Guard DeviceConfig rollout "
+  bug: "382493181"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
   name: "fill_fields_from_current_session_only"
   namespace: "autofill"
   description: "Only fill autofill fields that are part of the current session."
@@ -23,10 +33,13 @@ flag {
 }
 
 flag {
-  name: "ignore_view_state_reset_to_empty"
+  name: "relayout_fix"
   namespace: "autofill"
-  description: "Mitigation for view state reset to empty causing no save dialog to show issue"
-  bug: "297976948"
+  description: "Fixing relayout issue. Guarding enabling device config flags"
+  bug: "381226145"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -41,4 +54,35 @@ flag {
   namespace: "autofill"
   description: "Use weak reference to address binder leak problem"
   bug: "307972253"
+}
+
+flag {
+  name: "add_last_focused_id_to_client_state"
+  namespace: "autofill"
+  description: "Include the current view id into the FillEventHistory events as part of ClientState"
+  bug: "334141398"
+}
+
+flag {
+  name: "test_flag"
+  namespace: "autofill"
+  description: "Test flag "
+  bug: "377868687"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "add_session_id_to_client_state"
+  namespace: "autofill"
+  description: "Include the session id into the FillEventHistory events as part of ClientState"
+  bug: "333927465"
+}
+
+flag {
+  name: "highlight_autofill_single_field"
+  namespace: "autofill"
+  description: "Highlight single field after autofill selection"
+  bug: "41496744"
 }

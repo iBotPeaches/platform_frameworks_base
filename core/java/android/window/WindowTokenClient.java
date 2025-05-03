@@ -19,12 +19,15 @@ import static android.window.ConfigurationHelper.freeTextLayoutCachesIfNeeded;
 import static android.window.ConfigurationHelper.isDifferentDisplay;
 import static android.window.ConfigurationHelper.shouldUpdateResources;
 
+import static com.android.internal.annotations.VisibleForTesting.Visibility.PACKAGE;
+
 import android.annotation.AnyThread;
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityThread;
 import android.app.ResourcesManager;
+import android.app.servertransaction.ClientTransactionListenerController;
 import android.content.Context;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
@@ -103,7 +106,7 @@ public class WindowTokenClient extends Binder {
      * @param newConfig the updated {@link Configuration}
      * @param newDisplayId the updated {@link android.view.Display} ID
      */
-    @VisibleForTesting
+    @VisibleForTesting(visibility = PACKAGE)
     @MainThread
     public void onConfigurationChanged(Configuration newConfig, int newDisplayId) {
         onConfigurationChanged(newConfig, newDisplayId, true /* shouldReportConfigChange */);
@@ -112,7 +115,7 @@ public class WindowTokenClient extends Binder {
     /**
      * Posts an {@link #onConfigurationChanged} to the main thread.
      */
-    @VisibleForTesting
+    @VisibleForTesting(visibility = PACKAGE)
     public void postOnConfigurationChanged(@NonNull Configuration newConfig, int newDisplayId) {
         mHandler.post(PooledLambda.obtainRunnable(this::onConfigurationChanged, newConfig,
                 newDisplayId, true /* shouldReportConfigChange */).recycleOnUse());
@@ -137,13 +140,33 @@ public class WindowTokenClient extends Binder {
      *                                 should be dispatched to listeners.
      */
     @AnyThread
-    public void onConfigurationChanged(Configuration newConfig, int newDisplayId,
+    public void onConfigurationChanged(@NonNull Configuration newConfig, int newDisplayId,
             boolean shouldReportConfigChange) {
         final Context context = mContextRef.get();
         if (context == null) {
             return;
         }
-        CompatibilityInfo.applyOverrideScaleIfNeeded(newConfig);
+        if (shouldReportConfigChange) {
+            // Only report to ClientTransactionListenerController when shouldReportConfigChange.
+            final ClientTransactionListenerController controller =
+                    getClientTransactionListenerController();
+            controller.onContextConfigurationPreChanged(context);
+            try {
+                onConfigurationChangedInner(context, newConfig, newDisplayId,
+                        shouldReportConfigChange);
+            } finally {
+                controller.onContextConfigurationPostChanged(context);
+            }
+        } else {
+            onConfigurationChangedInner(context, newConfig, newDisplayId, shouldReportConfigChange);
+        }
+    }
+
+    /** Handles onConfiguration changed. */
+    @VisibleForTesting
+    public void onConfigurationChangedInner(@NonNull Context context,
+            @NonNull Configuration newConfig, int newDisplayId, boolean shouldReportConfigChange) {
+        CompatibilityInfo.applyOverrideIfNeeded(newConfig);
         final boolean displayChanged;
         final boolean shouldUpdateResources;
         final int diff;
@@ -165,7 +188,8 @@ public class WindowTokenClient extends Binder {
             Log.d(TAG, "Configuration not dispatch to IME because configuration is up"
                     + " to date. Current config=" + context.getResources().getConfiguration()
                     + ", reported config=" + currentConfig
-                    + ", updated config=" + newConfig);
+                    + ", updated config=" + newConfig
+                    + ", updated display ID=" + newDisplayId);
         }
         // Update display first. In case callers want to obtain display information(
         // ex: DisplayMetrics) in #onConfigurationChanged callback.
@@ -190,13 +214,18 @@ public class WindowTokenClient extends Binder {
             if (mShouldDumpConfigForIme) {
                 if (!shouldReportConfigChange) {
                     Log.d(TAG, "Only apply configuration update to Resources because "
-                            + "shouldReportConfigChange is false.\n" + Debug.getCallers(5));
+                            + "shouldReportConfigChange is false. "
+                            + "context=" + context
+                            + ", config=" + context.getResources().getConfiguration()
+                            + ", display ID=" + context.getDisplayId() + "\n"
+                            + Debug.getCallers(5));
                 } else if (diff == 0) {
                     Log.d(TAG, "Configuration not dispatch to IME because configuration has no "
                             + " public difference with updated config. "
                             + " Current config=" + context.getResources().getConfiguration()
                             + ", reported config=" + currentConfig
-                            + ", updated config=" + newConfig);
+                            + ", updated config=" + newConfig
+                            + ", display ID=" + context.getDisplayId());
                 }
             }
         }
@@ -205,7 +234,7 @@ public class WindowTokenClient extends Binder {
     /**
      * Called when the attached window is removed from the display.
      */
-    @VisibleForTesting
+    @VisibleForTesting(visibility = PACKAGE)
     @MainThread
     public void onWindowTokenRemoved() {
         final Context context = mContextRef.get();
@@ -213,5 +242,12 @@ public class WindowTokenClient extends Binder {
             context.destroy();
             mContextRef.clear();
         }
+    }
+
+    /** Gets {@link ClientTransactionListenerController}. */
+    @VisibleForTesting
+    @NonNull
+    public ClientTransactionListenerController getClientTransactionListenerController() {
+        return ClientTransactionListenerController.getInstance();
     }
 }

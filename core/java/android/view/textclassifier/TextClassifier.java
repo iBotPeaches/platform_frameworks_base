@@ -16,19 +16,20 @@
 
 package android.view.textclassifier;
 
-import static android.service.notification.Flags.FLAG_REDACT_SENSITIVE_NOTIFICATIONS_FROM_UNTRUSTED_LISTENERS;
-
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.StringDef;
+import android.annotation.SuppressLint;
+import android.annotation.SystemApi;
 import android.annotation.WorkerThread;
 import android.os.LocaleList;
 import android.os.Looper;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.permission.flags.Flags;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.style.URLSpan;
@@ -66,11 +67,6 @@ public interface TextClassifier {
     /** @hide */
     String LOG_TAG = "androidtc";
 
-
-    /** @hide */
-    @Retention(RetentionPolicy.SOURCE)
-    @IntDef(value = {LOCAL, SYSTEM, DEFAULT_SYSTEM})
-    @interface TextClassifierType {}  // TODO: Expose as system APIs.
     /** Specifies a TextClassifier that runs locally in the app's process. @hide */
     int LOCAL = 0;
     /** Specifies a TextClassifier that runs in the system process and serves all apps. @hide */
@@ -79,8 +75,33 @@ public interface TextClassifier {
     int DEFAULT_SYSTEM = 2;
 
     /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(value = {CLASSIFIER_TYPE_SELF_PROVIDED, CLASSIFIER_TYPE_DEVICE_DEFAULT,
+            CLASSIFIER_TYPE_ANDROID_DEFAULT})
+    @interface TextClassifierType {
+    }
+    /** Specifies a TextClassifier that runs locally in the app's process. @hide */
+    @FlaggedApi(Flags.FLAG_TEXT_CLASSIFIER_CHOICE_API_ENABLED)
+    @SystemApi
+    int CLASSIFIER_TYPE_SELF_PROVIDED = LOCAL;
+    /**
+     * Specifies a TextClassifier that is set as the default on this particular device. This may be
+     * the same as CLASSIFIER_TYPE_DEVICE_DEFAULT, unless set otherwise by the device manufacturer.
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_TEXT_CLASSIFIER_CHOICE_API_ENABLED)
+    @SystemApi
+    int CLASSIFIER_TYPE_DEVICE_DEFAULT = SYSTEM;
+    /** Specifies the TextClassifier that is provided by Android. @hide */
+    @FlaggedApi(Flags.FLAG_TEXT_CLASSIFIER_CHOICE_API_ENABLED)
+    @SystemApi
+    int CLASSIFIER_TYPE_ANDROID_DEFAULT = DEFAULT_SYSTEM;
+
+    /** @hide */
+    @SuppressLint("SwitchIntDef")
     static String typeToString(@TextClassifierType int type) {
-        switch (type) {
+        int unflaggedType = type;
+        switch (unflaggedType) {
             case LOCAL:
                 return "Local";
             case SYSTEM:
@@ -111,9 +132,9 @@ public interface TextClassifier {
     String TYPE_DATE_TIME = "datetime";
     /** Flight number in IATA format. */
     String TYPE_FLIGHT_NUMBER = "flight";
-    /** One-time login codes */
-    @FlaggedApi(FLAG_REDACT_SENSITIVE_NOTIFICATIONS_FROM_UNTRUSTED_LISTENERS)
-    String TYPE_OTP_CODE = "otp_code";
+    /** Onetime password. */
+    @FlaggedApi(Flags.FLAG_TEXT_CLASSIFIER_CHOICE_API_ENABLED)
+    String TYPE_OTP = "otp";
     /**
      * Word that users may be interested to look up for meaning.
      * @hide
@@ -133,7 +154,7 @@ public interface TextClassifier {
             TYPE_DATE_TIME,
             TYPE_FLIGHT_NUMBER,
             TYPE_DICTIONARY,
-            TYPE_OTP_CODE
+            TYPE_OTP
     })
     @interface EntityType {}
 
@@ -203,6 +224,16 @@ public interface TextClassifier {
      * generated intents.
      */
     String EXTRA_FROM_TEXT_CLASSIFIER = "android.view.textclassifier.extra.FROM_TEXT_CLASSIFIER";
+
+    /**
+     * Extra specifying the package name of the app from which the text to be classified originated.
+     *
+     * For example, a notification assistant might use TextClassifier, but the notification
+     * content could originate from a different app. This key allows you to provide
+     * the package name of that source app.
+     */
+    @FlaggedApi(Flags.FLAG_TEXT_CLASSIFIER_CHOICE_API_ENABLED)
+    String EXTRA_TEXT_ORIGIN_PACKAGE = "android.view.textclassifier.extra.TEXT_ORIGIN_PACKAGE";
 
     /**
      * Returns suggested text selection start and end indices, recognized entity types, and their

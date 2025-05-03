@@ -177,6 +177,10 @@ public class PackageInstaller {
      * Broadcast Action: Explicit broadcast sent to the last known default launcher when a session
      * for a new install is committed. For managed profile, this is sent to the default launcher
      * of the primary profile.
+     * For user-profiles that have items restricted on home screen, this broadcast is sent to
+     * the default launcher of the primary profile, only if it has either
+     * {@link Manifest.permission.ACCESS_HIDDEN_PROFILES_FULL} or
+     * {@link Manifest.permission.ACCESS_HIDDEN_PROFILES} permission.
      * <p>
      * The associated session is defined in {@link #EXTRA_SESSION} and the user for which this
      * session was created in {@link Intent#EXTRA_USER}.
@@ -212,6 +216,17 @@ public class PackageInstaller {
     @SystemApi
     public static final String ACTION_CONFIRM_PRE_APPROVAL =
             "android.content.pm.action.CONFIRM_PRE_APPROVAL";
+
+    /**
+     * Intent action to be sent to the implementer of
+     * {@link android.content.pm.dependencyinstaller.DependencyInstallerService}.
+     *
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_SDK_DEPENDENCY_INSTALLER)
+    @SystemApi
+    public static final String ACTION_INSTALL_DEPENDENCY =
+            "android.content.pm.action.INSTALL_DEPENDENCY";
 
     /**
      * An integer session ID that an operation is working with.
@@ -2793,6 +2808,10 @@ public class PackageInstaller {
         public int developmentInstallFlags = 0;
         /** {@hide} */
         public int unarchiveId = -1;
+        /** {@hide} */
+        public @Nullable String dexoptCompilerFilter = null;
+        /** {@hide} */
+        public boolean isAutoInstallDependenciesEnabled = true;
 
         private final ArrayMap<String, Integer> mPermissionStates;
 
@@ -2846,6 +2865,8 @@ public class PackageInstaller {
             applicationEnabledSettingPersistent = source.readBoolean();
             developmentInstallFlags = source.readInt();
             unarchiveId = source.readInt();
+            dexoptCompilerFilter = source.readString();
+            isAutoInstallDependenciesEnabled = source.readBoolean();
         }
 
         /** {@hide} */
@@ -2881,6 +2902,8 @@ public class PackageInstaller {
             ret.applicationEnabledSettingPersistent = applicationEnabledSettingPersistent;
             ret.developmentInstallFlags = developmentInstallFlags;
             ret.unarchiveId = unarchiveId;
+            ret.dexoptCompilerFilter = dexoptCompilerFilter;
+            ret.isAutoInstallDependenciesEnabled = isAutoInstallDependenciesEnabled;
             return ret;
         }
 
@@ -3464,8 +3487,12 @@ public class PackageInstaller {
          *              Android S  ({@link android.os.Build.VERSION_CODES#S API 31})</li>
          *              <li>{@link android.os.Build.VERSION_CODES#R API 30} or higher on
          *              Android T ({@link android.os.Build.VERSION_CODES#TIRAMISU API 33})</li>
-         *              <li>{@link android.os.Build.VERSION_CODES#S API 31} or higher <b>after</b>
-         *              Android T ({@link android.os.Build.VERSION_CODES#TIRAMISU API 33})</li>
+         *              <li>{@link android.os.Build.VERSION_CODES#S API 31} or higher on
+         *              Android U ({@link android.os.Build.VERSION_CODES#UPSIDE_DOWN_CAKE API 34})
+         *              </li>
+         *              <li>{@link android.os.Build.VERSION_CODES#TIRAMISU API 33} or higher on
+         *              Android V ({@link android.os.Build.VERSION_CODES#VANILLA_ICE_CREAM API 35})
+         *              </li>
          *          </ul>
          *     </li>
          *     <li>The installer is:
@@ -3556,6 +3583,11 @@ public class PackageInstaller {
         }
 
         /** @hide */
+        public void setDexoptCompilerFilter(@Nullable String dexoptCompilerFilter) {
+            this.dexoptCompilerFilter = dexoptCompilerFilter;
+        }
+
+        /** @hide */
         @NonNull
         public ArrayMap<String, Integer> getPermissionStates() {
             return mPermissionStates;
@@ -3578,6 +3610,23 @@ public class PackageInstaller {
             }
 
             return grantedPermissions.toArray(ArrayUtils.emptyArray(String.class));
+        }
+
+        /**
+         * Optionally indicate whether missing SDK or static shared library dependencies should be
+         * automatically fetched and installed when installing an app that wants to use these
+         * dependencies.
+         *
+         * <p> This feature is enabled by default.
+         *
+         * @param enableAutoInstallDependencies {@code true} to enable auto-installation of missing
+         *                                      SDK or static shared library dependencies,
+         *                                      {@code false} to disable and fail immediately if
+         *                                      dependencies aren't already installed.
+         */
+        @FlaggedApi(Flags.FLAG_SDK_DEPENDENCY_INSTALLER)
+        public void setAutoInstallDependenciesEnabled(boolean enableAutoInstallDependencies) {
+            isAutoInstallDependenciesEnabled = enableAutoInstallDependencies;
         }
 
         /** {@hide} */
@@ -3614,6 +3663,8 @@ public class PackageInstaller {
                     applicationEnabledSettingPersistent);
             pw.printHexPair("developmentInstallFlags", developmentInstallFlags);
             pw.printPair("unarchiveId", unarchiveId);
+            pw.printPair("dexoptCompilerFilter", dexoptCompilerFilter);
+            pw.printPair("isAutoInstallDependenciesEnabled", isAutoInstallDependenciesEnabled);
             pw.println();
         }
 
@@ -3659,6 +3710,8 @@ public class PackageInstaller {
             dest.writeBoolean(applicationEnabledSettingPersistent);
             dest.writeInt(developmentInstallFlags);
             dest.writeInt(unarchiveId);
+            dest.writeString(dexoptCompilerFilter);
+            dest.writeBoolean(isAutoInstallDependenciesEnabled);
         }
 
         public static final Parcelable.Creator<SessionParams>
@@ -3837,6 +3890,9 @@ public class PackageInstaller {
         private String mSessionErrorMessage;
 
         /** {@hide} */
+        public boolean isAutoInstallingDependenciesEnabled;
+
+        /** {@hide} */
         public boolean isCommitted;
 
         /** {@hide} */
@@ -3929,6 +3985,7 @@ public class PackageInstaller {
             packageSource = source.readInt();
             applicationEnabledSettingPersistent = source.readBoolean();
             pendingUserActionReason = source.readInt();
+            isAutoInstallingDependenciesEnabled = source.readBoolean();
         }
 
         /**
@@ -4513,6 +4570,16 @@ public class PackageInstaller {
             return (installFlags & PackageManager.INSTALL_UNARCHIVE) != 0;
         }
 
+        /**
+         * Check whether missing SDK or static shared library dependencies should be automatically
+         * fetched and installed when installing an app that wants to use these dependencies.
+         *
+         * @return true if the dependencies will be auto-installed, false otherwise.
+         */
+        @FlaggedApi(Flags.FLAG_SDK_DEPENDENCY_INSTALLER)
+        public boolean isAutoInstallDependenciesEnabled() {
+            return isAutoInstallingDependenciesEnabled;
+        }
 
         @Override
         public int describeContents() {
@@ -4567,6 +4634,7 @@ public class PackageInstaller {
             dest.writeInt(packageSource);
             dest.writeBoolean(applicationEnabledSettingPersistent);
             dest.writeInt(pendingUserActionReason);
+            dest.writeBoolean(isAutoInstallingDependenciesEnabled);
         }
 
         public static final Parcelable.Creator<SessionInfo>

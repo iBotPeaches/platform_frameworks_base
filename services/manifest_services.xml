@@ -5,8 +5,8 @@
         <fqname>IAltitudeService/default</fqname>
     </hal>
     <hal format="aidl">
-        <name>android.frameworks.vibrator</name>
+        <name>android.frameworks.devicestate</name>
         <version>1</version>
-        <fqname>IVibratorControlService/default</fqname>
+        <fqname>IDeviceStateService/default</fqname>
     </hal>
 </manifest>

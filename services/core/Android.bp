@@ -30,6 +30,19 @@ filegroup {
     ],
 }
 
+filegroup {
+    name: "services.core-aidl-sources",
+    srcs: [
+        ":dumpstate_aidl",
+        ":framework_native_aidl",
+        ":gsiservice_aidl",
+        ":installd_aidl",
+        ":mmd_aidl",
+        ":storaged_aidl",
+        ":vold_aidl",
+    ],
+}
+
 java_library_static {
     name: "services-config-update",
     srcs: [
@@ -38,7 +51,7 @@ java_library_static {
     ],
 }
 
-genrule {
+java_genrule {
     name: "services.core.protologsrc",
     srcs: [
         ":protolog-impl",
@@ -47,8 +60,8 @@ genrule {
     ],
     tools: ["protologtool"],
     cmd: "$(location protologtool) transform-protolog-calls " +
-        "--protolog-class com.android.internal.protolog.common.ProtoLog " +
-        "--loggroups-class com.android.internal.protolog.ProtoLogGroup " +
+        "--protolog-class com.android.internal.protolog.ProtoLog " +
+        "--loggroups-class com.android.internal.protolog.WmProtoLogGroups " +
         "--loggroups-jar $(location :protolog-groups) " +
         "--viewer-config-file-path /etc/core.protolog.pb " +
         "--legacy-viewer-config-file-path /system/etc/protolog.conf.json.gz " +
@@ -58,7 +71,7 @@ genrule {
     out: ["services.core.protolog.srcjar"],
 }
 
-genrule {
+java_genrule {
     name: "generate-protolog.json",
     srcs: [
         ":protolog-groups",
@@ -66,8 +79,8 @@ genrule {
     ],
     tools: ["protologtool"],
     cmd: "$(location protologtool) generate-viewer-config " +
-        "--protolog-class com.android.internal.protolog.common.ProtoLog " +
-        "--loggroups-class com.android.internal.protolog.ProtoLogGroup " +
+        "--protolog-class com.android.internal.protolog.ProtoLog " +
+        "--loggroups-class com.android.internal.protolog.WmProtoLogGroups " +
         "--loggroups-jar $(location :protolog-groups) " +
         "--viewer-config-type json " +
         "--viewer-config $(out) " +
@@ -75,7 +88,7 @@ genrule {
     out: ["services.core.protolog.json"],
 }
 
-genrule {
+java_genrule {
     name: "gen-core.protolog.pb",
     srcs: [
         ":protolog-groups",
@@ -83,44 +96,12 @@ genrule {
     ],
     tools: ["protologtool"],
     cmd: "$(location protologtool) generate-viewer-config " +
-        "--protolog-class com.android.internal.protolog.common.ProtoLog " +
-        "--loggroups-class com.android.internal.protolog.ProtoLogGroup " +
+        "--protolog-class com.android.internal.protolog.ProtoLog " +
+        "--loggroups-class com.android.internal.protolog.WmProtoLogGroups " +
         "--loggroups-jar $(location :protolog-groups) " +
         "--viewer-config-type proto " +
         "--viewer-config $(out) " +
         "$(locations :services.core-sources-am-wm)",
-    out: ["core.protolog.pb"],
-}
-
-genrule {
-    name: "checked-protolog.json",
-    srcs: [
-        ":generate-protolog.json",
-        ":services.core.protolog.json",
-    ],
-    cmd: "cp $(location :generate-protolog.json) $(out) && " +
-        "{ ! (diff $(out) $(location :services.core.protolog.json) | grep -q '^<') || " +
-        "{ echo -e '\\n\\n################################################################\\n#\\n" +
-        "#  ERROR: ProtoLog viewer config is stale.  To update it, run:\\n#\\n" +
-        "#  cp $${ANDROID_BUILD_TOP}/$(location :generate-protolog.json) " +
-        "$${ANDROID_BUILD_TOP}/$(location :services.core.protolog.json)\\n#\\n" +
-        "################################################################\\n\\n' >&2 && false; } }",
-    out: ["services.core.protolog.json"],
-}
-
-genrule {
-    name: "checked-core.protolog.pb",
-    srcs: [
-        ":gen-core.protolog.pb",
-        ":file-core.protolog.pb",
-    ],
-    cmd: "cp $(location :gen-core.protolog.pb) $(out) && " +
-        "{ ! (diff $(out) $(location :file-core.protolog.pb) | grep -q '^<') || " +
-        "{ echo -e '\\n\\n################################################################\\n#\\n" +
-        "#  ERROR: ProtoLog viewer config is stale.  To update it, run:\\n#\\n" +
-        "#  cp $${ANDROID_BUILD_TOP}/$(location :gen-core.protolog.pb) " +
-        "$${ANDROID_BUILD_TOP}/$(location :file-core.protolog.pb)\\n#\\n" +
-        "################################################################\\n\\n' >&2 && false; } }",
     out: ["core.protolog.pb"],
 }
 
@@ -145,20 +126,18 @@ java_library_static {
     defaults: [
         "platform_service_defaults",
         "android.hardware.power-java_shared",
+        "latest_android_hardware_broadcastradio_java_static",
+        "services_crashrecovery_stubs_conditionally",
+        "ondeviceintelligence_conditionally",
     ],
     srcs: [
         ":android.hardware.tv.hdmi.connection-V1-java-source",
         ":android.hardware.tv.hdmi.earc-V1-java-source",
         ":statslog-art-java-gen",
         ":statslog-contexthub-java-gen",
+        ":services.core-aidl-sources",
         ":services.core-sources",
         ":services.core.protologsrc",
-        ":dumpstate_aidl",
-        ":framework_native_aidl",
-        ":gsiservice_aidl",
-        ":installd_aidl",
-        ":storaged_aidl",
-        ":vold_aidl",
         ":platform-compat-config",
         ":platform-compat-overrides",
         ":display-device-config",
@@ -171,6 +150,9 @@ java_library_static {
 
         // Java/AIDL sources to be moved out to CrashRecovery module
         ":services-crashrecovery-sources",
+
+        // Indicate whether VCN is in platform or mainline
+        ":vcn-location-sources",
     ],
 
     libs: [
@@ -179,7 +161,8 @@ java_library_static {
         "android.hardware.common-V2-java",
         "android.hardware.light-V2.0-java",
         "android.hardware.gnss-V2-java",
-        "android.hardware.vibrator-V2-java",
+        "android.hardware.vibrator-V3-java",
+        "androidx.annotation_annotation",
         "app-compat-annotations",
         "framework-tethering.stubs.module_lib",
         "keepanno-annotations",
@@ -200,6 +183,7 @@ java_library_static {
 
     static_libs: [
         "android.frameworks.vibrator-V1-java", // AIDL
+        "android.frameworks.devicestate-V1-java", // AIDL
         "android.hardware.authsecret-V1.0-java",
         "android.hardware.authsecret-V1-java",
         "android.hardware.boot-V1.0-java", // HIDL
@@ -207,11 +191,10 @@ java_library_static {
         "android.hardware.boot-V1.2-java", // HIDL
         "android.hardware.boot-V1-java", // AIDL
         "android.hardware.broadcastradio-V2.0-java", // HIDL
-        "android.hardware.broadcastradio-V2-java", // AIDL
         "android.hardware.health-V1.0-java", // HIDL
         "android.hardware.health-V2.0-java", // HIDL
         "android.hardware.health-V2.1-java", // HIDL
-        "android.hardware.health-V3-java", // AIDL
+        "android.hardware.health-V4-java", // AIDL
         "android.hardware.health-translate-java",
         "android.hardware.light-V1-java",
         "android.hardware.security.authgraph-V1-java",
@@ -234,7 +217,6 @@ java_library_static {
         "android.hidl.manager-V1.2-java",
         "cbor-java",
         "com.android.media.audio-aconfig-java",
-        "dropbox_flags_lib",
         "icu4j_calendar_astronomer",
         "android.security.aaid_aidl-java",
         "netd-client",
@@ -243,12 +225,15 @@ java_library_static {
         "com.android.sysprop.watchdog",
         "securebox",
         "apache-commons-math",
-        "backstage_power_flags_lib",
+        "battery_saver_flag_lib",
         "notification_flags_lib",
+        "power_hint_flags_lib",
         "biometrics_flags_lib",
         "am_flags_lib",
+        "updates_flags_lib",
         "com_android_server_accessibility_flags_lib",
-        "com_android_systemui_shared_flags_lib",
+        "//frameworks/libs/systemui:com_android_systemui_shared_flags_lib",
+        "com_android_launcher3_flags_lib",
         "com_android_wm_shell_flags_lib",
         "com.android.server.utils_aconfig-java",
         "service-jobscheduler-deviceidle.flags-aconfig-java",
@@ -257,6 +242,16 @@ java_library_static {
         "stats_flags_lib",
         "core_os_flags_lib",
         "connectivity_flags_lib",
+        "device_config_service_flags_java",
+        "dreams_flags_lib",
+        "aconfig_new_storage_flags_lib",
+        "powerstats_flags_lib",
+        "locksettings_flags_lib",
+        "MmdProperties",
+        "mmd_flags_lib",
+        "profiling_flags_lib",
+        "android.adpf.sessionmanager_aidl-java",
+        "uprobestats_flags_java_lib",
     ],
     javac_shard_size: 50,
     javacflags: [
@@ -272,6 +267,13 @@ java_library_static {
             "FlaggedApi",
         ],
     },
+    jarjar_rules: ":services-jarjar-rules",
+    apex_available: ["//apex_available:platform"],
+}
+
+filegroup {
+    name: "services-jarjar-rules",
+    srcs: ["services-jarjar-rules.txt"],
 }
 
 java_genrule {
@@ -287,9 +289,15 @@ java_genrule {
     out: ["services.core.priorityboosted.jar"],
 }
 
+java_genrule_combiner {
+    name: "services.core.combined",
+    static_libs: ["services.core.priorityboosted"],
+    headers: ["services.core.unboosted"],
+}
+
 java_library {
     name: "services.core",
-    static_libs: ["services.core.priorityboosted"],
+    static_libs: ["services.core.combined"],
 }
 
 java_library_host {
@@ -302,9 +310,9 @@ prebuilt_etc {
     src: "java/com/android/server/location/gnss/gps_debug.conf",
 }
 
-genrule {
+java_genrule {
     name: "services.core.json.gz",
-    srcs: [":checked-protolog.json"],
+    srcs: [":generate-protolog.json"],
     out: ["services.core.protolog.json.gz"],
     cmd: "gzip -c < $(in) > $(out)",
 }
@@ -316,5 +324,5 @@ prebuilt_etc {
 
 prebuilt_etc {
     name: "core.protolog.pb",
-    src: ":checked-core.protolog.pb",
+    src: ":gen-core.protolog.pb",
 }

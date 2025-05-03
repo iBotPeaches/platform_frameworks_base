@@ -16,9 +16,13 @@
 
 package com.android.systemui.keyguard.ui.viewmodel
 
+import com.android.app.animation.Interpolators.EMPHASIZED_ACCELERATE
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.keyguard.shared.model.KeyguardState
+import com.android.systemui.keyguard.shared.model.Edge
+import com.android.systemui.keyguard.shared.model.KeyguardState.LOCKSCREEN
+import com.android.systemui.keyguard.shared.model.KeyguardState.OFF
 import com.android.systemui.keyguard.ui.KeyguardTransitionAnimationFlow
+import com.android.systemui.keyguard.ui.transitions.DeviceEntryIconTransition
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.flow.Flow
@@ -26,21 +30,29 @@ import kotlinx.coroutines.flow.Flow
 @SysUISingleton
 class OffToLockscreenTransitionViewModel
 @Inject
-constructor(
-    animationFlow: KeyguardTransitionAnimationFlow,
-) {
+constructor(animationFlow: KeyguardTransitionAnimationFlow) : DeviceEntryIconTransition {
+
+    private val startTime = 300.milliseconds
+    private val alphaDuration = 633.milliseconds
+    val alphaStartAt = startTime / (alphaDuration + startTime)
 
     private val transitionAnimation =
         animationFlow.setup(
-            duration = 250.milliseconds,
-            from = KeyguardState.OFF,
-            to = KeyguardState.LOCKSCREEN,
+            duration = startTime + alphaDuration,
+            edge = Edge.create(from = OFF, to = LOCKSCREEN),
         )
 
-    val shortcutsAlpha: Flow<Float> =
+    val lockscreenAlpha: Flow<Float> =
         transitionAnimation.sharedFlow(
-            duration = 250.milliseconds,
+            startTime = startTime,
+            duration = alphaDuration,
+            interpolator = EMPHASIZED_ACCELERATE,
             onStep = { it },
-            onCancel = { 0f },
         )
+
+    val shortcutsAlpha: Flow<Float> = lockscreenAlpha
+
+    override val deviceEntryParentViewAlpha: Flow<Float> = lockscreenAlpha
+
+    val deviceEntryBackgroundViewAlpha: Flow<Float> = lockscreenAlpha
 }

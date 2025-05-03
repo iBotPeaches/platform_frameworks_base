@@ -16,6 +16,8 @@
 
 package com.android.server.power.feature;
 
+import android.os.Build;
+import android.os.SystemProperties;
 import android.text.TextUtils;
 import android.util.Slog;
 
@@ -35,9 +37,66 @@ public class PowerManagerFlags {
             Flags.FLAG_ENABLE_EARLY_SCREEN_TIMEOUT_DETECTOR,
             Flags::enableEarlyScreenTimeoutDetector);
 
+    private final FlagState mImproveWakelockLatency = new FlagState(
+            Flags.FLAG_IMPROVE_WAKELOCK_LATENCY,
+            Flags::improveWakelockLatency
+    );
+
+    private final FlagState mPerDisplayWakeByTouch = new FlagState(
+            Flags.FLAG_PER_DISPLAY_WAKE_BY_TOUCH,
+            Flags::perDisplayWakeByTouch
+    );
+
+    private final FlagState mFrameworkWakelockInfo =
+            new FlagState(Flags.FLAG_FRAMEWORK_WAKELOCK_INFO, Flags::frameworkWakelockInfo);
+
+    private final FlagState mPolicyReasonInDisplayPowerRequest = new FlagState(
+            Flags.FLAG_POLICY_REASON_IN_DISPLAY_POWER_REQUEST,
+            Flags::policyReasonInDisplayPowerRequest
+    );
+
+    private final FlagState mMoveWscLoggingToNotifier =
+            new FlagState(Flags.FLAG_MOVE_WSC_LOGGING_TO_NOTIFIER, Flags::moveWscLoggingToNotifier);
+
     /** Returns whether early-screen-timeout-detector is enabled on not. */
     public boolean isEarlyScreenTimeoutDetectorEnabled() {
         return mEarlyScreenTimeoutDetectorFlagState.isEnabled();
+    }
+
+    /**
+     * @return Whether to improve the wakelock acquire/release latency or not
+     */
+    public boolean improveWakelockLatency() {
+        return mImproveWakelockLatency.isEnabled();
+    }
+
+    /**
+     * @return Whether per-display wake by touch is enabled or not.
+     */
+    public boolean isPerDisplayWakeByTouchEnabled() {
+        return mPerDisplayWakeByTouch.isEnabled();
+    }
+
+    /**
+     * @return Whether FrameworkWakelockInfo atom logging is enabled or not.
+     */
+    public boolean isFrameworkWakelockInfoEnabled() {
+        return mFrameworkWakelockInfo.isEnabled();
+    }
+
+    /**
+     * @return Whether the wakefulness reason is populated in DisplayPowerRequest.
+     */
+    public boolean isPolicyReasonInDisplayPowerRequestEnabled() {
+        return mPolicyReasonInDisplayPowerRequest.isEnabled();
+    }
+
+    /**
+     * @return Whether we move WakelockStateChanged atom logging to Notifier (enabled) or leave it
+     *     in BatteryStatsImpl (disabled).
+     */
+    public boolean isMoveWscLoggingToNotifierEnabled() {
+        return mMoveWscLoggingToNotifier.isEnabled();
     }
 
     /**
@@ -47,6 +106,10 @@ public class PowerManagerFlags {
     public void dump(PrintWriter pw) {
         pw.println("PowerManagerFlags:");
         pw.println(" " + mEarlyScreenTimeoutDetectorFlagState);
+        pw.println(" " + mImproveWakelockLatency);
+        pw.println(" " + mPerDisplayWakeByTouch);
+        pw.println(" " + mFrameworkWakelockInfo);
+        pw.println(" " + mMoveWscLoggingToNotifier);
     }
 
     private static class FlagState {
@@ -69,12 +132,21 @@ public class PowerManagerFlags {
                 }
                 return mEnabled;
             }
-            mEnabled = mFlagFunction.get();
+            mEnabled = flagOrSystemProperty(mFlagFunction, mName);
             if (DEBUG) {
                 Slog.d(TAG, mName + ": mEnabled. Flag value = " + mEnabled);
             }
             mEnabledSet = true;
             return mEnabled;
+        }
+
+        private boolean flagOrSystemProperty(Supplier<Boolean> flagFunction, String flagName) {
+            boolean flagValue = flagFunction.get();
+            if (Build.IS_ENG || Build.IS_USERDEBUG) {
+                return SystemProperties.getBoolean("persist.sys." + flagName + "-override",
+                        flagValue);
+            }
+            return flagValue;
         }
 
         @Override

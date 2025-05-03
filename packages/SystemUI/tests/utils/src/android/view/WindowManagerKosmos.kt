@@ -16,7 +16,12 @@
 
 package android.view
 
+import android.content.applicationContext
 import com.android.systemui.kosmos.Kosmos
 import org.mockito.Mockito.mock
 
-val Kosmos.windowManager by Kosmos.Fixture<WindowManager> { mock(WindowManager::class.java) }
+val Kosmos.fakeWindowManager by Kosmos.Fixture { FakeWindowManager(applicationContext) }
+
+val Kosmos.mockWindowManager: WindowManager by Kosmos.Fixture { mock(WindowManager::class.java) }
+
+var Kosmos.windowManager: WindowManager by Kosmos.Fixture { mockWindowManager }

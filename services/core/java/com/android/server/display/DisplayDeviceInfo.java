@@ -26,6 +26,7 @@ import android.view.DisplayAddress;
 import android.view.DisplayCutout;
 import android.view.DisplayEventReceiver;
 import android.view.DisplayShape;
+import android.view.FrameRateCategoryRate;
 import android.view.RoundedCorners;
 import android.view.Surface;
 
@@ -212,24 +213,51 @@ final class DisplayDeviceInfo {
     public static final int TOUCH_VIRTUAL = 3;
 
     /**
-     * Diff result: The {@link #state} or {@link #committedState} fields differ.
-     */
-    public static final int DIFF_STATE = 1 << 0;
-
-    /**
      * Diff result: Other fields differ.
      */
-    public static final int DIFF_OTHER = 1 << 1;
+    public static final int DIFF_OTHER = 1 << 0;
+
+    /**
+     * Diff result: The {@link #state} or {@link #committedState} fields differ.
+     */
+    public static final int DIFF_STATE = 1 << 1;
+
+    /**
+     * Diff result: The committed state differs. Note this is slightly different from the state,
+     * which is what most of the device should care about.
+     */
+    public static final int DIFF_COMMITTED_STATE = 1 << 2;
 
     /**
      * Diff result: The color mode fields differ.
      */
-    public static final int DIFF_COLOR_MODE = 1 << 2;
+    public static final int DIFF_COLOR_MODE = 1 << 3;
 
     /**
      * Diff result: The hdr/sdr ratio differs
      */
-    public static final int DIFF_HDR_SDR_RATIO = 1 << 3;
+    public static final int DIFF_HDR_SDR_RATIO = 1 << 4;
+
+    /**
+     * Diff result: The rotation differs
+     */
+    public static final int DIFF_ROTATION = 1 << 5;
+
+    /**
+     * Diff result: The render timings. Note this could be any of {@link #renderFrameRate},
+     * {@link #presentationDeadlineNanos}, or {@link #appVsyncOffsetNanos}.
+     */
+    public static final int DIFF_RENDER_TIMINGS = 1 << 6;
+
+    /**
+     * Diff result: The mode ID differs.
+     */
+    public static final int DIFF_MODE_ID = 1 << 7;
+
+    /**
+     * Diff result: The frame rate override list differs.
+     */
+    public static final int DIFF_FRAME_RATE_OVERRIDE = 1 << 8;
 
     /**
      * Diff result: Catch-all for "everything changed"
@@ -270,6 +298,23 @@ final class DisplayDeviceInfo {
      */
     public float renderFrameRate;
 
+
+    /**
+     * If {@code true}, this Display supports adaptive refresh rates.
+     * @see android.view.DisplayInfo#hasArrSupport for more details.
+     */
+    public boolean hasArrSupport;
+
+    /**
+     * Represents frame rate for the FrameRateCategory Normal and High.
+     * @see android.view.Display#getSuggestedFrameRate(int) for more details.
+     */
+    public FrameRateCategoryRate frameRateCategoryRate;
+    /**
+     * All the refresh rates supported for the default display mode.
+     */
+    public float[] supportedRefreshRates = new float[0];
+
     /**
      * The default mode of the display.
      */
@@ -296,13 +341,16 @@ final class DisplayDeviceInfo {
      */
     public Display.HdrCapabilities hdrCapabilities;
 
+    /** When true, all HDR capabilities are hidden from public APIs */
+    public boolean isForceSdr;
+
     /**
      * Indicates whether this display supports Auto Low Latency Mode.
      */
     public boolean allmSupported;
 
     /**
-     * Indicates whether this display suppors Game content type.
+     * Indicates whether this display supports Game content type.
      */
     public boolean gameContentTypeSupported;
 
@@ -429,6 +477,7 @@ final class DisplayDeviceInfo {
     public float brightnessMinimum;
     public float brightnessMaximum;
     public float brightnessDefault;
+    public float brightnessDim;
 
     // NaN means unsupported
     public float hdrSdrRatio = Float.NaN;
@@ -462,8 +511,11 @@ final class DisplayDeviceInfo {
      */
     public int diff(DisplayDeviceInfo other) {
         int diff = 0;
-        if (state != other.state || committedState != other.committedState) {
+        if (state != other.state) {
             diff |= DIFF_STATE;
+        }
+        if (committedState != other.committedState) {
+            diff |= DIFF_COMMITTED_STATE;
         }
         if (colorMode != other.colorMode) {
             diff |= DIFF_COLOR_MODE;
@@ -471,41 +523,53 @@ final class DisplayDeviceInfo {
         if (!BrightnessSynchronizer.floatEquals(hdrSdrRatio, other.hdrSdrRatio)) {
             diff |= DIFF_HDR_SDR_RATIO;
         }
+        if (rotation != other.rotation) {
+            diff |= DIFF_ROTATION;
+        }
+        if (renderFrameRate != other.renderFrameRate
+                || presentationDeadlineNanos != other.presentationDeadlineNanos
+                || appVsyncOffsetNanos != other.appVsyncOffsetNanos) {
+            diff |= DIFF_RENDER_TIMINGS;
+        }
+        if (modeId != other.modeId) {
+            diff |= DIFF_MODE_ID;
+        }
+        if (!Arrays.equals(frameRateOverrides, other.frameRateOverrides)) {
+            diff |= DIFF_FRAME_RATE_OVERRIDE;
+        }
         if (!Objects.equals(name, other.name)
                 || !Objects.equals(uniqueId, other.uniqueId)
                 || width != other.width
                 || height != other.height
-                || modeId != other.modeId
-                || renderFrameRate != other.renderFrameRate
                 || defaultModeId != other.defaultModeId
                 || userPreferredModeId != other.userPreferredModeId
                 || !Arrays.equals(supportedModes, other.supportedModes)
                 || !Arrays.equals(supportedColorModes, other.supportedColorModes)
                 || !Objects.equals(hdrCapabilities, other.hdrCapabilities)
+                || isForceSdr != other.isForceSdr
                 || allmSupported != other.allmSupported
                 || gameContentTypeSupported != other.gameContentTypeSupported
                 || densityDpi != other.densityDpi
                 || xDpi != other.xDpi
                 || yDpi != other.yDpi
-                || appVsyncOffsetNanos != other.appVsyncOffsetNanos
-                || presentationDeadlineNanos != other.presentationDeadlineNanos
                 || flags != other.flags
                 || !Objects.equals(displayCutout, other.displayCutout)
                 || touch != other.touch
-                || rotation != other.rotation
                 || type != other.type
                 || !Objects.equals(address, other.address)
                 || !Objects.equals(deviceProductInfo, other.deviceProductInfo)
                 || ownerUid != other.ownerUid
                 || !Objects.equals(ownerPackageName, other.ownerPackageName)
-                || !Arrays.equals(frameRateOverrides, other.frameRateOverrides)
                 || !BrightnessSynchronizer.floatEquals(brightnessMinimum, other.brightnessMinimum)
                 || !BrightnessSynchronizer.floatEquals(brightnessMaximum, other.brightnessMaximum)
-                || !BrightnessSynchronizer.floatEquals(brightnessDefault,
-                other.brightnessDefault)
+                || !BrightnessSynchronizer.floatEquals(brightnessDefault, other.brightnessDefault)
+                || !BrightnessSynchronizer.floatEquals(brightnessDim, other.brightnessDim)
                 || !Objects.equals(roundedCorners, other.roundedCorners)
                 || installOrientation != other.installOrientation
-                || !Objects.equals(displayShape, other.displayShape)) {
+                || !Objects.equals(displayShape, other.displayShape)
+                || hasArrSupport != other.hasArrSupport
+                || !Objects.equals(frameRateCategoryRate, other.frameRateCategoryRate)
+                || !Arrays.equals(supportedRefreshRates, other.supportedRefreshRates)) {
             diff |= DIFF_OTHER;
         }
         return diff;
@@ -523,12 +587,16 @@ final class DisplayDeviceInfo {
         height = other.height;
         modeId = other.modeId;
         renderFrameRate = other.renderFrameRate;
+        hasArrSupport = other.hasArrSupport;
+        frameRateCategoryRate = other.frameRateCategoryRate;
+        supportedRefreshRates = other.supportedRefreshRates;
         defaultModeId = other.defaultModeId;
         userPreferredModeId = other.userPreferredModeId;
         supportedModes = other.supportedModes;
         colorMode = other.colorMode;
         supportedColorModes = other.supportedColorModes;
         hdrCapabilities = other.hdrCapabilities;
+        isForceSdr = other.isForceSdr;
         allmSupported = other.allmSupported;
         gameContentTypeSupported = other.gameContentTypeSupported;
         densityDpi = other.densityDpi;
@@ -551,6 +619,7 @@ final class DisplayDeviceInfo {
         brightnessMinimum = other.brightnessMinimum;
         brightnessMaximum = other.brightnessMaximum;
         brightnessDefault = other.brightnessDefault;
+        brightnessDim = other.brightnessDim;
         hdrSdrRatio = other.hdrSdrRatio;
         roundedCorners = other.roundedCorners;
         installOrientation = other.installOrientation;
@@ -566,12 +635,16 @@ final class DisplayDeviceInfo {
         sb.append(width).append(" x ").append(height);
         sb.append(", modeId ").append(modeId);
         sb.append(", renderFrameRate ").append(renderFrameRate);
+        sb.append(", hasArrSupport ").append(hasArrSupport);
+        sb.append(", frameRateCategoryRate ").append(frameRateCategoryRate);
+        sb.append(", supportedRefreshRates ").append(Arrays.toString(supportedRefreshRates));
         sb.append(", defaultModeId ").append(defaultModeId);
         sb.append(", userPreferredModeId ").append(userPreferredModeId);
         sb.append(", supportedModes ").append(Arrays.toString(supportedModes));
         sb.append(", colorMode ").append(colorMode);
         sb.append(", supportedColorModes ").append(Arrays.toString(supportedColorModes));
         sb.append(", hdrCapabilities ").append(hdrCapabilities);
+        sb.append(", isForceSdr ").append(isForceSdr);
         sb.append(", allmSupported ").append(allmSupported);
         sb.append(", gameContentTypeSupported ").append(gameContentTypeSupported);
         sb.append(", density ").append(densityDpi);
@@ -601,6 +674,7 @@ final class DisplayDeviceInfo {
         sb.append(", brightnessMinimum ").append(brightnessMinimum);
         sb.append(", brightnessMaximum ").append(brightnessMaximum);
         sb.append(", brightnessDefault ").append(brightnessDefault);
+        sb.append(", brightnessDim ").append(brightnessDim);
         sb.append(", hdrSdrRatio ").append(hdrSdrRatio);
         if (roundedCorners != null) {
             sb.append(", roundedCorners ").append(roundedCorners);

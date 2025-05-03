@@ -68,7 +68,6 @@ import android.os.RemoteCallback;
 import android.os.StrictMode;
 import android.os.WorkSource;
 import android.service.voice.IVoiceInteractionSession;
-import android.view.IRecentsAnimationRunner;
 import android.view.IRemoteAnimationRunner;
 import android.view.RemoteAnimationDefinition;
 import android.view.RemoteAnimationAdapter;
@@ -129,13 +128,12 @@ interface IActivityTaskManager {
     int startActivityFromGameSession(IApplicationThread caller, in String callingPackage,
             in String callingFeatureId, int callingPid, int callingUid, in Intent intent,
             int taskId, int userId);
-    void startRecentsActivity(in Intent intent, in long eventTime,
-            in IRecentsAnimationRunner recentsAnimationRunner);
     int startActivityFromRecents(int taskId, in Bundle options);
     int startActivityAsCaller(in IApplicationThread caller, in String callingPackage,
             in Intent intent, in String resolvedType, in IBinder resultTo, in String resultWho,
             int requestCode, int flags, in ProfilerInfo profilerInfo, in Bundle options,
             boolean ignoreTargetSecurity, int userId);
+    void preloadRecentsActivity(in Intent intent);
 
     boolean isActivityStartAllowedOnDisplay(int displayId, in Intent intent, in String resolvedType,
             int userId);
@@ -157,7 +155,6 @@ interface IActivityTaskManager {
     ParceledListSlice<ActivityManager.RecentTaskInfo> getRecentTasks(int maxNum, int flags,
             int userId);
     boolean isTopActivityImmersive();
-    ActivityManager.TaskDescription getTaskDescription(int taskId);
     void reportAssistContextExtras(in IBinder assistToken, in Bundle extras,
             in AssistStructure structure, in AssistContent content, in Uri referrer);
 
@@ -168,7 +165,6 @@ interface IActivityTaskManager {
     /** Focuses the top task on a display if it isn't already focused. Used for Recents. */
     void focusTopTask(int displayId);
 
-    void cancelRecentsAnimation(boolean restoreHomeRootTaskPosition);
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.UPDATE_LOCK_TASK_PACKAGES)")
     void updateLockTaskPackages(int userId, in String[] packages);
     boolean isInLockTaskMode();
@@ -227,7 +223,7 @@ interface IActivityTaskManager {
             in IBinder activityToken, int flags);
     boolean isAssistDataAllowed();
     boolean requestAssistDataForTask(in IAssistDataReceiver receiver, int taskId,
-            in String callingPackageName, String callingAttributionTag);
+            in String callingPackageName, String callingAttributionTag, boolean fetchStructure);
 
     /**
      * Notify the system that the keyguard is going away.
@@ -245,6 +241,9 @@ interface IActivityTaskManager {
     IWindowOrganizerController getWindowOrganizerController();
 
     boolean supportsLocalVoiceInteraction();
+
+    // Requests the "Open in browser" education to be shown
+    void requestOpenInBrowserEducation(IBinder appToken);
 
     // Get device configuration
     ConfigurationInfo getDeviceConfigurationInfo();
@@ -361,6 +360,23 @@ interface IActivityTaskManager {
      */
     android.window.BackNavigationInfo startBackNavigation(
             in RemoteCallback navigationObserver, in BackAnimationAdapter adaptor);
+
+    /**
+     * registers a callback to be invoked when a background activity launch is aborted.
+     *
+     * @param observer callback to be registered.
+     * @return true if the callback was successfully registered, false otherwise.
+     * @hide
+     */
+    boolean registerBackgroundActivityStartCallback(in IBinder binder);
+
+    /**
+     * unregisters a callback to be invoked when a background activity launch is aborted.
+     *
+     * @param observer callback to be registered.
+     * @hide
+     */
+    void unregisterBackgroundActivityStartCallback(in IBinder binder);
 
     /**
      * registers a callback to be invoked when the screen is captured.

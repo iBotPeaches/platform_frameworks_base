@@ -21,12 +21,15 @@ import com.android.systemui.CoreStartable;
 import com.android.systemui.Dependency;
 import com.android.systemui.InitController;
 import com.android.systemui.SystemUIAppComponentFactoryBase;
+import com.android.systemui.common.ui.GlobalConfig;
 import com.android.systemui.dagger.qualifiers.PerUser;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.KeyguardSliceProvider;
 import com.android.systemui.people.PeopleProvider;
+import com.android.systemui.startable.Dependencies;
 import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.QsFrameTranslateModule;
+import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.bubbles.Bubbles;
@@ -36,17 +39,18 @@ import com.android.wm.shell.keyguard.KeyguardTransitions;
 import com.android.wm.shell.onehanded.OneHanded;
 import com.android.wm.shell.pip.Pip;
 import com.android.wm.shell.recents.RecentTasks;
+import com.android.wm.shell.shared.ShellTransitions;
 import com.android.wm.shell.splitscreen.SplitScreen;
 import com.android.wm.shell.startingsurface.StartingSurface;
 import com.android.wm.shell.sysui.ShellInterface;
 import com.android.wm.shell.taskview.TaskViewFactory;
-import com.android.wm.shell.transition.ShellTransitions;
 
 import dagger.BindsInstance;
 import dagger.Subcomponent;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.inject.Provider;
 
@@ -61,7 +65,6 @@ import javax.inject.Provider;
         DependencyProvider.class,
         NotificationInsetsModule.class,
         QsFrameTranslateModule.class,
-        SystemUIBinder.class,
         SystemUIModule.class,
         SystemUICoreStartableModule.class,
         ReferenceSystemUIModule.class})
@@ -92,7 +95,7 @@ public interface SysUIComponent {
         Builder setTaskViewFactory(Optional<TaskViewFactory> t);
 
         @BindsInstance
-        Builder setTransitions(ShellTransitions t);
+        Builder setShellTransitions(ShellTransitions t);
 
         @BindsInstance
         Builder setKeyguardTransitions(KeyguardTransitions k);
@@ -122,10 +125,18 @@ public interface SysUIComponent {
     BootCompleteCacheImpl provideBootCacheImpl();
 
     /**
-     * Creates a ContextComponentHelper.
+     * Creates a ConfigurationController.
      */
     @SysUISingleton
+    @GlobalConfig
     ConfigurationController getConfigurationController();
+
+    /**
+     * Creates a ConfigurationForwarder.
+     */
+    @SysUISingleton
+    @GlobalConfig
+    ConfigurationForwarder getConfigurationForwarder();
 
     /**
      * Creates a ContextComponentHelper.
@@ -158,6 +169,11 @@ public interface SysUIComponent {
      * Returns {@link CoreStartable}s that should be started for every user.
      */
     @PerUser Map<Class<?>, Provider<CoreStartable>> getPerUserStartables();
+
+    /**
+     * Returns {@link CoreStartable} dependencies if there are any.
+     */
+    @Dependencies Map<Class<?>, Set<Class<? extends CoreStartable>>> getStartableDependencies();
 
     /**
      * Member injection into the supplied argument.

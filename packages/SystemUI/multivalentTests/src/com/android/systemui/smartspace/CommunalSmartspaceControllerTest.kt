@@ -20,9 +20,9 @@ import android.app.smartspace.SmartspaceSession
 import android.app.smartspace.SmartspaceTarget
 import android.content.Context
 import android.graphics.drawable.Drawable
+import android.os.Handler
 import android.testing.TestableLooper
 import android.view.View
-import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
@@ -31,6 +31,7 @@ import com.android.systemui.plugins.BcSmartspaceConfigPlugin
 import com.android.systemui.plugins.BcSmartspaceDataPlugin
 import com.android.systemui.plugins.BcSmartspaceDataPlugin.SmartspaceView
 import com.android.systemui.plugins.FalsingManager
+import com.android.systemui.settings.UserTracker
 import com.android.systemui.util.concurrency.Execution
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.withArgCaptor
@@ -45,11 +46,17 @@ import org.mockito.Mockito
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.never
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper
 class CommunalSmartspaceControllerTest : SysuiTestCase() {
+    @Mock private lateinit var userTracker: UserTracker
+
+    @Mock private lateinit var userContextPrimary: Context
+
     @Mock private lateinit var smartspaceManager: SmartspaceManager
 
     @Mock private lateinit var execution: Execution
@@ -66,12 +73,9 @@ class CommunalSmartspaceControllerTest : SysuiTestCase() {
 
     @Mock private lateinit var session: SmartspaceSession
 
-    private lateinit var controller: CommunalSmartspaceController
+    private val preconditionListenerCaptor = argumentCaptor<SmartspacePrecondition.Listener>()
 
-    // TODO(b/272811280): Remove usage of real view
-    private val fakeParent by lazy {
-        FrameLayout(context)
-    }
+    private lateinit var controller: CommunalSmartspaceController
 
     /**
      * A class which implements SmartspaceView and extends View. This is mocked to provide the right
@@ -85,6 +89,8 @@ class CommunalSmartspaceControllerTest : SysuiTestCase() {
         override fun setPrimaryTextColor(color: Int) {}
 
         override fun setUiSurface(uiSurface: String) {}
+
+        override fun setBgHandler(bgHandler: Handler?) {}
 
         override fun setDozeAmount(amount: Float) {}
 
@@ -105,6 +111,8 @@ class CommunalSmartspaceControllerTest : SysuiTestCase() {
         override fun getCurrentCardTopPadding(): Int {
             return 0
         }
+
+        override fun setHorizontalPaddings(horizontalPadding: Int) {}
     }
 
     @Before
@@ -112,15 +120,18 @@ class CommunalSmartspaceControllerTest : SysuiTestCase() {
         MockitoAnnotations.initMocks(this)
         `when`(smartspaceManager.createSmartspaceSession(any())).thenReturn(session)
 
+        `when`(userTracker.userContext).thenReturn(userContextPrimary)
+        `when`(userContextPrimary.getSystemService(SmartspaceManager::class.java))
+            .thenReturn(smartspaceManager)
+
         controller =
             CommunalSmartspaceController(
-                context,
-                smartspaceManager,
+                userTracker,
                 execution,
                 uiExecutor,
                 precondition,
                 Optional.of(targetFilter),
-                Optional.of(plugin)
+                Optional.of(plugin),
             )
     }
 
@@ -150,6 +161,26 @@ class CommunalSmartspaceControllerTest : SysuiTestCase() {
         controller.removeListener(listener)
 
         verify(session).close()
+    }
+
+    /** Ensures smartspace session begins when precondition is met if there is any listener. */
+    @Test
+    fun testConnectOnPreconditionMet() {
+        // Precondition not met
+        `when`(precondition.conditionsMet()).thenReturn(false)
+        controller.addListener(listener)
+
+        // Verify session not created because precondition not met
+        verify(smartspaceManager, never()).createSmartspaceSession(any())
+
+        // Precondition met
+        `when`(precondition.conditionsMet()).thenReturn(true)
+        verify(precondition).addListener(preconditionListenerCaptor.capture())
+        val preconditionListener = preconditionListenerCaptor.firstValue
+        preconditionListener.onCriteriaChanged()
+
+        // Verify session created
+        verify(smartspaceManager).createSmartspaceSession(any())
     }
 
     /**

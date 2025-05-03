@@ -19,12 +19,11 @@ package com.android.systemui.complication.dagger;
 import android.content.res.Resources;
 import android.view.ViewGroup;
 
-import com.android.systemui.res.R;
 import com.android.systemui.complication.ComplicationLayoutParams;
-import com.android.systemui.dagger.SystemUIBinder;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.flags.Flags;
+import com.android.systemui.res.R;
 
 import dagger.Module;
 import dagger.Provides;
@@ -32,8 +31,7 @@ import dagger.Provides;
 import javax.inject.Named;
 
 /**
- * Module for all components with corresponding dream layer complications registered in
- * {@link SystemUIBinder}.
+ * Module for all components with corresponding dream layer complications.
  */
 @Module(
         subcomponents = {

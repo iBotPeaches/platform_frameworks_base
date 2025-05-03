@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import android.annotation.NonNull;
@@ -40,6 +41,7 @@ import android.os.TestLooperManager;
 import android.os.UserHandle;
 import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.Settings;
 import android.util.SparseArray;
 
@@ -52,9 +54,11 @@ import com.android.server.AlarmManagerInternal;
 import com.android.server.DropBoxManagerInternal;
 import com.android.server.LocalServices;
 import com.android.server.appop.AppOpsService;
+import com.android.server.compat.PlatformCompat;
 import com.android.server.wm.ActivityTaskManagerService;
 
 import org.junit.Rule;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -95,10 +99,11 @@ public abstract class BaseBroadcastQueueTest {
             .spyStatic(ProcessList.class)
             .build();
 
+
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
     @Rule
     public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
-
-    final BroadcastQueue[] mBroadcastQueues = new BroadcastQueue[1];
 
     @Mock
     AppOpsService mAppOpsService;
@@ -112,6 +117,11 @@ public abstract class BaseBroadcastQueueTest {
     AlarmManagerInternal mAlarmManagerInt;
     @Mock
     ProcessList mProcessList;
+    @Mock
+    PlatformCompat mPlatformCompat;
+
+    @Mock
+    AppStartInfoTracker mAppStartInfoTracker;
 
     Context mContext;
     ActivityManagerService mAms;
@@ -120,6 +130,7 @@ public abstract class BaseBroadcastQueueTest {
     HandlerThread mHandlerThread;
     TestLooperManager mLooper;
     AtomicInteger mNextPid;
+    BroadcastHistory mEmptyHistory;
 
     /**
      * Map from PID to registered registered runtime receivers.
@@ -136,6 +147,13 @@ public abstract class BaseBroadcastQueueTest {
         mLooper = Objects.requireNonNull(InstrumentationRegistry.getInstrumentation()
                 .acquireLooperManager(mHandlerThread.getLooper()));
         mNextPid = new AtomicInteger(100);
+
+        mConstants = new BroadcastConstants(Settings.Global.BROADCAST_FG_CONSTANTS);
+        mEmptyHistory = new BroadcastHistory(mConstants) {
+            public void addBroadcastToHistoryLocked(BroadcastRecord original) {
+                // Ignored
+            }
+        };
 
         LocalServices.removeServiceForTest(DropBoxManagerInternal.class);
         LocalServices.addService(DropBoxManagerInternal.class, mDropBoxManagerInt);
@@ -154,6 +172,7 @@ public abstract class BaseBroadcastQueueTest {
         realAms.mActivityTaskManager = new ActivityTaskManagerService(mContext);
         realAms.mActivityTaskManager.initialize(null, null, mContext.getMainLooper());
         realAms.mAtmInternal = spy(realAms.mActivityTaskManager.getAtmInternal());
+        realAms.mOomAdjuster.mCachedAppOptimizer = mock(CachedAppOptimizer.class);
         realAms.mOomAdjuster = spy(realAms.mOomAdjuster);
         ExtendedMockito.doNothing().when(() -> ProcessList.setOomAdj(anyInt(), anyInt(), anyInt()));
         realAms.mPackageManagerInt = mPackageManagerInt;
@@ -165,7 +184,12 @@ public abstract class BaseBroadcastQueueTest {
         doReturn(null).when(mSkipPolicy).shouldSkipMessage(any(), any());
         doReturn(false).when(mSkipPolicy).disallowBackgroundStart(any());
 
-        mConstants = new BroadcastConstants(Settings.Global.BROADCAST_FG_CONSTANTS);
+        doReturn(mAppStartInfoTracker).when(mProcessList).getAppStartInfoTracker();
+
+        doReturn(true).when(mPlatformCompat).isChangeEnabledInternalNoLogging(
+                eq(BroadcastFilter.RESTRICT_PRIORITY_VALUES), any(ApplicationInfo.class));
+        doReturn(true).when(mPlatformCompat).isChangeEnabledInternalNoLogging(
+                eq(BroadcastRecord.LIMIT_PRIORITY_SCOPE), any(ApplicationInfo.class));
     }
 
     public void tearDown() throws Exception {
@@ -213,8 +237,8 @@ public abstract class BaseBroadcastQueueTest {
         }
 
         @Override
-        public BroadcastQueue[] getBroadcastQueues(ActivityManagerService service) {
-            return mBroadcastQueues;
+        public BroadcastQueue getBroadcastQueue(ActivityManagerService service) {
+            return null;
         }
     }
 
@@ -275,8 +299,18 @@ public abstract class BaseBroadcastQueueTest {
         filter.setPriority(priority);
         final BroadcastFilter res = new BroadcastFilter(filter, receiverList,
                 receiverList.app.info.packageName, null, null, null, receiverList.uid,
-                receiverList.userId, false, false, true);
+                receiverList.userId, false, false, true, receiverList.app.info,
+                mock(PlatformCompat.class));
         receiverList.add(res);
         return res;
+    }
+
+    void setProcessFreezable(ProcessRecord app, boolean pendingFreeze, boolean frozen) {
+        app.mOptRecord.setPendingFreeze(pendingFreeze);
+        app.mOptRecord.setFrozen(frozen);
+    }
+
+    ArgumentMatcher<ApplicationInfo> appInfoEquals(int uid) {
+        return test -> (test.uid == uid);
     }
 }

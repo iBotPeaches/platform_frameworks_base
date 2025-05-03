@@ -16,6 +16,9 @@
 
 package com.android.systemui.statusbar.notification.row.wrapper;
 
+import static android.view.View.GONE;
+import static android.view.View.VISIBLE;
+
 import static com.android.systemui.statusbar.notification.TransformState.TRANSFORM_Y;
 
 import android.app.Notification;
@@ -36,6 +39,7 @@ import androidx.annotation.Nullable;
 
 import com.android.app.animation.Interpolators;
 import com.android.internal.widget.CachingIconView;
+import com.android.internal.widget.NotificationCloseButton;
 import com.android.internal.widget.NotificationExpandButton;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.TransformableView;
@@ -47,6 +51,7 @@ import com.android.systemui.statusbar.notification.Roundable;
 import com.android.systemui.statusbar.notification.RoundableState;
 import com.android.systemui.statusbar.notification.TransformState;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
+import com.android.systemui.statusbar.notification.shared.NotificationAddXOnHoverToDismiss;
 
 import java.util.Stack;
 
@@ -60,6 +65,7 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
             = new PathInterpolator(0.4f, 0f, 0.7f, 1f);
     protected final ViewTransformationHelper mTransformationHelper;
     private CachingIconView mIcon;
+    private NotificationCloseButton mCloseButton;
     private NotificationExpandButton mExpandButton;
     private View mAltExpandTarget;
     private View mIconContainer;
@@ -112,6 +118,11 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
                 TRANSFORMING_VIEW_TITLE);
         resolveHeaderViews();
         addFeedbackOnClickListener(row);
+        addCloseButtonOnClickListener(row);
+
+        if (NotificationAddXOnHoverToDismiss.isEnabled()) {
+            mRow.addDismissButtonTargetStateListener(mHoverListener);
+        }
     }
 
     @Override
@@ -150,6 +161,7 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
         mNotificationTopLine = mView.findViewById(com.android.internal.R.id.notification_top_line);
         mAudiblyAlertedIcon = mView.findViewById(com.android.internal.R.id.alerted_icon);
         mFeedbackIcon = mView.findViewById(com.android.internal.R.id.feedback);
+        mCloseButton = mView.findViewById(com.android.internal.R.id.close_button);
     }
 
     private void addFeedbackOnClickListener(ExpandableNotificationRow row) {
@@ -162,13 +174,34 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
         }
     }
 
+    private ExpandableNotificationRow.DismissButtonTargetVisibilityListener mHoverListener = new
+            ExpandableNotificationRow.DismissButtonTargetVisibilityListener() {
+                @Override
+                public void onTargetVisibilityChanged(boolean targetVisible) {
+                    NotificationAddXOnHoverToDismiss.isUnexpectedlyInLegacyMode();
+
+                    if (mCloseButton != null) {
+                        mCloseButton.setVisibility(targetVisible ? VISIBLE : GONE);
+                    }
+                }
+            };
+
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
+
+        if (NotificationAddXOnHoverToDismiss.isEnabled()) {
+            mRow.removeDismissButtonTargetStateListener(mHoverListener);
+        }
+    }
+
     /**
      * Shows the given feedback icon, or hides the icon if null.
      */
     @Override
     public void setFeedbackIcon(@Nullable FeedbackIcon icon) {
         if (mFeedbackIcon != null) {
-            mFeedbackIcon.setVisibility(icon != null ? View.VISIBLE : View.GONE);
+            mFeedbackIcon.setVisibility(icon != null ? VISIBLE : GONE);
             if (icon != null) {
                 if (mFeedbackIcon instanceof ImageButton) {
                     ((ImageButton) mFeedbackIcon).setImageResource(icon.getIconRes());
@@ -176,6 +209,13 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
                 mFeedbackIcon.setContentDescription(
                         mView.getContext().getString(icon.getContentDescRes()));
             }
+        }
+    }
+
+    private void addCloseButtonOnClickListener(ExpandableNotificationRow row) {
+        View.OnClickListener listener = row.getCloseButtonOnClickListener(row);
+        if (mCloseButton != null && listener != null) {
+            mCloseButton.setOnClickListener(listener);
         }
     }
 
@@ -191,8 +231,8 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
         updateTransformedTypes();
         addRemainingTransformTypes();
         updateCropToPaddingForImageViews();
-        Notification notification = row.getEntry().getSbn().getNotification();
-        mIcon.setTag(ImageTransformState.ICON_TAG, notification.getSmallIcon());
+        Notification n = row.getEntry().getSbn().getNotification();
+        mIcon.setTag(ImageTransformState.ICON_TAG, n.getSmallIcon());
 
         // We need to reset all views that are no longer transforming in case a view was previously
         // transformed, but now we decided to transform its container instead.
@@ -255,7 +295,7 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
             boolean expandable,
             View.OnClickListener onClickListener,
             boolean requestLayout) {
-        mExpandButton.setVisibility(expandable ? View.VISIBLE : View.GONE);
+        mExpandButton.setVisibility(expandable ? VISIBLE : GONE);
         mExpandButton.setOnClickListener(expandable ? onClickListener : null);
         if (mAltExpandTarget != null) {
             mAltExpandTarget.setOnClickListener(expandable ? onClickListener : null);
@@ -283,7 +323,7 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
     @Override
     public void setRecentlyAudiblyAlerted(boolean audiblyAlerted) {
         if (mAudiblyAlertedIcon != null) {
-            mAudiblyAlertedIcon.setVisibility(audiblyAlerted ? View.VISIBLE : View.GONE);
+            mAudiblyAlertedIcon.setVisibility(audiblyAlerted ? VISIBLE : GONE);
         }
     }
 
@@ -354,16 +394,13 @@ public class NotificationHeaderViewWrapper extends NotificationViewWrapper imple
      * @param whenMillis
      */
     public void setNotificationWhen(long whenMillis) {
-        if (mNotificationHeader == null) {
-            return;
-        }
-
-        final View timeView = mNotificationHeader.findViewById(com.android.internal.R.id.time);
+        final View timeView = mView.findViewById(com.android.internal.R.id.time);
 
         if (timeView instanceof DateTimeView) {
             ((DateTimeView) timeView).setTime(whenMillis);
         }
     }
+
     protected void addTransformedViews(View... views) {
         for (View view : views) {
             if (view != null) {

@@ -19,9 +19,9 @@ package android.hardware.camera2;
 import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SystemApi;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.hardware.camera2.impl.CameraMetadataNative;
-import android.hardware.camera2.impl.ExtensionKey;
 import android.hardware.camera2.impl.PublicKey;
 import android.hardware.camera2.impl.SyntheticKey;
 import android.hardware.camera2.params.DeviceStateSensorOrientationMap;
@@ -39,7 +39,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * <p>The properties describing a
@@ -558,19 +560,31 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * on a particular SessionConfiguration.</p>
      *
      * @return List of CameraCharacteristic keys containing characterisitics specific to a session
-     * configuration. If {@link #INFO_SESSION_CONFIGURATION_QUERY_VERSION} is
+     * configuration. If {@link #INFO_SESSION_CONFIGURATION_QUERY_VERSION} is at least
      * {@link Build.VERSION_CODES#VANILLA_ICE_CREAM}, then this list will only contain
      * CONTROL_ZOOM_RATIO_RANGE and SCALER_AVAILABLE_MAX_DIGITAL_ZOOM
      *
-     * @see INFO_SESSION_CONFIGURATION_QUERY_VERSION
+     * @see #INFO_SESSION_CONFIGURATION_QUERY_VERSION
      */
     @NonNull
-    @FlaggedApi(Flags.FLAG_FEATURE_COMBINATION_QUERY)
     public List<CameraCharacteristics.Key<?>> getAvailableSessionCharacteristicsKeys() {
-        if (mAvailableSessionCharacteristicsKeys == null) {
-            mAvailableSessionCharacteristicsKeys =
-                    Arrays.asList(CONTROL_ZOOM_RATIO_RANGE, SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);
+        if (mAvailableSessionCharacteristicsKeys != null) {
+            return mAvailableSessionCharacteristicsKeys;
         }
+
+        Integer queryVersion = get(INFO_SESSION_CONFIGURATION_QUERY_VERSION);
+        if (queryVersion == null) {
+            mAvailableSessionCharacteristicsKeys = List.of();
+            return mAvailableSessionCharacteristicsKeys;
+        }
+
+        mAvailableSessionCharacteristicsKeys =
+                AVAILABLE_SESSION_CHARACTERISTICS_KEYS_MAP.entrySet().stream()
+                        .filter(e -> e.getKey() <= queryVersion)
+                        .map(Map.Entry::getValue)
+                        .flatMap(Arrays::stream)
+                        .collect(Collectors.toUnmodifiableList());
+
         return mAvailableSessionCharacteristicsKeys;
     }
 
@@ -759,6 +773,46 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
     @NonNull
     public static final Key<int[]> COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES =
             new Key<int[]>("android.colorCorrection.availableAberrationModes", int[].class);
+
+    /**
+     * <p>The range of supported color temperature values for
+     * {@link CaptureRequest#COLOR_CORRECTION_COLOR_TEMPERATURE android.colorCorrection.colorTemperature}.</p>
+     * <p>This key lists the valid range of color temperature values for
+     * {@link CaptureRequest#COLOR_CORRECTION_COLOR_TEMPERATURE android.colorCorrection.colorTemperature} supported by this camera device.</p>
+     * <p>This key will be null on devices that do not support CCT mode for
+     * {@link CaptureRequest#COLOR_CORRECTION_MODE android.colorCorrection.mode}.</p>
+     * <p><b>Range of valid values:</b><br></p>
+     * <p>The minimum supported range will be [2856K,6500K]. The maximum supported
+     * range will be [1000K,40000K].</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     *
+     * @see CaptureRequest#COLOR_CORRECTION_COLOR_TEMPERATURE
+     * @see CaptureRequest#COLOR_CORRECTION_MODE
+     */
+    @PublicKey
+    @NonNull
+    @FlaggedApi(Flags.FLAG_COLOR_TEMPERATURE)
+    public static final Key<android.util.Range<Integer>> COLOR_CORRECTION_COLOR_TEMPERATURE_RANGE =
+            new Key<android.util.Range<Integer>>("android.colorCorrection.colorTemperatureRange", new TypeReference<android.util.Range<Integer>>() {{ }});
+
+    /**
+     * <p>List of color correction modes for {@link CaptureRequest#COLOR_CORRECTION_MODE android.colorCorrection.mode} that are
+     * supported by this camera device.</p>
+     * <p>This key lists the valid modes for {@link CaptureRequest#COLOR_CORRECTION_MODE android.colorCorrection.mode}. If no
+     * color correction modes are available for a device, this key will be null.</p>
+     * <p>Camera devices that have a FULL hardware level will always include at least
+     * FAST, HIGH_QUALITY, and TRANSFORM_MATRIX modes.</p>
+     * <p><b>Range of valid values:</b><br>
+     * Any value listed in {@link CaptureRequest#COLOR_CORRECTION_MODE android.colorCorrection.mode}</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     *
+     * @see CaptureRequest#COLOR_CORRECTION_MODE
+     */
+    @PublicKey
+    @NonNull
+    @FlaggedApi(Flags.FLAG_COLOR_TEMPERATURE)
+    public static final Key<int[]> COLOR_CORRECTION_AVAILABLE_MODES =
+            new Key<int[]>("android.colorCorrection.availableModes", int[].class);
 
     /**
      * <p>List of auto-exposure antibanding modes for {@link CaptureRequest#CONTROL_AE_ANTIBANDING_MODE android.control.aeAntibandingMode} that are
@@ -1382,6 +1436,24 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
             new Key<android.util.Range<Float>>("android.control.lowLightBoostInfoLuminanceRange", new TypeReference<android.util.Range<Float>>() {{ }});
 
     /**
+     * <p>List of auto-exposure priority modes for {@link CaptureRequest#CONTROL_AE_PRIORITY_MODE android.control.aePriorityMode}
+     * that are supported by this camera device.</p>
+     * <p>This entry lists the valid modes for
+     * {@link CaptureRequest#CONTROL_AE_PRIORITY_MODE android.control.aePriorityMode} for this camera device.
+     * If no AE priority modes are available for a device, this will only list OFF.</p>
+     * <p><b>Range of valid values:</b><br>
+     * Any value listed in {@link CaptureRequest#CONTROL_AE_PRIORITY_MODE android.control.aePriorityMode}</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     *
+     * @see CaptureRequest#CONTROL_AE_PRIORITY_MODE
+     */
+    @PublicKey
+    @NonNull
+    @FlaggedApi(Flags.FLAG_AE_PRIORITY)
+    public static final Key<int[]> CONTROL_AE_AVAILABLE_PRIORITY_MODES =
+            new Key<int[]>("android.control.aeAvailablePriorityModes", int[].class);
+
+    /**
      * <p>List of edge enhancement modes for {@link CaptureRequest#EDGE_MODE android.edge.mode} that are supported by this camera
      * device.</p>
      * <p>Full-capability camera devices must always support OFF; camera devices that support
@@ -1457,9 +1529,9 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
             new Key<Integer>("android.flash.info.strengthDefaultLevel", int.class);
 
     /**
-     * <p>Maximum flash brightness level for manual flash control in SINGLE mode.</p>
+     * <p>Maximum flash brightness level for manual flash control in <code>SINGLE</code> mode.</p>
      * <p>Maximum flash brightness level in camera capture mode and
-     * {@link CaptureRequest#FLASH_MODE android.flash.mode} set to SINGLE.
+     * {@link CaptureRequest#FLASH_MODE android.flash.mode} set to <code>SINGLE</code>.
      * Value will be &gt; 1 if the manual flash strength control feature is supported,
      * otherwise the value will be equal to 1.
      * Note that this level is just a number of supported levels (the granularity of control).
@@ -1470,57 +1542,59 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      */
     @PublicKey
     @NonNull
-    @FlaggedApi(Flags.FLAG_CAMERA_MANUAL_FLASH_STRENGTH_CONTROL)
     public static final Key<Integer> FLASH_SINGLE_STRENGTH_MAX_LEVEL =
             new Key<Integer>("android.flash.singleStrengthMaxLevel", int.class);
 
     /**
-     * <p>Default flash brightness level for manual flash control in SINGLE mode.</p>
+     * <p>Default flash brightness level for manual flash control in <code>SINGLE</code> mode.</p>
      * <p>If flash unit is available this will be greater than or equal to 1 and less
-     * or equal to <code>android.flash.info.singleStrengthMaxLevel</code>.
+     * or equal to {@link CameraCharacteristics#FLASH_SINGLE_STRENGTH_MAX_LEVEL android.flash.singleStrengthMaxLevel}.
      * Note for devices that do not support the manual flash strength control
      * feature, this level will always be equal to 1.</p>
      * <p>This key is available on all devices.</p>
+     *
+     * @see CameraCharacteristics#FLASH_SINGLE_STRENGTH_MAX_LEVEL
      */
     @PublicKey
     @NonNull
-    @FlaggedApi(Flags.FLAG_CAMERA_MANUAL_FLASH_STRENGTH_CONTROL)
     public static final Key<Integer> FLASH_SINGLE_STRENGTH_DEFAULT_LEVEL =
             new Key<Integer>("android.flash.singleStrengthDefaultLevel", int.class);
 
     /**
-     * <p>Maximum flash brightness level for manual flash control in TORCH mode</p>
+     * <p>Maximum flash brightness level for manual flash control in <code>TORCH</code> mode</p>
      * <p>Maximum flash brightness level in camera capture mode and
-     * {@link CaptureRequest#FLASH_MODE android.flash.mode} set to TORCH.
+     * {@link CaptureRequest#FLASH_MODE android.flash.mode} set to <code>TORCH</code>.
      * Value will be &gt; 1 if the manual flash strength control feature is supported,
      * otherwise the value will be equal to 1.</p>
      * <p>Note that this level is just a number of supported levels(the granularity of control).
      * There is no actual physical power units tied to this level.
-     * There is no relation between android.flash.info.torchStrengthMaxLevel and
-     * android.flash.info.singleStrengthMaxLevel i.e. the ratio of
-     * android.flash.info.torchStrengthMaxLevel:android.flash.info.singleStrengthMaxLevel
+     * There is no relation between {@link CameraCharacteristics#FLASH_TORCH_STRENGTH_MAX_LEVEL android.flash.torchStrengthMaxLevel} and
+     * {@link CameraCharacteristics#FLASH_SINGLE_STRENGTH_MAX_LEVEL android.flash.singleStrengthMaxLevel} i.e. the ratio of
+     * {@link CameraCharacteristics#FLASH_TORCH_STRENGTH_MAX_LEVEL android.flash.torchStrengthMaxLevel}:{@link CameraCharacteristics#FLASH_SINGLE_STRENGTH_MAX_LEVEL android.flash.singleStrengthMaxLevel}
      * is not guaranteed to be the ratio of actual brightness.</p>
      * <p>This key is available on all devices.</p>
      *
      * @see CaptureRequest#FLASH_MODE
+     * @see CameraCharacteristics#FLASH_SINGLE_STRENGTH_MAX_LEVEL
+     * @see CameraCharacteristics#FLASH_TORCH_STRENGTH_MAX_LEVEL
      */
     @PublicKey
     @NonNull
-    @FlaggedApi(Flags.FLAG_CAMERA_MANUAL_FLASH_STRENGTH_CONTROL)
     public static final Key<Integer> FLASH_TORCH_STRENGTH_MAX_LEVEL =
             new Key<Integer>("android.flash.torchStrengthMaxLevel", int.class);
 
     /**
-     * <p>Default flash brightness level for manual flash control in TORCH mode</p>
+     * <p>Default flash brightness level for manual flash control in <code>TORCH</code> mode</p>
      * <p>If flash unit is available this will be greater than or equal to 1 and less
-     * or equal to android.flash.info.torchStrengthMaxLevel.
+     * or equal to {@link CameraCharacteristics#FLASH_TORCH_STRENGTH_MAX_LEVEL android.flash.torchStrengthMaxLevel}.
      * Note for the devices that do not support the manual flash strength control feature,
      * this level will always be equal to 1.</p>
      * <p>This key is available on all devices.</p>
+     *
+     * @see CameraCharacteristics#FLASH_TORCH_STRENGTH_MAX_LEVEL
      */
     @PublicKey
     @NonNull
-    @FlaggedApi(Flags.FLAG_CAMERA_MANUAL_FLASH_STRENGTH_CONTROL)
     public static final Key<Integer> FLASH_TORCH_STRENGTH_DEFAULT_LEVEL =
             new Key<Integer>("android.flash.torchStrengthDefaultLevel", int.class);
 
@@ -3521,7 +3595,7 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * <p>When the key is present, only a PRIVATE/YUV output of the specified size is guaranteed
      * to be supported by the camera HAL in the secure camera mode. Any other format or
      * resolutions might not be supported. Use
-     * {@link CameraManager#isSessionConfigurationWithParametersSupported }
+     * {@link CameraDevice#isSessionConfigurationSupported }
      * API to query if a secure session configuration is supported if the device supports this
      * API.</p>
      * <p>If this key returns null on a device with SECURE_IMAGE_DATA capability, the application
@@ -4131,10 +4205,16 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
     /**
      * <p>Whether the RAW images output from this camera device are subject to
      * lens shading correction.</p>
-     * <p>If TRUE, all images produced by the camera device in the RAW image formats will
-     * have lens shading correction already applied to it. If FALSE, the images will
-     * not be adjusted for lens shading correction.
-     * See {@link CameraCharacteristics#REQUEST_MAX_NUM_OUTPUT_RAW android.request.maxNumOutputRaw} for a list of RAW image formats.</p>
+     * <p>If <code>true</code>, all images produced by the camera device in the <code>RAW</code> image formats will have
+     * at least some lens shading correction already applied to it. If <code>false</code>, the images will
+     * not be adjusted for lens shading correction.  See {@link CameraCharacteristics#REQUEST_MAX_NUM_OUTPUT_RAW android.request.maxNumOutputRaw} for a
+     * list of RAW image formats.</p>
+     * <p>When <code>true</code>, the <code>lensShadingCorrectionMap</code> key may still have values greater than 1.0,
+     * and those will need to be applied to any captured RAW frames for them to match the shading
+     * correction of processed buffers such as <code>YUV</code> or <code>JPEG</code> images. This may occur, for
+     * example, when some basic fixed lens shading correction is applied by hardware to RAW data,
+     * and additional correction is done dynamically in the camera processing pipeline after
+     * demosaicing.</p>
      * <p>This key will be <code>null</code> for all devices do not report this information.
      * Devices with RAW capability will always report this information in this key.</p>
      * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
@@ -4225,7 +4305,7 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * This key will only be present for devices which advertise the
      * {@link android.hardware.camera2.CameraMetadata#REQUEST_AVAILABLE_CAPABILITIES_ULTRA_HIGH_RESOLUTION_SENSOR }
      * capability or devices where {@link CameraCharacteristics#getAvailableCaptureRequestKeys }
-     * lists {@link CaptureRequest#SENSOR_PIXEL_MODE {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}}</p>
+     * lists {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}.</p>
      * <p><b>Units</b>: Pixel coordinates on the image sensor</p>
      * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
      *
@@ -4251,7 +4331,7 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * This key will only be present for devices which advertise the
      * {@link android.hardware.camera2.CameraMetadata#REQUEST_AVAILABLE_CAPABILITIES_ULTRA_HIGH_RESOLUTION_SENSOR }
      * capability or devices where {@link CameraCharacteristics#getAvailableCaptureRequestKeys }
-     * lists {@link CaptureRequest#SENSOR_PIXEL_MODE {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}}</p>
+     * lists {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}.</p>
      * <p><b>Units</b>: Pixels</p>
      * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
      *
@@ -4276,7 +4356,7 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * This key will only be present for devices which advertise the
      * {@link android.hardware.camera2.CameraMetadata#REQUEST_AVAILABLE_CAPABILITIES_ULTRA_HIGH_RESOLUTION_SENSOR }
      * capability or devices where {@link CameraCharacteristics#getAvailableCaptureRequestKeys }
-     * lists {@link CaptureRequest#SENSOR_PIXEL_MODE {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}}</p>
+     * lists {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}.</p>
      * <p><b>Units</b>: Pixel coordinates on the image sensor</p>
      * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
      *
@@ -4310,7 +4390,7 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * <ul>
      * <li>This key will be present if
      *   {@link CameraCharacteristics#getAvailableCaptureRequestKeys }
-     *   lists {@link CaptureRequest#SENSOR_PIXEL_MODE {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}}, since RAW
+     *   lists {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}, since RAW
      *   images may not necessarily have a regular bayer pattern when
      *   {@link CaptureRequest#SENSOR_PIXEL_MODE {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode}} is set to
      *   {@link android.hardware.camera2.CameraMetadata#SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION }.</li>
@@ -5046,22 +5126,30 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
 
     /**
      * <p>The version of the session configuration query
-     * {@link android.hardware.camera2.CameraManager#isSessionConfigurationWithParametersSupported }
-     * API</p>
+     * {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup#isSessionConfigurationSupported }
+     * and {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup#getSessionCharacteristics }
+     * APIs.</p>
      * <p>The possible values in this key correspond to the values defined in
      * android.os.Build.VERSION_CODES. Each version defines a set of feature combinations the
      * camera device must reliably report whether they are supported via
-     * {@link android.hardware.camera2.CameraManager#isSessionConfigurationWithParametersSupported }
-     * API. And the version is always less or equal to android.os.Build.VERSION.SDK_INT.</p>
-     * <p>If set to UPSIDE_DOWN_CAKE, this camera device doesn't support
-     * {@link android.hardware.camera2.CameraManager#isSessionConfigurationWithParametersSupported }.
-     * Calling the method for this camera ID throws an UnsupportedOperationException.</p>
-     * <p>If set to VANILLA_ICE_CREAM, the application can call
-     * {@link android.hardware.camera2.CameraManager#isSessionConfigurationWithParametersSupported }
-     * to check if the combinations of below features are supported.</p>
+     * {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup#isSessionConfigurationSupported }.
+     * It also defines the set of session specific keys in CameraCharacteristics when returned from
+     * {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup#getSessionCharacteristics }.
+     * The version is always less or equal to android.os.Build.VERSION.SDK_INT.</p>
+     * <p>If set to UPSIDE_DOWN_CAKE, this camera device doesn't support the
+     * {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup } API.
+     * Trying to create a CameraDeviceSetup instance throws an UnsupportedOperationException.</p>
+     * <p>From VANILLA_ICE_CREAM onwards, the camera compliance tests verify a set of
+     * commonly used SessionConfigurations to ensure that the outputs of
+     * {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup#isSessionConfigurationSupported }
+     * and {@link android.hardware.camera2.CameraDevice.CameraDeviceSetup#getSessionCharacteristics }
+     * are accurate. The application is encouraged to use these SessionConfigurations when turning on
+     * multiple features at the same time.</p>
+     * <p>When set to VANILLA_ICE_CREAM, the combinations of the following configurations are verified
+     * by the compliance tests:</p>
      * <ul>
-     * <li>A subset of LIMITED-level device stream combinations.</li>
-     * </ul>
+     * <li>
+     * <p>A set of commonly used stream combinations:</p>
      * <table>
      * <thead>
      * <tr>
@@ -5069,35 +5157,12 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * <th style="text-align: center;">Size</th>
      * <th style="text-align: center;">Target 2</th>
      * <th style="text-align: center;">Size</th>
-     * <th style="text-align: center;">Sample use case(s)</th>
      * </tr>
      * </thead>
      * <tbody>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;">Simple preview, GPU video processing, or no-preview video recording.</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
      * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
      * <td style="text-align: center;"></td>
      * <td style="text-align: center;"></td>
      * </tr>
@@ -5106,227 +5171,138 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
      * <td style="text-align: center;">S720P</td>
      * <td style="text-align: center;"></td>
      * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;">In-application video/image processing.</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;">Standard still imaging.</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
      * </tr>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
      * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">MAXIMUM_16_9</td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">UHD</td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">S1440P</td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">S1080P</td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">UHD</td>
      * </tr>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
      * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">MAXIMUM_16_9</td>
      * </tr>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
      * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;">In-app processing plus still capture.</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">MAXIMUM</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;">JPEG</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;">Standard recording.</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">UHD</td>
      * </tr>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
      * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">PREVIEW</td>
-     * <td style="text-align: center;">Preview plus in-app processing.</td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1440P</td>
-     * <td style="text-align: center;"></td>
-     * </tr>
-     * <tr>
-     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
      * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S1080P</td>
-     * <td style="text-align: center;"></td>
      * </tr>
      * <tr>
      * <td style="text-align: center;">PRIV</td>
-     * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;">YUV</td>
-     * <td style="text-align: center;">S720P</td>
-     * <td style="text-align: center;"></td>
+     * <td style="text-align: center;">XVGA</td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">MAXIMUM_4_3</td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P_4_3</td>
+     * <td style="text-align: center;">JPEG/JPEG_R</td>
+     * <td style="text-align: center;">MAXIMUM_4_3</td>
      * </tr>
      * </tbody>
      * </table>
-     * <pre><code>- {@code MAXIMUM} size refers to the camera device's maximum output resolution for
-     *   that format from {@code StreamConfigurationMap#getOutputSizes}. {@code PREVIEW} size
-     *   refers to the best size match to the device's screen resolution, or to 1080p
-     *   (@code 1920x1080}, whichever is smaller. Both sizes are guaranteed to be supported.
-     *
-     * - {@code S1440P} refers to {@code 1920x1440 (4:3)} and {@code 2560x1440 (16:9)}.
-     *   {@code S1080P} refers to {@code 1440x1080 (4:3)} and {@code 1920x1080 (16:9)}.
-     *   And {@code S720P} refers to {@code 960x720 (4:3)} and {@code 1280x720 (16:9)}.
-     *
-     * - If a combination contains a S1440P, S1080P, or S720P stream,
-     *   both 4:3 and 16:9 aspect ratio sizes can be queried. For example, for the
-     *   stream combination of {PRIV, S1440P, JPEG, MAXIMUM}, and if MAXIMUM ==
-     *   4032 x 3024, the application will be able to query both
-     *   {PRIV, 1920 x 1440, JPEG, 4032 x 3024} and {PRIV, 2560 x 1440, JPEG, 4032 x 2268}
-     *   without an exception being thrown.
-     * </code></pre>
      * <ul>
-     * <li>VIDEO_STABILIZATION_MODES: {OFF, PREVIEW}</li>
-     * <li>AE_TARGET_FPS_RANGE: { {<em>, 30}, {</em>, 60} }</li>
-     * <li>DYNAMIC_RANGE_PROFILE: {STANDARD, HLG10}</li>
+     * <li>{@code MAXIMUM_4_3} refers to the camera device's maximum output resolution with
+     *   4:3 aspect ratio for that format from {@code StreamConfigurationMap#getOutputSizes}.</li>
+     * <li>{@code MAXIMUM_16_9} is the maximum output resolution with 16:9 aspect ratio.</li>
+     * <li>{@code S1440P} refers to {@code 2560x1440 (16:9)}.</li>
+     * <li>{@code S1080P} refers to {@code 1920x1080 (16:9)}.</li>
+     * <li>{@code S720P} refers to {@code 1280x720 (16:9)}.</li>
+     * <li>{@code UHD} refers to {@code 3840x2160 (16:9)}.</li>
+     * <li>{@code XVGA} refers to {@code 1024x768 (4:3)}.</li>
+     * <li>{@code S1080P_43} refers to {@code 1440x1080 (4:3)}.</li>
      * </ul>
+     * </li>
+     * <li>
+     * <p>VIDEO_STABILIZATION_MODE: {OFF, PREVIEW}</p>
+     * </li>
+     * <li>
+     * <p>AE_TARGET_FPS_RANGE: { {*, 30}, {*, 60} }</p>
+     * </li>
+     * <li>
+     * <p>DYNAMIC_RANGE_PROFILE: {STANDARD, HLG10}</p>
+     * </li>
+     * </ul>
+     * <p>All of the above configurations can be set up with a SessionConfiguration. The list of
+     * OutputConfiguration contains the stream configurations and DYNAMIC_RANGE_PROFILE, and
+     * the AE_TARGET_FPS_RANGE and VIDEO_STABILIZATION_MODE are set as session parameters.</p>
+     * <p>When set to BAKLAVA, the additional stream combinations below are verified
+     * by the compliance tests:</p>
+     * <table>
+     * <thead>
+     * <tr>
+     * <th style="text-align: center;">Target 1</th>
+     * <th style="text-align: center;">Size</th>
+     * <th style="text-align: center;">Target 2</th>
+     * <th style="text-align: center;">Size</th>
+     * </tr>
+     * </thead>
+     * <tbody>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * </tr>
+     * <tr>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1080P</td>
+     * <td style="text-align: center;">PRIV</td>
+     * <td style="text-align: center;">S1440P</td>
+     * </tr>
+     * </tbody>
+     * </table>
      * <p>This key is available on all devices.</p>
      */
     @PublicKey
     @NonNull
-    @FlaggedApi(Flags.FLAG_FEATURE_COMBINATION_QUERY)
     public static final Key<Integer> INFO_SESSION_CONFIGURATION_QUERY_VERSION =
             new Key<Integer>("android.info.sessionConfigurationQueryVersion", int.class);
+
+    /**
+     * <p>Id of the device that owns this camera.</p>
+     * <p>In case of a virtual camera, this would be the id of the virtual device
+     * owning the camera. For any other camera, this key would not be present.
+     * Callers should assume {@link android.content.Context#DEVICE_ID_DEFAULT }
+     * in case this key is not present.</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     * @hide
+     */
+    public static final Key<Integer> INFO_DEVICE_ID =
+            new Key<Integer>("android.info.deviceId", int.class);
 
     /**
      * <p>The maximum number of frames that can occur after a request
@@ -5843,6 +5819,122 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
             new Key<android.hardware.camera2.params.StreamConfigurationDuration[]>("android.heic.availableHeicStallDurationsMaximumResolution", android.hardware.camera2.params.StreamConfigurationDuration[].class);
 
     /**
+     * <p>The available HEIC (ISO/IEC 23008-12/24) UltraHDR stream
+     * configurations that this camera device supports
+     * (i.e. format, width, height, output/input stream).</p>
+     * <p>The configurations are listed as <code>(format, width, height, input?)</code> tuples.</p>
+     * <p>All the static, control, and dynamic metadata tags related to JPEG apply to HEIC formats.
+     * Configuring JPEG and HEIC streams at the same time is not supported.</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     * <p><b>Limited capability</b> -
+     * Present on all camera devices that report being at least {@link CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED HARDWARE_LEVEL_LIMITED} devices in the
+     * {@link CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL android.info.supportedHardwareLevel} key</p>
+     *
+     * @see CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_HEIF_GAINMAP)
+    public static final Key<android.hardware.camera2.params.StreamConfiguration[]> HEIC_AVAILABLE_HEIC_ULTRA_HDR_STREAM_CONFIGURATIONS =
+            new Key<android.hardware.camera2.params.StreamConfiguration[]>("android.heic.availableHeicUltraHdrStreamConfigurations", android.hardware.camera2.params.StreamConfiguration[].class);
+
+    /**
+     * <p>This lists the minimum frame duration for each
+     * format/size combination for HEIC UltraHDR output formats.</p>
+     * <p>This should correspond to the frame duration when only that
+     * stream is active, with all processing (typically in android.*.mode)
+     * set to either OFF or FAST.</p>
+     * <p>When multiple streams are used in a request, the minimum frame
+     * duration will be max(individual stream min durations).</p>
+     * <p>See {@link CaptureRequest#SENSOR_FRAME_DURATION android.sensor.frameDuration} and
+     * android.scaler.availableStallDurations for more details about
+     * calculating the max frame rate.</p>
+     * <p><b>Units</b>: (format, width, height, ns) x n</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     * <p><b>Limited capability</b> -
+     * Present on all camera devices that report being at least {@link CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED HARDWARE_LEVEL_LIMITED} devices in the
+     * {@link CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL android.info.supportedHardwareLevel} key</p>
+     *
+     * @see CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL
+     * @see CaptureRequest#SENSOR_FRAME_DURATION
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_HEIF_GAINMAP)
+    public static final Key<android.hardware.camera2.params.StreamConfigurationDuration[]> HEIC_AVAILABLE_HEIC_ULTRA_HDR_MIN_FRAME_DURATIONS =
+            new Key<android.hardware.camera2.params.StreamConfigurationDuration[]>("android.heic.availableHeicUltraHdrMinFrameDurations", android.hardware.camera2.params.StreamConfigurationDuration[].class);
+
+    /**
+     * <p>This lists the maximum stall duration for each
+     * output format/size combination for HEIC UltraHDR streams.</p>
+     * <p>A stall duration is how much extra time would get added
+     * to the normal minimum frame duration for a repeating request
+     * that has streams with non-zero stall.</p>
+     * <p>This functions similarly to
+     * android.scaler.availableStallDurations for HEIC UltraHDR
+     * streams.</p>
+     * <p>All HEIC output stream formats may have a nonzero stall
+     * duration.</p>
+     * <p><b>Units</b>: (format, width, height, ns) x n</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     * <p><b>Limited capability</b> -
+     * Present on all camera devices that report being at least {@link CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED HARDWARE_LEVEL_LIMITED} devices in the
+     * {@link CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL android.info.supportedHardwareLevel} key</p>
+     *
+     * @see CameraCharacteristics#INFO_SUPPORTED_HARDWARE_LEVEL
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_HEIF_GAINMAP)
+    public static final Key<android.hardware.camera2.params.StreamConfigurationDuration[]> HEIC_AVAILABLE_HEIC_ULTRA_HDR_STALL_DURATIONS =
+            new Key<android.hardware.camera2.params.StreamConfigurationDuration[]>("android.heic.availableHeicUltraHdrStallDurations", android.hardware.camera2.params.StreamConfigurationDuration[].class);
+
+    /**
+     * <p>The available HEIC (ISO/IEC 23008-12/24) UltraHDR stream
+     * configurations that this camera device supports
+     * (i.e. format, width, height, output/input stream) for CaptureRequests where
+     * {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode} is set to
+     * {@link android.hardware.camera2.CameraMetadata#SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION }.</p>
+     * <p>Refer to android.heic.availableHeicStreamConfigurations for details.</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     *
+     * @see CaptureRequest#SENSOR_PIXEL_MODE
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_HEIF_GAINMAP)
+    public static final Key<android.hardware.camera2.params.StreamConfiguration[]> HEIC_AVAILABLE_HEIC_ULTRA_HDR_STREAM_CONFIGURATIONS_MAXIMUM_RESOLUTION =
+            new Key<android.hardware.camera2.params.StreamConfiguration[]>("android.heic.availableHeicUltraHdrStreamConfigurationsMaximumResolution", android.hardware.camera2.params.StreamConfiguration[].class);
+
+    /**
+     * <p>This lists the minimum frame duration for each
+     * format/size combination for HEIC UltraHDR output formats for CaptureRequests where
+     * {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode} is set to
+     * {@link android.hardware.camera2.CameraMetadata#SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION }.</p>
+     * <p>Refer to android.heic.availableHeicMinFrameDurations for details.</p>
+     * <p><b>Units</b>: (format, width, height, ns) x n</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     *
+     * @see CaptureRequest#SENSOR_PIXEL_MODE
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_HEIF_GAINMAP)
+    public static final Key<android.hardware.camera2.params.StreamConfigurationDuration[]> HEIC_AVAILABLE_HEIC_ULTRA_HDR_MIN_FRAME_DURATIONS_MAXIMUM_RESOLUTION =
+            new Key<android.hardware.camera2.params.StreamConfigurationDuration[]>("android.heic.availableHeicUltraHdrMinFrameDurationsMaximumResolution", android.hardware.camera2.params.StreamConfigurationDuration[].class);
+
+    /**
+     * <p>This lists the maximum stall duration for each
+     * output format/size combination for HEIC UltraHDR streams for CaptureRequests where
+     * {@link CaptureRequest#SENSOR_PIXEL_MODE android.sensor.pixelMode} is set to
+     * {@link android.hardware.camera2.CameraMetadata#SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION }.</p>
+     * <p>Refer to android.heic.availableHeicStallDurations for details.</p>
+     * <p><b>Units</b>: (format, width, height, ns) x n</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     *
+     * @see CaptureRequest#SENSOR_PIXEL_MODE
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_HEIF_GAINMAP)
+    public static final Key<android.hardware.camera2.params.StreamConfigurationDuration[]> HEIC_AVAILABLE_HEIC_ULTRA_HDR_STALL_DURATIONS_MAXIMUM_RESOLUTION =
+            new Key<android.hardware.camera2.params.StreamConfigurationDuration[]>("android.heic.availableHeicUltraHdrStallDurationsMaximumResolution", android.hardware.camera2.params.StreamConfigurationDuration[].class);
+
+    /**
      * <p>The direction of the camera faces relative to the vehicle body frame and the
      * passenger seats.</p>
      * <p>This enum defines the lens facing characteristic of the cameras on the automotive
@@ -6081,37 +6173,81 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
             new Key<android.hardware.camera2.params.StreamConfigurationDuration[]>("android.jpegr.availableJpegRStallDurationsMaximumResolution", android.hardware.camera2.params.StreamConfigurationDuration[].class);
 
     /**
-     * <p>Minimum and maximum padding zoom factors supported by this camera device for
-     * {@link android.hardware.camera2.ExtensionCaptureRequest#EFV_PADDING_ZOOM_FACTOR } used for the
-     * {@link android.hardware.camera2.CameraExtensionCharacteristics#EXTENSION_EYES_FREE_VIDEOGRAPHY }
-     * extension.</p>
-     * <p>The minimum and maximum padding zoom factors supported by the device for
-     * {@link android.hardware.camera2.ExtensionCaptureRequest#EFV_PADDING_ZOOM_FACTOR } used as part of the
-     * {@link android.hardware.camera2.CameraExtensionCharacteristics#EXTENSION_EYES_FREE_VIDEOGRAPHY }
-     * extension feature. This extension specific camera characteristic can be queried using
-     * {@link android.hardware.camera2.CameraExtensionCharacteristics#get }.</p>
-     * <p><b>Units</b>: A pair of padding zoom factors in floating-points:
-     * (minPaddingZoomFactor, maxPaddingZoomFactor)</p>
-     * <p><b>Range of valid values:</b><br></p>
-     * <p>1.0 &lt; minPaddingZoomFactor &lt;= maxPaddingZoomFactor</p>
+     * <p>Color space used for shared session configuration for all the output targets
+     * when camera is opened in shared mode. This should be one of the values specified in
+     * availableColorSpaceProfilesMap.</p>
+     * <p><b>Possible values:</b></p>
+     * <ul>
+     *   <li>{@link #SHARED_SESSION_COLOR_SPACE_UNSPECIFIED UNSPECIFIED}</li>
+     *   <li>{@link #SHARED_SESSION_COLOR_SPACE_SRGB SRGB}</li>
+     *   <li>{@link #SHARED_SESSION_COLOR_SPACE_DISPLAY_P3 DISPLAY_P3}</li>
+     *   <li>{@link #SHARED_SESSION_COLOR_SPACE_BT2020_HLG BT2020_HLG}</li>
+     * </ul>
+     *
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     * @see #SHARED_SESSION_COLOR_SPACE_UNSPECIFIED
+     * @see #SHARED_SESSION_COLOR_SPACE_SRGB
+     * @see #SHARED_SESSION_COLOR_SPACE_DISPLAY_P3
+     * @see #SHARED_SESSION_COLOR_SPACE_BT2020_HLG
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAMERA_MULTI_CLIENT)
+    public static final Key<Integer> SHARED_SESSION_COLOR_SPACE =
+            new Key<Integer>("android.sharedSession.colorSpace", int.class);
+
+    /**
+     * <p>List of shared output configurations that this camera device supports when
+     * camera is opened in shared mode. Array contains following entries for each supported
+     * shared configuration:
+     * 1) surface type
+     * 2) width
+     * 3) height
+     * 4) format
+     * 5) mirrorMode
+     * 6) useReadoutTimestamp
+     * 7) timestampBase
+     * 8) dataspace
+     * 9) usage
+     * 10) streamUsecase
+     * 11) physical camera id len
+     * 12) physical camera id as UTF-8 null terminated string.</p>
      * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
      * @hide
      */
-    @ExtensionKey
-    @FlaggedApi(Flags.FLAG_CONCERT_MODE)
-    public static final Key<android.util.Range<Float>> EFV_PADDING_ZOOM_FACTOR_RANGE =
-            new Key<android.util.Range<Float>>("android.efv.paddingZoomFactorRange", new TypeReference<android.util.Range<Float>>() {{ }});
+    @FlaggedApi(Flags.FLAG_CAMERA_MULTI_CLIENT)
+    public static final Key<long[]> SHARED_SESSION_OUTPUT_CONFIGURATIONS =
+            new Key<long[]>("android.sharedSession.outputConfigurations", long[].class);
+
+    /**
+     * <p>The available stream configurations that this camera device supports for
+     * shared capture session when camera is opened in shared mode. Android camera framework
+     * will generate this tag if the camera device can be opened in shared mode.</p>
+     * <p><b>Optional</b> - The value for this key may be {@code null} on some devices.</p>
+     * @hide
+     */
+    @SystemApi
+    @NonNull
+    @SyntheticKey
+    @FlaggedApi(Flags.FLAG_CAMERA_MULTI_CLIENT)
+    public static final Key<android.hardware.camera2.params.SharedSessionConfiguration> SHARED_SESSION_CONFIGURATION =
+            new Key<android.hardware.camera2.params.SharedSessionConfiguration>("android.sharedSession.configuration", android.hardware.camera2.params.SharedSessionConfiguration.class);
+
+
+    /**
+     * Mapping from INFO_SESSION_CONFIGURATION_QUERY_VERSION to session characteristics key.
+     */
+    private static final Map<Integer, Key<?>[]> AVAILABLE_SESSION_CHARACTERISTICS_KEYS_MAP =
+            Map.ofEntries(
+                Map.entry(
+                    35,
+                    new Key<?>[] {
+                        CONTROL_ZOOM_RATIO_RANGE,
+                        SCALER_AVAILABLE_MAX_DIGITAL_ZOOM,
+                    }
+                )
+            );
 
     /*~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~
      * End generated code
      *~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~O@*/
-
-
-
-
-
-
-
-
-
 }

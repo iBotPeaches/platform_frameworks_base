@@ -16,23 +16,29 @@
 
 package com.android.systemui.util.kotlin
 
+import android.os.Handler
+import com.android.systemui.coroutines.newTracingContext
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.dagger.qualifiers.Tracing
+import com.android.systemui.dagger.qualifiers.UiBackground
+import com.android.systemui.util.settings.SettingsSingleThreadBackground
 import dagger.Module
 import dagger.Provides
+import java.util.concurrent.Executor
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.plus
 
 private const val LIMIT_BACKGROUND_DISPATCHER_THREADS = true
 
-/** Providers for various SystemIU specific coroutines-related constructs. */
+/** Providers for various SystemUI-specific coroutines-related constructs. */
 @Module
 class SysUICoroutinesModule {
     @Provides
@@ -56,7 +62,7 @@ class SysUICoroutinesModule {
     @Background
     @Deprecated(
         "Use @Background CoroutineContext instead",
-        ReplaceWith("bgCoroutineContext()", "kotlin.coroutines.CoroutineContext")
+        ReplaceWith("bgCoroutineContext()", "kotlin.coroutines.CoroutineContext"),
     )
     fun bgDispatcher(): CoroutineDispatcher {
         return if (LIMIT_BACKGROUND_DISPATCHER_THREADS) {
@@ -67,7 +73,7 @@ class SysUICoroutinesModule {
             // code on those.
             newFixedThreadPoolContext(
                 nThreads = Runtime.getRuntime().availableProcessors(),
-                name = "SystemUIBg"
+                name = "SystemUIBg",
             )
         } else {
             Dispatchers.IO
@@ -75,12 +81,46 @@ class SysUICoroutinesModule {
     }
 
     @Provides
+    @SysUISingleton
+    @SettingsSingleThreadBackground
+    fun settingsBgDispatcher(@Background bgHandler: Handler): CoroutineDispatcher {
+        // Handlers are guaranteed to be sequential so we use that one for now.
+        return bgHandler.asCoroutineDispatcher("SettingsBg")
+    }
+
+    @Provides
+    @SysUISingleton
+    @SettingsSingleThreadBackground
+    fun settingsScope(@Background bgDispatcher: CoroutineDispatcher): CoroutineScope {
+        return CoroutineScope(bgDispatcher + newTracingContext("SettingsProxy"))
+    }
+
+    @Provides
     @Background
     @SysUISingleton
     fun bgCoroutineContext(
-        @Tracing tracingCoroutineContext: CoroutineContext,
-        @Background bgCoroutineDispatcher: CoroutineDispatcher,
+        @Background bgCoroutineDispatcher: CoroutineDispatcher
     ): CoroutineContext {
-        return bgCoroutineDispatcher + tracingCoroutineContext
+        return bgCoroutineDispatcher
+    }
+
+    /** Coroutine dispatcher for background operations on for UI. */
+    @Provides
+    @SysUISingleton
+    @UiBackground
+    @Deprecated(
+        "Use @UiBackground CoroutineContext instead",
+        ReplaceWith("uiBgCoroutineContext()", "kotlin.coroutines.CoroutineContext"),
+    )
+    fun uiBgDispatcher(@UiBackground uiBgExecutor: Executor): CoroutineDispatcher =
+        uiBgExecutor.asCoroutineDispatcher()
+
+    @Provides
+    @UiBackground
+    @SysUISingleton
+    fun uiBgCoroutineContext(
+        @UiBackground uiBgCoroutineDispatcher: CoroutineDispatcher
+    ): CoroutineContext {
+        return uiBgCoroutineDispatcher
     }
 }

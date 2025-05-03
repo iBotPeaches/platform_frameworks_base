@@ -73,6 +73,7 @@ combined_apis {
         "framework-bluetooth",
         "framework-configinfrastructure",
         "framework-connectivity",
+        "framework-connectivity-b",
         "framework-connectivity-t",
         "framework-devicelock",
         "framework-graphics",
@@ -87,6 +88,7 @@ combined_apis {
         "framework-permission",
         "framework-permission-s",
         "framework-profiling",
+        "framework-photopicker",
         "framework-scheduling",
         "framework-sdkextensions",
         "framework-statsd",
@@ -100,6 +102,20 @@ combined_apis {
         "true": [
             "framework-crashrecovery",
         ],
+        default: [
+            "framework-platformcrashrecovery",
+        ],
+    }) + select(release_flag("RELEASE_ONDEVICE_INTELLIGENCE_MODULE"), {
+        true: [
+            "framework-ondeviceintelligence",
+        ],
+        default: [
+            "framework-ondeviceintelligence-platform",
+        ],
+    }) + select(release_flag("RELEASE_RANGING_STACK"), {
+        true: [
+            "framework-ranging",
+        ],
         default: [],
     }),
     system_server_classpath: [
@@ -110,7 +126,12 @@ combined_apis {
         "service-permission",
         "service-rkp",
         "service-sdksandbox",
-    ] + select(soong_config_variable("ANDROID", "release_crashrecovery_module"), {
+    ] + select(release_flag("RELEASE_ONDEVICE_INTELLIGENCE_MODULE"), {
+        true: [
+            "service-ondeviceintelligence",
+        ],
+        default: [],
+    }) + select(soong_config_variable("ANDROID", "release_crashrecovery_module"), {
         "true": [
             "service-crashrecovery",
         ],
@@ -118,27 +139,54 @@ combined_apis {
     }),
 }
 
-genrule {
+// Create a single file containing the latest released version of the whole
+// Android public API.
+java_genrule {
+    name: "android.api.merged.public.latest",
+    srcs: [
+        ":android.api.combined.public.latest",
+    ],
+    out: ["public-latest.txt"],
+    tools: ["metalava"],
+    cmd: metalava_cmd + " merge-signatures --format=2.0 $(in) --out $(out)",
+}
+
+// Make sure that the Android public API is compatible with the
+// previously released public API.
+java_genrule {
     name: "frameworks-base-api-current-compat",
     srcs: [
-        ":android.api.public.latest",
+        ":android.api.merged.public.latest",
         ":android-incompatibilities.api.public.latest",
         ":frameworks-base-api-current.txt",
     ],
     out: ["updated-baseline.txt"],
     tools: ["metalava"],
     cmd: metalava_cmd +
-        "--check-compatibility:api:released $(location :android.api.public.latest) " +
+        "--check-compatibility:api:released $(location :android.api.merged.public.latest) " +
         "--baseline:compatibility:released $(location :android-incompatibilities.api.public.latest) " +
         "--update-baseline:compatibility:released $(genDir)/updated-baseline.txt " +
         "$(location :frameworks-base-api-current.txt)",
 }
 
-genrule {
+// Create a single file containing the latest released version of the whole
+// Android system API.
+java_genrule {
+    name: "android.api.merged.system.latest",
+    srcs: [
+        ":android.api.combined.system.latest",
+    ],
+    out: ["system-latest.txt"],
+    tools: ["metalava"],
+    cmd: metalava_cmd + " merge-signatures --format=2.0 $(in) --out $(out)",
+}
+
+// Make sure that the Android system API is compatible with the
+// previously released system API.
+java_genrule {
     name: "frameworks-base-api-system-current-compat",
     srcs: [
-        ":android.api.public.latest",
-        ":android.api.system.latest",
+        ":android.api.merged.system.latest",
         ":android-incompatibilities.api.system.latest",
         ":frameworks-base-api-current.txt",
         ":frameworks-base-api-system-current.txt",
@@ -146,20 +194,31 @@ genrule {
     out: ["updated-baseline.txt"],
     tools: ["metalava"],
     cmd: metalava_cmd +
-        "--check-compatibility:api:released $(location :android.api.public.latest) " +
-        "--check-compatibility:api:released $(location :android.api.system.latest) " +
+        "--check-compatibility:api:released $(location :android.api.merged.system.latest) " +
         "--baseline:compatibility:released $(location :android-incompatibilities.api.system.latest) " +
         "--update-baseline:compatibility:released $(genDir)/updated-baseline.txt " +
         "$(location :frameworks-base-api-current.txt) " +
         "$(location :frameworks-base-api-system-current.txt)",
 }
 
-genrule {
+// Create a single file containing the latest released version of the whole
+// Android module-lib API.
+java_genrule {
+    name: "android.api.merged.module-lib.latest",
+    srcs: [
+        ":android.api.combined.module-lib.latest",
+    ],
+    out: ["module-lib-latest.txt"],
+    tools: ["metalava"],
+    cmd: metalava_cmd + " merge-signatures --format=2.0 $(in) --out $(out)",
+}
+
+// Make sure that the Android module-lib API is compatible with the
+// previously released module-lib API.
+java_genrule {
     name: "frameworks-base-api-module-lib-current-compat",
     srcs: [
-        ":android.api.public.latest",
-        ":android.api.system.latest",
-        ":android.api.module-lib.latest",
+        ":android.api.merged.module-lib.latest",
         ":android-incompatibilities.api.module-lib.latest",
         ":frameworks-base-api-current.txt",
         ":frameworks-base-api-system-current.txt",
@@ -168,9 +227,7 @@ genrule {
     out: ["updated-baseline.txt"],
     tools: ["metalava"],
     cmd: metalava_cmd +
-        "--check-compatibility:api:released $(location :android.api.public.latest) " +
-        "--check-compatibility:api:released $(location :android.api.system.latest) " +
-        "--check-compatibility:api:released $(location :android.api.module-lib.latest) " +
+        "--check-compatibility:api:released $(location :android.api.merged.module-lib.latest) " +
         "--baseline:compatibility:released $(location :android-incompatibilities.api.module-lib.latest) " +
         "--update-baseline:compatibility:released $(genDir)/updated-baseline.txt " +
         "$(location :frameworks-base-api-current.txt) " +
@@ -178,14 +235,14 @@ genrule {
         "$(location :frameworks-base-api-module-lib-current.txt)",
 }
 
-genrule {
+java_genrule {
     name: "frameworks-base-api-current.srcjar",
     tools: ["merge_zips"],
     out: ["current.srcjar"],
     cmd: "$(location merge_zips) $(out) $(in)",
     srcs: [
         ":api-stubs-docs-non-updatable{.exportable}",
-        ":all-modules-public-stubs-source",
+        ":all-modules-public-stubs-source-exportable",
     ],
     visibility: ["//visibility:private"], // Used by make module in //development, mind
 }
@@ -203,7 +260,7 @@ genrule_defaults {
         "$(location soong_zip) -o $(out) -C $(genDir)/out -D $(genDir)/out",
 }
 
-genrule {
+java_genrule {
     name: "sdk-annotations.zip",
     defaults: ["sdk-annotations-defaults"],
     srcs: [
@@ -212,7 +269,7 @@ genrule {
     ],
 }
 
-genrule {
+java_genrule {
     name: "sdk-annotations-system.zip",
     defaults: ["sdk-annotations-defaults"],
     srcs: [
@@ -221,7 +278,7 @@ genrule {
     ],
 }
 
-genrule {
+java_genrule {
     name: "sdk-annotations-module-lib.zip",
     defaults: ["sdk-annotations-defaults"],
     srcs: [
@@ -230,7 +287,7 @@ genrule {
     ],
 }
 
-genrule {
+java_genrule {
     name: "sdk-annotations-system-server.zip",
     defaults: ["sdk-annotations-defaults"],
     srcs: [
@@ -239,7 +296,7 @@ genrule {
     ],
 }
 
-genrule {
+java_genrule {
     name: "combined-removed-dex",
     visibility: [
         "//frameworks/base/boot",
@@ -284,7 +341,7 @@ packages_to_document = [
 // These are libs from framework-internal-utils that are required (i.e. being referenced)
 // from framework-non-updatable-sources. Add more here when there's a need.
 // DO NOT add the entire framework-internal-utils. It might cause unnecessary circular
-// dependencies gets bigger.
+// dependencies when the list gets bigger.
 android_non_updatable_stubs_libs = [
     "android.hardware.cas-V1.2-java",
     "android.hardware.health-V1.0-java-constants",
@@ -325,8 +382,11 @@ stubs_defaults {
             "packages/modules/Media/apex/aidl/stable",
             "hardware/interfaces/biometrics/common/aidl",
             "hardware/interfaces/biometrics/fingerprint/aidl",
+            "hardware/interfaces/common/aidl",
+            "hardware/interfaces/common/fmq/aidl",
             "hardware/interfaces/graphics/common/aidl",
             "hardware/interfaces/keymaster/aidl",
+            "hardware/interfaces/power/aidl",
             "system/hardware/interfaces/media/aidl",
         ],
     },
@@ -339,6 +399,7 @@ stubs_defaults {
         "--error NoSettingsProvider",
         "--error UnhiddenSystemApi",
         "--error UnflaggedApi",
+        "--error FlaggedApiLiteral",
         "--force-convert-to-warning-nullability-annotations +*:-android.*:+android.icu.*:-dalvik.*",
         // Disable CallbackInterface, as Java 8 default interface methods avoid the extensibility
         // issue interfaces had previously.
@@ -381,6 +442,11 @@ non_updatable_api_deps_on_modules = [
     "sdk_system_current_android",
 ]
 
+java_defaults {
+    name: "module-classpath-java-defaults",
+    libs: non_updatable_api_deps_on_modules,
+}
+
 // Defaults with module APIs in the classpath (mostly from prebuilts).
 // Suitable for compiling android-non-updatable.
 stubs_defaults {
@@ -422,7 +488,9 @@ java_defaults {
     impl_library_visibility: ["//frameworks/base"],
     defaults_visibility: [
         "//frameworks/base/location",
+        "//frameworks/base/packages/CrashRecovery/framework",
         "//frameworks/base/nfc",
+        "//packages/modules/NeuralNetworks:__subpackages__",
     ],
     plugins: ["error_prone_android_framework"],
     errorprone: {
@@ -446,7 +514,7 @@ genrule_defaults {
     tools: ["extract-flagged-apis"],
 }
 
-genrule {
+java_genrule {
     name: "flag-api-mapping-PublicApi",
     defaults: ["flag-api-mapping-generation-defaults"],
     srcs: [":frameworks-base-api-current.txt"],
@@ -456,7 +524,7 @@ genrule {
     },
 }
 
-genrule {
+java_genrule {
     name: "flag-api-mapping-SystemApi",
     defaults: ["flag-api-mapping-generation-defaults"],
     srcs: [":frameworks-base-api-system-current.txt"],
@@ -466,7 +534,7 @@ genrule {
     },
 }
 
-genrule {
+java_genrule {
     name: "flag-api-mapping-ModuleLibApi",
     defaults: ["flag-api-mapping-generation-defaults"],
     srcs: [":frameworks-base-api-module-lib-current.txt"],
@@ -476,7 +544,7 @@ genrule {
     },
 }
 
-genrule {
+java_genrule {
     name: "flag-api-mapping-SystemServerApi",
     defaults: ["flag-api-mapping-generation-defaults"],
     srcs: [":frameworks-base-api-system-server-current.txt"],

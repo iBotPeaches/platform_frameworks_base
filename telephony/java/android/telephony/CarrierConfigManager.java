@@ -51,6 +51,7 @@ import android.telephony.ims.MediaQualityStatus;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.feature.RcsFeature;
+import android.telephony.satellite.SatelliteManager;
 
 import com.android.internal.telephony.ICarrierConfigLoader;
 import com.android.internal.telephony.flags.Flags;
@@ -252,7 +253,6 @@ public class CarrierConfigManager {
      *
      * The default value is true.
      */
-    @FlaggedApi(Flags.FLAG_SHOW_CALL_ID_AND_CALL_WAITING_IN_ADDITIONAL_SETTINGS_MENU)
     public static final String KEY_ADDITIONAL_SETTINGS_CALLER_ID_VISIBILITY_BOOL =
             "additional_settings_caller_id_visibility_bool";
 
@@ -262,7 +262,6 @@ public class CarrierConfigManager {
      *
      * The default value is true.
      */
-    @FlaggedApi(Flags.FLAG_SHOW_CALL_ID_AND_CALL_WAITING_IN_ADDITIONAL_SETTINGS_MENU)
     public static final String KEY_ADDITIONAL_SETTINGS_CALL_WAITING_VISIBILITY_BOOL =
             "additional_settings_call_waiting_visibility_bool";
 
@@ -318,8 +317,10 @@ public class CarrierConfigManager {
      * If this is set as false and the supplementary service menu is visible, the associated setting
      * will be enabled and disabled based on the availability of supplementary services over UT. See
      * {@link #KEY_CARRIER_SUPPORTS_SS_OVER_UT_BOOL}.
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_SUPPORT_SS_OVER_CDMA_BOOL = "support_ss_over_cdma_bool";
 
     /**
@@ -419,6 +420,7 @@ public class CarrierConfigManager {
      * <p>
      * Note: This requires the Telephony config_supports_telephony_audio_device overlay to be true
      * in order to work.
+     * @deprecated this functionality was never used and is no longer supported.
      * @hide
      */
     public static final String KEY_PLAY_CALL_RECORDING_TONE_BOOL = "play_call_recording_tone_bool";
@@ -536,7 +538,11 @@ public class CarrierConfigManager {
      */
     public static final String KEY_4G_ONLY_BOOL = "4g_only_bool";
 
-    /** Show cdma network mode choices 1x, 3G, global etc. */
+    /** Show cdma network mode choices 1x, 3G, global etc.
+     * @deprecated Legacy CDMA is unsupported.
+     */
+    @Deprecated
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
     public static final String KEY_SHOW_CDMA_CHOICES_BOOL = "show_cdma_choices_bool";
 
     /** CDMA activation goes through HFA */
@@ -544,9 +550,12 @@ public class CarrierConfigManager {
 
     /**
      * CDMA activation goes through OTASP.
+     * @deprecated Legacy CDMA is unsupported.
      */
     // TODO: This should be combined with config_use_hfa_for_provisioning and implemented as an enum
     // (NONE, HFA, OTASP).
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     public static final String KEY_USE_OTASP_FOR_PROVISIONING_BOOL =
             "use_otasp_for_provisioning_bool";
 
@@ -556,10 +565,20 @@ public class CarrierConfigManager {
     /** Does not display additional call setting for IMS phone based on GSM Phone */
     public static final String KEY_ADDITIONAL_CALL_SETTING_BOOL = "additional_call_setting_bool";
 
-    /** Show APN Settings for some CDMA carriers */
+    /**
+     * Show APN Settings for some CDMA carriers
+     * @deprecated Legacy CDMA is unsupported.
+     */
+    @Deprecated
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
     public static final String KEY_SHOW_APN_SETTING_CDMA_BOOL = "show_apn_setting_cdma_bool";
 
-    /** After a CDMA conference call is merged, the swap button should be displayed. */
+    /**
+     * After a CDMA conference call is merged, the swap button should be displayed.
+     * @deprecated Legacy CDMA is unsupported.
+     */
+    @Deprecated
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
     public static final String KEY_SUPPORT_SWAP_AFTER_MERGE_BOOL = "support_swap_after_merge_bool";
 
     /**
@@ -597,7 +616,10 @@ public class CarrierConfigManager {
     /**
      * Disables dialing "*228" (OTASP provisioning) on CDMA carriers where it is not supported or is
      * potentially harmful by locking the SIM to 3G.
+     * @deprecated Legacy CDMA is unsupported.
      */
+    @Deprecated
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
     public static final String KEY_DISABLE_CDMA_ACTIVATION_CODE_BOOL =
             "disable_cdma_activation_code_bool";
 
@@ -675,14 +697,20 @@ public class CarrierConfigManager {
     /**
      * Override the platform's notion of a network operator being considered roaming.
      * Value is string array of SIDs to be considered roaming for 3GPP2 RATs.
+     * @deprecated Legacy CDMA is unsupported.
      */
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     public static final String
             KEY_CDMA_ROAMING_NETWORKS_STRING_ARRAY = "cdma_roaming_networks_string_array";
 
     /**
      * Override the platform's notion of a network operator being considered non roaming.
      * Value is string array of SIDs to be considered not roaming for 3GPP2 RATs.
+     * @deprecated Legacy CDMA is unsupported.
      */
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     public static final String
             KEY_CDMA_NONROAMING_NETWORKS_STRING_ARRAY = "cdma_nonroaming_networks_string_array";
 
@@ -1243,8 +1271,10 @@ public class CarrierConfigManager {
 
     /**
      * CDMA carrier ERI (Enhanced Roaming Indicator) file name
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_CARRIER_ERI_FILE_NAME_STRING = "carrier_eri_file_name_string";
 
     /* The following 3 fields are related to carrier visual voicemail. */
@@ -1386,7 +1416,10 @@ public class CarrierConfigManager {
      * Specifies the amount of gap to be added in millis between postdial DTMF tones. When a
      * non-zero value is specified, the UE shall wait for the specified amount of time before it
      * sends out successive DTMF tones on the network.
+     * @deprecated Legacy CDMA is unsupported.
      */
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     public static final String KEY_CDMA_DTMF_TONE_DELAY_INT = "cdma_dtmf_tone_delay_int";
 
     /**
@@ -1804,8 +1837,10 @@ public class CarrierConfigManager {
      * If this bit is not set, the carrier name display string will be selected from the carrier
      * display name resolver which doesn't apply the ERI rules.
      *
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_ALLOW_ERI_BOOL = "allow_cdma_eri_bool";
 
     /**
@@ -1849,8 +1884,10 @@ public class CarrierConfigManager {
      * If true, then the registered PLMN name (only for CDMA/CDMA-LTE and only when not roaming)
      * will be #KEY_CDMA_HOME_REGISTERED_PLMN_NAME_STRING. If false, or if phone type is not
      * CDMA/CDMA-LTE or if roaming, then #KEY_CDMA_HOME_REGISTERED_PLMN_NAME_STRING will be ignored.
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_CDMA_HOME_REGISTERED_PLMN_NAME_OVERRIDE_BOOL =
             "cdma_home_registered_plmn_name_override_bool";
 
@@ -1858,8 +1895,10 @@ public class CarrierConfigManager {
      * String to identify registered PLMN name in CarrierConfig app. This string overrides
      * registered PLMN name if #KEY_CDMA_HOME_REGISTERED_PLMN_NAME_OVERRIDE_BOOL is true, phone type
      * is CDMA/CDMA-LTE and device is not in roaming state; otherwise, it will be ignored.
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_CDMA_HOME_REGISTERED_PLMN_NAME_STRING =
             "cdma_home_registered_plmn_name_string";
 
@@ -2183,8 +2222,8 @@ public class CarrierConfigManager {
      * Maximum size in bytes of the PDU to send or download when connected to a non-terrestrial
      * network. MmsService will return a result code of MMS_ERROR_TOO_LARGE_FOR_TRANSPORT if
      * the PDU exceeds this limit when connected to a non-terrestrial network.
-     * @hide
      */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
     public static final String KEY_MMS_MAX_NTN_PAYLOAD_SIZE_BYTES_INT =
             "mms_max_ntn_payload_size_bytes_int";
 
@@ -2440,7 +2479,10 @@ public class CarrierConfigManager {
      * For carriers which require an empty flash to be sent before sending the normal 3-way calling
      * flash, the duration in milliseconds of the empty flash to send. When {@code 0}, no empty
      * flash is sent.
+     * @deprecated Legacy CDMA is unsupported.
      */
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     public static final String KEY_CDMA_3WAYCALL_FLASH_DELAY_INT = "cdma_3waycall_flash_delay_int";
 
     /**
@@ -2454,14 +2496,21 @@ public class CarrierConfigManager {
      * @see TelephonyManager#CDMA_ROAMING_MODE_HOME
      * @see TelephonyManager#CDMA_ROAMING_MODE_AFFILIATED
      * @see TelephonyManager#CDMA_ROAMING_MODE_ANY
+     *
+     * @deprecated Legacy CDMA is unsupported.
      */
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     public static final String KEY_CDMA_ROAMING_MODE_INT = "cdma_roaming_mode_int";
 
     /**
      * Determines whether 1X voice calls is supported for some CDMA carriers.
      * Default value is true.
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @FlaggedApi(Flags.FLAG_DEPRECATE_CDMA)
+    @Deprecated
     @SystemApi
     public static final String KEY_SUPPORT_CDMA_1X_VOICE_CALLS_BOOL =
             "support_cdma_1x_voice_calls_bool";
@@ -2483,8 +2532,10 @@ public class CarrierConfigManager {
     /**
      * Report IMEI as device id even if it's a CDMA/LTE phone.
      *
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_FORCE_IMEI_BOOL = "force_imei_bool";
 
     /**
@@ -3217,8 +3268,10 @@ public class CarrierConfigManager {
      * on a 3GPP network. Specifically *67<number> will be converted to #31#<number> and
      * *82<number> will be converted to *31#<number> before dialing a call when this key is
      * set TRUE and device is roaming on a 3GPP network.
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_CONVERT_CDMA_CALLER_ID_MMI_CODES_WHILE_ROAMING_ON_3GPP_BOOL =
             "convert_cdma_caller_id_mmi_codes_while_roaming_on_3gpp_bool";
 
@@ -3313,6 +3366,18 @@ public class CarrierConfigManager {
      */
     public static final String KEY_SUPPORT_NO_REPLY_TIMER_FOR_CFNRY_BOOL =
             "support_no_reply_timer_for_cfnry_bool";
+
+    /**
+     * No reply time value to be sent to network for call forwarding on no reply
+     * (CFNRy 3GPP TS 24.082 version 17.0 section 3).
+     * Controls time in seconds for the no reply condition on in the call forwarding
+     * settings UI.
+     * This is available when {@link #KEY_SUPPORT_NO_REPLY_TIMER_FOR_CFNRY_BOOL} is true.
+     *
+     * @hide
+     */
+    public static final String KEY_NO_REPLY_TIMER_FOR_CFNRY_SEC_INT =
+            "no_reply_timer_for_cfnry_sec_int";
 
     /**
      * List of the FAC (feature access codes) to dial as a normal call.
@@ -3609,8 +3674,11 @@ public class CarrierConfigManager {
     /**
      * Support for the original string display of CDMA MO call.
      * By default, it is disabled.
+     *
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_CONFIG_SHOW_ORIG_DIAL_STRING_FOR_CDMA_BOOL =
             "config_show_orig_dial_string_for_cdma";
 
@@ -3876,7 +3944,7 @@ public class CarrierConfigManager {
 
     /**
      * Whether device resets all of NR timers when device is in a voice call and QOS is established.
-     * The default value is false;
+     * The default value is true;
      *
      * @see #KEY_5G_ICON_DISPLAY_GRACE_PERIOD_STRING
      * @see #KEY_5G_ICON_DISPLAY_SECONDARY_GRACE_PERIOD_STRING
@@ -5016,6 +5084,18 @@ public class CarrierConfigManager {
         public static final String KEY_ES_SUPL_DATA_PLANE_ONLY_ROAMING_PLMN_STRING_ARRAY =
                 KEY_PREFIX + "es_supl_data_plane_only_roaming_plmn_string_array";
 
+        /**
+         * Determine whether to enable Net Initiated SUPL (NI SUPL) message injection.
+         * If enabled, the GnssLocationProvider will monitor for WAP PUSH or MT SMS NI SUPL intents
+         * and subsequently inject the NI SUPL packet into the GNSS HAL.
+         * {@code false} - Disable NI SUPL message injection. This is default.
+         * {@code true} - Enable NI SUPL message injection.
+         */
+        @FlaggedApi(android.location.flags.Flags
+                .FLAG_ENABLE_NI_SUPL_MESSAGE_INJECTION_BY_CARRIER_CONFIG_BUGFIX)
+        public static final String KEY_ENABLE_NI_SUPL_MESSAGE_INJECTION_BOOL =
+                KEY_PREFIX + "enable_ni_supl_message_injection_bool";
+
         private static PersistableBundle getDefaults() {
             PersistableBundle defaults = new PersistableBundle();
             defaults.putBoolean(KEY_PERSIST_LPP_MODE_BOOL, true);
@@ -5033,6 +5113,9 @@ public class CarrierConfigManager {
             defaults.putInt(KEY_ES_SUPL_CONTROL_PLANE_SUPPORT_INT,
                     SUPL_EMERGENCY_MODE_TYPE_CP_ONLY);
             defaults.putStringArray(KEY_ES_SUPL_DATA_PLANE_ONLY_ROAMING_PLMN_STRING_ARRAY, null);
+            if (android.location.flags.Flags.enableNiSuplMessageInjectionByCarrierConfigBugfix()) {
+                defaults.putBoolean(KEY_ENABLE_NI_SUPL_MESSAGE_INJECTION_BOOL, false);
+            }
             return defaults;
         }
     }
@@ -5043,8 +5126,10 @@ public class CarrierConfigManager {
      * The default values come from 3GPP2 C.R1001 table 8.1-1.
      * Enhanced Roaming Indicator Number Assignments
      *
+     * @deprecated Legacy CDMA is unsupported.
      * @hide
      */
+    @Deprecated
     public static final String KEY_CDMA_ENHANCED_ROAMING_INDICATOR_FOR_HOME_NETWORK_INT_ARRAY =
             "cdma_enhanced_roaming_indicator_for_home_network_int_array";
 
@@ -5305,6 +5390,19 @@ public class CarrierConfigManager {
          */
         public static final String KEY_ENABLE_PRESENCE_GROUP_SUBSCRIBE_BOOL =
                 KEY_PREFIX + "enable_presence_group_subscribe_bool";
+
+        /**
+         * SIP SUBSCRIBE retry duration used when device doesn't receive a response to SIP
+         * SUBSCRIBE request.
+         * If this value is not defined or defined as negative value, the device does not retry
+         * the SIP SUBSCRIBE.
+         * If the value is 0 then device retries immediately upon timeout.
+         * If the value is > 0 then device waits for configured duration and retries after timeout
+         * is detected
+         * @hide
+         */
+        public static final String KEY_SUBSCRIBE_RETRY_DURATION_MILLIS_LONG =
+                KEY_PREFIX + "subscribe_retry_duration_millis_long";
 
         /**
          * Flag indicating whether or not to use SIP URI when send a presence subscribe.
@@ -5982,6 +6080,7 @@ public class CarrierConfigManager {
             defaults.putBoolean(KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL, false);
             defaults.putBoolean(KEY_RCS_BULK_CAPABILITY_EXCHANGE_BOOL, false);
             defaults.putBoolean(KEY_ENABLE_PRESENCE_GROUP_SUBSCRIBE_BOOL, false);
+            defaults.putLong(KEY_SUBSCRIBE_RETRY_DURATION_MILLIS_LONG, -1);
             defaults.putBoolean(KEY_USE_SIP_URI_FOR_PRESENCE_SUBSCRIBE_BOOL, false);
             defaults.putInt(KEY_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC_INT, 30 * 24 * 60 * 60);
             defaults.putBoolean(KEY_RCS_REQUEST_FORBIDDEN_BY_SIP_489_BOOL, false);
@@ -7987,6 +8086,27 @@ public class CarrierConfigManager {
                 KEY_SCAN_LIMITED_SERVICE_AFTER_VOLTE_FAILURE_BOOL =
                     KEY_PREFIX + "scan_limited_service_after_volte_failure_bool";
 
+        /**
+         * This config defines {@link ImsReasonInfo} code with which the emergency call
+         * shall be retried.
+         *
+         * <p>
+         * If the reason code is one of the following, the emergency call shall be retried
+         * regardless of this configuration.
+         * <ul>
+         * <li>{@link ImsReasonInfo#CODE_LOCAL_CALL_CS_RETRY_REQUIRED}</li>
+         * <li>{@link ImsReasonInfo#CODE_LOCAL_NOT_REGISTERED}</li>
+         * <li>{@link ImsReasonInfo#CODE_SIP_ALTERNATE_EMERGENCY_CALL}</li>
+         * </ul>
+         * <p>
+         *
+         * This config is empty by default.
+         *
+         * @hide
+         */
+        public static final String KEY_IMS_REASONINFO_CODE_TO_RETRY_EMERGENCY_INT_ARRAY =
+                KEY_PREFIX + "ims_reasoninfo_code_to_retry_emergency_int_array";
+
         private static PersistableBundle getDefaults() {
             PersistableBundle defaults = new PersistableBundle();
             defaults.putBoolean(KEY_RETRY_EMERGENCY_ON_IMS_PDN_BOOL, false);
@@ -8059,6 +8179,8 @@ public class CarrierConfigManager {
             defaults.putBoolean(KEY_START_QUICK_CROSS_STACK_REDIAL_TIMER_WHEN_REGISTERED_BOOL,
                     true);
             defaults.putBoolean(KEY_SCAN_LIMITED_SERVICE_AFTER_VOLTE_FAILURE_BOOL, false);
+            defaults.putIntArray(KEY_IMS_REASONINFO_CODE_TO_RETRY_EMERGENCY_INT_ARRAY,
+                    new int[0]);
 
             return defaults;
         }
@@ -9554,9 +9676,8 @@ public class CarrierConfigManager {
      * Defines the rules for data setup retry.
      *
      * The syntax of the retry rule:
-     * 1. Retry based on {@link NetworkCapabilities}. Note that only APN-type network capabilities
-     *    are supported. If the capabilities are not specified, then the retry rule only applies
-     *    to the current failed APN used in setup data call request.
+     * 1. Retry based on {@link NetworkCapabilities}. If the capabilities are not specified, then
+     * the retry rule only applies to the current failed APN used in setup data call request.
      * "capabilities=[netCaps1|netCaps2|...], [retry_interval=n1|n2|n3|n4...], [maximum_retries=n]"
      *
      * 2. Retry based on {@link DataFailCause}
@@ -9671,6 +9792,34 @@ public class CarrierConfigManager {
             "carrier_supported_satellite_services_per_provider_bundle";
 
     /**
+     * A PersistableBundle that contains a list of key-value pairs, where the values are integer
+     * arrays.
+     * <p>
+     * Keys are the IDs of regional satellite configs as strings and values are
+     * integer arrays of earfcns in the corresponding regions.
+     *
+     * An example config for two regions "1" and "2":
+     * <pre>{@code
+     * <carrier_config>
+     *   <pbundle_as_map name="regional_satellite_earfcn_bundle">
+     *     <int-array name = "1" num = "2">
+     *       <item value = "100"/>
+     *       <item value = "200"/>
+     *     </int-array>
+     *     <int-array name = "2" num = "1">
+     *       <item value = "200"/>
+     *     </int-array>
+     *   </pbundle_as_map>
+     * </carrier_config>
+     * }</pre>
+     * <p>
+     * This config is empty by default.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_REGIONAL_SATELLITE_EARFCN_BUNDLE =
+            "regional_satellite_earfcn_bundle";
+
+    /**
      * This config enables modem to scan satellite PLMNs specified as per
      * {@link #KEY_CARRIER_SUPPORTED_SATELLITE_SERVICES_PER_PROVIDER_BUNDLE} and attach to same
      * in case cellular networks are not enabled. This will need specific agreement between
@@ -9698,7 +9847,7 @@ public class CarrierConfigManager {
      * users to switch to using satellite emergency messaging.</li>
      * </ul>
      * <p>
-     * The default value is 300 seconds.
+     * The default value is 180 seconds.
      */
     @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_SATELLITE_CONNECTION_HYSTERESIS_SEC_INT =
@@ -9787,11 +9936,56 @@ public class CarrierConfigManager {
      * manually scanning available cellular network.
      * If key is {@code true}, satellite plmn should not be exposed to user and should be
      * automatically set, {@code false} otherwise. Default value is {@code true}.
-     *
-     * @hide
      */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
     public static final String KEY_REMOVE_SATELLITE_PLMN_IN_MANUAL_NETWORK_SCAN_BOOL =
             "remove_satellite_plmn_in_manual_network_scan_bool";
+
+    /**
+     * This value is used to set the max datagram size in bytes.
+     * If the value is not available then the default value will be used.
+     *
+     * The default value is 255 bytes.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_SOS_MAX_DATAGRAM_SIZE_BYTES_INT =
+            "satellite_sos_max_datagram_size_bytes_int";
+
+    /** @hide */
+    @IntDef({
+            SATELLITE_DATA_SUPPORT_ONLY_RESTRICTED,
+            SATELLITE_DATA_SUPPORT_BANDWIDTH_CONSTRAINED,
+            SATELLITE_DATA_SUPPORT_ALL,
+    })
+    public @interface SATELLITE_DATA_SUPPORT_MODE {}
+
+    /**
+     * Doesn't support unrestricted traffic on satellite network.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final int SATELLITE_DATA_SUPPORT_ONLY_RESTRICTED = 0;
+    /**
+     * Support unrestricted but bandwidth_constrained traffic on satellite network.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final int SATELLITE_DATA_SUPPORT_BANDWIDTH_CONSTRAINED = 1;
+    /**
+     * Support unrestricted satellite network that serves all traffic.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final int SATELLITE_DATA_SUPPORT_ALL = 2;
+    /**
+     * Indicates what kind of traffic an {@link NetworkCapabilities#NET_CAPABILITY_NOT_RESTRICTED}
+     * satellite network can possibly support. The network may subject to further
+     * restrictions such as entitlement etc.
+     * If no data is allowed on satellite network, exclude
+     * {@link ApnSetting#INFRASTRUCTURE_SATELLITE} from APN infrastructure_bitmask, and this
+     * configuration is ignored.
+     * By default it only supports restricted data.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_DATA_SUPPORT_MODE_INT =
+            "satellite_data_support_mode_int";
 
     /**
      * Determine whether to override roaming Wi-Fi Calling preference when device is connected to
@@ -9801,8 +9995,8 @@ public class CarrierConfigManager {
      *                 {@link com.android.ims.ImsConfig.WfcModeFeatureValueConstants#WIFI_PREFERRED}
      * {@code false} - roaming preference can be changed by user independently and is not
      *                 overridden when device is connected to non-terrestrial network.
-     * @hide
      */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
     public static final String KEY_OVERRIDE_WFC_ROAMING_MODE_WHILE_USING_NTN_BOOL =
             "override_wfc_roaming_mode_while_using_ntn_bool";
 
@@ -9810,7 +10004,7 @@ public class CarrierConfigManager {
      * An integer key holds the time interval for refreshing or re-querying the satellite
      * entitlement status from the entitlement server to ensure it is the latest.
      *
-     * The default value is 30 days (1 month).
+     * The default value is 7 days.
      */
     @FlaggedApi(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG)
     public static final String KEY_SATELLITE_ENTITLEMENT_STATUS_REFRESH_DAYS_INT =
@@ -9828,13 +10022,235 @@ public class CarrierConfigManager {
             "satellite_entitlement_supported_bool";
 
     /**
+     * Indicates the appName that is used when querying the entitlement server for satellite.
+     *
+     * The default value is androidSatmode.
+     *
+     * Reference: GSMA TS.43-v11, 2.8.5 Fast Authentication and Token Management.
+     * `app_name` is an optional attribute in the request and may vary depending on the carrier
+     * requirement.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_ENTITLEMENT_APP_NAME_STRING =
+            "satellite_entitlement_app_name_string";
+
+    /**
+     * URL to redirect user to get more information about the carrier support for satellite.
+     *
+     * The default value is empty string.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_INFORMATION_REDIRECT_URL_STRING =
+            "satellite_information_redirect_url_string";
+    /**
+     * Indicate whether a carrier supports emergency messaging. When this config is {@code  false},
+     * emergency call to satellite T911 handover will be disabled.
+     *
+     * This will need agreement with carriers before enabling this flag.
+     *
+     * The default value is false.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_EMERGENCY_MESSAGING_SUPPORTED_BOOL =
+            "emergency_messaging_supported_bool";
+
+    /**
+     * An integer key holds the timeout duration in milliseconds used to determine whether to hand
+     * over an emergency call to satellite T911.
+     *
+     * The timer is started when there is an ongoing emergency call, and the IMS is not registered,
+     * and cellular service is not available. When the timer expires,
+     * {@link com.android.internal.telephony.satellite.SatelliteSOSMessageRecommender} will send the
+     * event {@link TelephonyManager#EVENT_DISPLAY_EMERGENCY_MESSAGE} to Dialer, which will then
+     * prompt user to switch to using satellite emergency messaging.
+     *
+     * The default value is 30 seconds.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_EMERGENCY_CALL_TO_SATELLITE_T911_HANDOVER_TIMEOUT_MILLIS_INT =
+            "emergency_call_to_satellite_t911_handover_timeout_millis_int";
+
+    /**
+     * An int array that contains default capabilities for carrier enabled satellite roaming.
+     * If any PLMN is provided from the entitlement server, and it is not listed in
+     * {@link #KEY_CARRIER_SUPPORTED_SATELLITE_SERVICES_PER_PROVIDER_BUNDLE}, default capabilities
+     * will be used instead.
+     * <p>
+     * The default capabilities are
+     * {@link NetworkRegistrationInfo#SERVICE_TYPE_SMS}, and
+     * {@link NetworkRegistrationInfo#SERVICE_TYPE_MMS}
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_CARRIER_ROAMING_SATELLITE_DEFAULT_SERVICES_INT_ARRAY =
+            "carrier_roaming_satellite_default_services_int_array";
+
+    /**
+     * Indicate whether carrier roaming to satellite is using ESOS (Emergency SOS) which connects
+     * to an emergency provider instead of PSAP (Public Safety Answering Point) for emergency
+     * messaging.
+     *
+     * This will need agreement with carriers before enabling this flag.
+     *
+     * The default value is false.
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final String KEY_SATELLITE_ESOS_SUPPORTED_BOOL = "satellite_esos_supported_bool";
+
+    /**
+     * Indicate whether carrier roaming to satellite is using P2P SMS.
+     *
+     * This will need agreement with carriers before enabling this flag.
+     *
+     * The default value is false.
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final String KEY_SATELLITE_ROAMING_P2P_SMS_SUPPORTED_BOOL =
+            "satellite_roaming_p2p_sms_supported_bool";
+
+    /**
+     * Defines the NIDD (Non-IP Data Delivery) APN to be used for carrier roaming to satellite
+     * attachment. For more on NIDD, see 3GPP TS 29.542.
+     * Note this config is the only source of truth regarding the definition of the APN.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_NIDD_APN_NAME_STRING =
+            "satellite_nidd_apn_name_string";
+
+    /**
+     * The display name that will be used for satellite functionality within the UI.
+     * The default string value is empty string.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_DISPLAY_NAME_STRING = "satellite_display_name_string";
+
+    /**
+     * Default value {@code true}, meaning when an emergency call request comes in, if the device is
+     * in emergency satellite mode but hasn't sent the first satellite datagram, then exits
+     * satellite mode to allow the emergency call to go through.
+     *
+     * If {@code false}, the emergency call is always blocked if device is in emergency satellite
+     * mode. Note if device is NOT in emergency satellite mode, emergency call is always allowed.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_ROAMING_TURN_OFF_SESSION_FOR_EMERGENCY_CALL_BOOL =
+            "satellite_roaming_turn_off_session_for_emergency_call_bool";
+
+    /** @hide */
+    @IntDef({
+            CARRIER_ROAMING_NTN_CONNECT_AUTOMATIC,
+            CARRIER_ROAMING_NTN_CONNECT_MANUAL,
+    })
+    public @interface CARRIER_ROAMING_NTN_CONNECT_TYPE {}
+
+    /**
+     * Device can connect to carrier roaming non-terrestrial network automatically.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final int CARRIER_ROAMING_NTN_CONNECT_AUTOMATIC = 0;
+    /**
+     * Device can connect to carrier roaming non-terrestrial network only if user manually triggers
+     * satellite connection.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final int CARRIER_ROAMING_NTN_CONNECT_MANUAL = 1;
+    /**
+     * Indicates carrier roaming non-terrestrial network connect type that the device can use to
+     * perform satellite communication.
+     * If this key is set to CARRIER_ROAMING_NTN_CONNECT_MANUAL then connect button will be
+     * displayed to user when the device is eligible to use carrier roaming
+     * non-terrestrial network.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_CARRIER_ROAMING_NTN_CONNECT_TYPE_INT =
+            "carrier_roaming_ntn_connect_type_int";
+
+    /**
+     * Indicates carrier roaming non-terrestrial network emergency call handover type that the
+     * device will use to perform a handover between ESOS or T911.
+     * If this key is set to {@link SatelliteManager#EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_SOS}
+     * then the handover will be made to ESOS. If this key is set to
+     * {@link SatelliteManager#EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_T911} then the handover
+     * will be made to T911.
+     *
+     * The default value is {@link SatelliteManager#EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_T911}.
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final String
+            KEY_CARRIER_ROAMING_NTN_EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_INT =
+            "carrier_roaming_ntn_emergency_call_to_satellite_handover_type_int";
+
+    /**
+     * The carrier roaming non-terrestrial network hysteresis time in seconds.
+     *
+     * If the device supports P2P satellite messaging which is defined by
+     * {@link CarrierConfigManager#KEY_CARRIER_SUPPORTED_SATELLITE_SERVICES_PER_PROVIDER_BUNDLE}
+     * and the device is in {@link ServiceState#STATE_OUT_OF_SERVICE}, not connected to Wi-Fi,
+     * then hysteresis timer defined by this key will start.
+     * After the timer is expired, device is marked as eligible for satellite communication.
+     *
+     * The default value is 180 seconds.
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_CARRIER_SUPPORTED_SATELLITE_NOTIFICATION_HYSTERESIS_SEC_INT =
+            "carrier_supported_satellite_notification_hysteresis_sec_int";
+
+    /**
+     * An integer key holds the timeout duration in seconds used to determine whether to exit
+     * carrier-roaming NB-IOT satellite mode.
+     *
+     * The timer is started when the device screen is turned off during a satellite session.
+     * When the timer expires, the device exits Carrier Roaming NB IOT NTN.
+     *
+     * The default value is 30 seconds.
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final String KEY_SATELLITE_ROAMING_SCREEN_OFF_INACTIVITY_TIMEOUT_SEC_INT =
+            "satellite_roaming_screen_off_inactivity_timeout_sec_int";
+
+    /**
+     * An integer key holds the timeout duration in seconds used to determine whether to exit P2P
+     * SMS mode and start TN scanning.
+     *
+     * The timer is started when the device is not connected, user is not pointing to the
+     * satellite and no data transfer is happening.
+     * When the timer expires, the device will move to IDLE mode upon which TN scanning will start.
+     *
+     * The default value is 180 seconds.
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final String KEY_SATELLITE_ROAMING_P2P_SMS_INACTIVITY_TIMEOUT_SEC_INT =
+            "satellite_roaming_p2p_sms_inactivity_timeout_sec_int";
+
+    /**
+     * An integer key holds the timeout duration in seconds used to determine whether to exit ESOS
+     * mode and start TN scanning.
+     *
+     * The timer is started when the device is not connected, user is not pointing to the
+     * satellite and no data transfer is happening.
+     * When the timer expires, the device will move to IDLE mode upon which TN scanning will start.
+     *
+     * The default value is 600 seconds.
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final String KEY_SATELLITE_ROAMING_ESOS_INACTIVITY_TIMEOUT_SEC_INT =
+            "satellite_roaming_esos_inactivity_timeout_sec_int";
+
+    /**
+     * A string array containing the list of messaging apps that support satellite.
+     *
+     * The default value contains only "com.google.android.apps.messaging"
+     */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
+    public static final String KEY_SATELLITE_SUPPORTED_MSG_APPS_STRING_ARRAY =
+            "satellite_supported_msg_apps_string_array";
+
+    /**
      * Indicating whether DUN APN should be disabled when the device is roaming. In that case,
      * the default APN (i.e. internet) will be used for tethering.
      *
      * This config is only available when using Preset APN(not user edited) as Preferred APN.
-     *
-     * @hide
      */
+    @FlaggedApi(Flags.FLAG_SATELLITE_SYSTEM_APIS)
     public static final String KEY_DISABLE_DUN_APN_WHILE_ROAMING_WITH_PRESET_APN_BOOL =
             "disable_dun_apn_while_roaming_with_preset_apn_bool";
 
@@ -10241,9 +10657,33 @@ public class CarrierConfigManager {
      * @see SubscriptionInfo#getServiceCapabilities()
      * @see SubscriptionManager.OnSubscriptionsChangedListener
      */
-    @FlaggedApi(Flags.FLAG_DATA_ONLY_CELLULAR_SERVICE)
     public static final String KEY_CELLULAR_SERVICE_CAPABILITIES_INT_ARRAY =
             "cellular_service_capabilities_int_array";
+   /**
+     * Transition delay from BT to Cellular on Wear.
+     * Specifies delay when transitioning away from BT.
+     * This minimizes the duration of the netTransitionWakelock held by ConnectivityService
+     * whenever the primary/default network disappears, while still allowing some amount of time
+     * for BT to reconnect before we enable cell.
+     *
+     * If set as -1 then value from resources will be used
+     *
+     * @hide
+     */
+    public static final String KEY_WEAR_CONNECTIVITY_BT_TO_CELL_DELAY_MS_INT =
+            "proxy_connectivity_delay_cell";
+
+    /**
+     * Transition delay from BT to Cellular on Wear.
+     * If wifi connected it extends delay that has been started for BT to Cellular transition
+     * to avoid Wifi thrashing turning Cell radio and causing higher battery drain.
+     *
+     * If set as -1 then value from resources will be used
+     *
+     * @hide
+     */
+    public static final String KEY_WEAR_CONNECTIVITY_EXTEND_BT_TO_CELL_DELAY_ON_WIFI_MS_INT =
+            "wifi_connectivity_extend_cell_delay";
 
     /** The default value for every variable. */
     private static final PersistableBundle sDefaults;
@@ -10627,6 +11067,7 @@ public class CarrierConfigManager {
         sDefaults.putBoolean(KEY_VT_UPGRADE_SUPPORTED_FOR_DOWNGRADED_RTT_CALL_BOOL, true);
         sDefaults.putBoolean(KEY_DISABLE_CHARGE_INDICATION_BOOL, false);
         sDefaults.putBoolean(KEY_SUPPORT_NO_REPLY_TIMER_FOR_CFNRY_BOOL, true);
+        sDefaults.putInt(KEY_NO_REPLY_TIMER_FOR_CFNRY_SEC_INT, 20);
         sDefaults.putStringArray(KEY_FEATURE_ACCESS_CODES_STRING_ARRAY, null);
         sDefaults.putBoolean(KEY_IDENTIFY_HIGH_DEFINITION_CALLS_IN_CALL_LOG_BOOL, false);
         sDefaults.putBoolean(KEY_SHOW_PRECISE_FAILED_CAUSE_BOOL, false);
@@ -10913,8 +11354,11 @@ public class CarrierConfigManager {
         sDefaults.putPersistableBundle(
                 KEY_CARRIER_SUPPORTED_SATELLITE_SERVICES_PER_PROVIDER_BUNDLE,
                 PersistableBundle.EMPTY);
+        sDefaults.putPersistableBundle(
+                KEY_REGIONAL_SATELLITE_EARFCN_BUNDLE,
+                PersistableBundle.EMPTY);
         sDefaults.putBoolean(KEY_SATELLITE_ATTACH_SUPPORTED_BOOL, false);
-        sDefaults.putInt(KEY_SATELLITE_CONNECTION_HYSTERESIS_SEC_INT, 300);
+        sDefaults.putInt(KEY_SATELLITE_CONNECTION_HYSTERESIS_SEC_INT, 180);
         sDefaults.putIntArray(KEY_NTN_LTE_RSRP_THRESHOLDS_INT_ARRAY,
                 // Boundaries: [-140 dBm, -44 dBm]
                 new int[]{
@@ -10942,10 +11386,36 @@ public class CarrierConfigManager {
         sDefaults.putInt(KEY_PARAMETERS_USED_FOR_NTN_LTE_SIGNAL_BAR_INT,
                 CellSignalStrengthLte.USE_RSRP);
         sDefaults.putBoolean(KEY_REMOVE_SATELLITE_PLMN_IN_MANUAL_NETWORK_SCAN_BOOL, true);
+        sDefaults.putInt(KEY_SATELLITE_DATA_SUPPORT_MODE_INT,
+                CarrierConfigManager.SATELLITE_DATA_SUPPORT_ONLY_RESTRICTED);
         sDefaults.putBoolean(KEY_OVERRIDE_WFC_ROAMING_MODE_WHILE_USING_NTN_BOOL, true);
-        sDefaults.putInt(KEY_SATELLITE_ENTITLEMENT_STATUS_REFRESH_DAYS_INT, 30);
+        sDefaults.putInt(KEY_SATELLITE_ENTITLEMENT_STATUS_REFRESH_DAYS_INT, 7);
         sDefaults.putBoolean(KEY_SATELLITE_ENTITLEMENT_SUPPORTED_BOOL, false);
+        sDefaults.putString(KEY_SATELLITE_ENTITLEMENT_APP_NAME_STRING, "androidSatmode");
+        sDefaults.putString(KEY_SATELLITE_INFORMATION_REDIRECT_URL_STRING, "");
+        sDefaults.putIntArray(KEY_CARRIER_ROAMING_SATELLITE_DEFAULT_SERVICES_INT_ARRAY,
+                new int[] {
+                        NetworkRegistrationInfo.SERVICE_TYPE_SMS,
+                        NetworkRegistrationInfo.SERVICE_TYPE_MMS
+                });
+        sDefaults.putStringArray(KEY_SATELLITE_SUPPORTED_MSG_APPS_STRING_ARRAY, new String[]{
+                "com.google.android.apps.messaging"});
         sDefaults.putBoolean(KEY_DISABLE_DUN_APN_WHILE_ROAMING_WITH_PRESET_APN_BOOL, false);
+        sDefaults.putBoolean(KEY_EMERGENCY_MESSAGING_SUPPORTED_BOOL, false);
+        sDefaults.putInt(KEY_EMERGENCY_CALL_TO_SATELLITE_T911_HANDOVER_TIMEOUT_MILLIS_INT,
+                (int) TimeUnit.SECONDS.toMillis(30));
+        sDefaults.putString(KEY_SATELLITE_DISPLAY_NAME_STRING, "");
+        sDefaults.putBoolean(KEY_SATELLITE_ESOS_SUPPORTED_BOOL, false);
+        sDefaults.putBoolean(KEY_SATELLITE_ROAMING_P2P_SMS_SUPPORTED_BOOL, false);
+        sDefaults.putString(KEY_SATELLITE_NIDD_APN_NAME_STRING, "");
+        sDefaults.putBoolean(KEY_SATELLITE_ROAMING_TURN_OFF_SESSION_FOR_EMERGENCY_CALL_BOOL, true);
+        sDefaults.putInt(KEY_CARRIER_ROAMING_NTN_CONNECT_TYPE_INT, 0);
+        sDefaults.putInt(KEY_CARRIER_ROAMING_NTN_EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_INT,
+                SatelliteManager.EMERGENCY_CALL_TO_SATELLITE_HANDOVER_TYPE_T911);
+        sDefaults.putInt(KEY_CARRIER_SUPPORTED_SATELLITE_NOTIFICATION_HYSTERESIS_SEC_INT, 180);
+        sDefaults.putInt(KEY_SATELLITE_ROAMING_SCREEN_OFF_INACTIVITY_TIMEOUT_SEC_INT, 30);
+        sDefaults.putInt(KEY_SATELLITE_ROAMING_P2P_SMS_INACTIVITY_TIMEOUT_SEC_INT, 180);
+        sDefaults.putInt(KEY_SATELLITE_ROAMING_ESOS_INACTIVITY_TIMEOUT_SEC_INT, 600);
         sDefaults.putString(KEY_DEFAULT_PREFERRED_APN_NAME_STRING, "");
         sDefaults.putBoolean(KEY_SUPPORTS_CALL_COMPOSER_BOOL, false);
         sDefaults.putBoolean(KEY_SUPPORTS_BUSINESS_CALL_COMPOSER_BOOL, false);
@@ -11040,6 +11510,9 @@ public class CarrierConfigManager {
         sDefaults.putStringArray(KEY_CARRIER_SERVICE_NAME_STRING_ARRAY, new String[0]);
         sDefaults.putStringArray(KEY_CARRIER_SERVICE_NUMBER_STRING_ARRAY, new String[0]);
         sDefaults.putIntArray(KEY_CELLULAR_SERVICE_CAPABILITIES_INT_ARRAY, new int[]{1, 2, 3});
+        sDefaults.putInt(KEY_WEAR_CONNECTIVITY_BT_TO_CELL_DELAY_MS_INT, -1);
+        sDefaults.putInt(KEY_WEAR_CONNECTIVITY_EXTEND_BT_TO_CELL_DELAY_ON_WIFI_MS_INT, -1);
+        sDefaults.putInt(KEY_SATELLITE_SOS_MAX_DATAGRAM_SIZE_BYTES_INT, 255);
     }
 
     /**

@@ -35,11 +35,22 @@ class FakeLightRevealScrimRepository : LightRevealScrimRepository {
     private val _revealAmount: MutableStateFlow<Float> = MutableStateFlow(0.0f)
     override val revealAmount: Flow<Float> = _revealAmount
 
-    override fun startRevealAmountAnimator(reveal: Boolean) {
+    val revealAnimatorRequests: MutableList<RevealAnimatorRequest> = arrayListOf()
+
+    override val isAnimating: Boolean
+        get() = false
+
+    override val maxAlpha: MutableStateFlow<Float> = MutableStateFlow(1f)
+
+    override fun startRevealAmountAnimator(reveal: Boolean, duration: Long) {
         if (reveal) {
             _revealAmount.value = 1.0f
         } else {
             _revealAmount.value = 0.0f
         }
+
+        revealAnimatorRequests.add(RevealAnimatorRequest(reveal, duration))
     }
+
+    data class RevealAnimatorRequest(val reveal: Boolean, val duration: Long)
 }

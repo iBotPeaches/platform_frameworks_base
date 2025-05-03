@@ -16,10 +16,10 @@
 
 package com.android.systemui.settings.brightness;
 
+import android.annotation.StringRes;
 import android.view.MotionEvent;
 
 import com.android.settingslib.RestrictedLockUtils;
-import com.android.systemui.statusbar.policy.BrightnessMirrorController;
 
 public interface ToggleSlider {
     interface Listener {
@@ -27,7 +27,7 @@ public interface ToggleSlider {
     }
 
     void setEnforcedAdmin(RestrictedLockUtils.EnforcedAdmin admin);
-    void setMirrorControllerAndMirror(BrightnessMirrorController c);
+    void setMirrorControllerAndMirror(MirrorController c);
     boolean mirrorTouchEvent(MotionEvent ev);
 
     void setOnChangedListener(Listener l);
@@ -38,5 +38,6 @@ public interface ToggleSlider {
 
     void showView();
     void hideView();
+    void showToast(@StringRes int resId);
     boolean isVisible();
 }

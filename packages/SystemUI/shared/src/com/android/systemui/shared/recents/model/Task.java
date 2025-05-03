@@ -19,8 +19,8 @@ package com.android.systemui.shared.recents.model;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
 import static android.view.Display.DEFAULT_DISPLAY;
 
-import static com.android.wm.shell.common.split.SplitScreenConstants.CONTROLLED_ACTIVITY_TYPES;
-import static com.android.wm.shell.common.split.SplitScreenConstants.CONTROLLED_WINDOWING_MODES_WHEN_ACTIVE;
+import static com.android.wm.shell.shared.split.SplitScreenConstants.CONTROLLED_ACTIVITY_TYPES;
+import static com.android.wm.shell.shared.split.SplitScreenConstants.CONTROLLED_WINDOWING_MODES_WHEN_ACTIVE;
 
 import android.app.ActivityManager;
 import android.app.ActivityManager.TaskDescription;
@@ -218,6 +218,7 @@ public class Task {
     @ViewDebug.ExportedProperty(category="recents")
     public String title;
     @ViewDebug.ExportedProperty(category="recents")
+    @Nullable
     public String titleDescription;
     @ViewDebug.ExportedProperty(category="recents")
     public int colorPrimary;
@@ -242,9 +243,11 @@ public class Task {
 
     public Rect appBounds;
 
-    // Last snapshot data, only used for recent tasks
-    public ActivityManager.RecentTaskInfo.PersistedTaskSnapshotData lastSnapshotData =
-            new ActivityManager.RecentTaskInfo.PersistedTaskSnapshotData();
+    @ViewDebug.ExportedProperty(category="recents")
+    public boolean isVisible;
+
+    @ViewDebug.ExportedProperty(category = "recents")
+    public boolean isMinimized;
 
     public Task() {
         // Do nothing
@@ -276,9 +279,10 @@ public class Task {
     public Task(Task other) {
         this(other.key, other.colorPrimary, other.colorBackground, other.isDockable,
                 other.isLocked, other.taskDescription, other.topActivity);
-        lastSnapshotData.set(other.lastSnapshotData);
         positionInParent = other.positionInParent;
         appBounds = other.appBounds;
+        isVisible = other.isVisible;
+        isMinimized = other.isMinimized;
     }
 
     /**
@@ -306,31 +310,8 @@ public class Task {
                 : key.baseIntent.getComponent();
     }
 
-    public void setLastSnapshotData(ActivityManager.RecentTaskInfo rawTask) {
-        lastSnapshotData.set(rawTask.lastSnapshotData);
-    }
-
     public TaskKey getKey() {
         return key;
-    }
-
-    /**
-     * Returns the visible width to height ratio. Returns 0f if snapshot data is not available.
-     */
-    public float getVisibleThumbnailRatio(boolean clipInsets) {
-        if (lastSnapshotData.taskSize == null || lastSnapshotData.contentInsets == null) {
-            return 0f;
-        }
-
-        float availableWidth = lastSnapshotData.taskSize.x;
-        float availableHeight = lastSnapshotData.taskSize.y;
-        if (clipInsets) {
-            availableWidth -=
-                    (lastSnapshotData.contentInsets.left + lastSnapshotData.contentInsets.right);
-            availableHeight -=
-                    (lastSnapshotData.contentInsets.top + lastSnapshotData.contentInsets.bottom);
-        }
-        return availableWidth / availableHeight;
     }
 
     @Override

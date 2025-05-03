@@ -50,9 +50,7 @@ import android.graphics.Region;
 import android.os.IBinder;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
-import android.platform.test.annotations.RequiresFlagsEnabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
+import android.os.test.FakePermissionEnforcer;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.ArraySet;
 import android.view.KeyEvent;
@@ -97,9 +95,6 @@ public class ProxyManagerTest {
     private static final int STREAMED_CALLING_UID = 9876;
 
     @Rule
-    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
-
-    @Rule
     public SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Mock private Context mMockContext;
@@ -113,6 +108,7 @@ public class ProxyManagerTest {
     @Mock private IBinder mMockServiceAsBinder;
     @Mock private VirtualDeviceManagerInternal mMockVirtualDeviceManagerInternal;
     @Mock private IVirtualDeviceManager mMockIVirtualDeviceManager;
+    FakePermissionEnforcer mFakePermissionEnforcer  = new FakePermissionEnforcer();
 
     private int mFocusStrokeWidthDefaultValue;
     private int mFocusColorDefaultValue;
@@ -132,6 +128,8 @@ public class ProxyManagerTest {
         when(mMockContext.getMainExecutor())
                 .thenReturn(InstrumentationRegistry.getTargetContext().getMainExecutor());
 
+        when(mMockContext.getSystemService(Context.PERMISSION_ENFORCER_SERVICE))
+                .thenReturn(mFakePermissionEnforcer);
         when(mMockVirtualDeviceManagerInternal.getDeviceIdsForUid(anyInt())).thenReturn(
                 new ArraySet(Set.of(DEVICE_ID)));
         LocalServices.removeServiceForTest(VirtualDeviceManagerInternal.class);
@@ -239,7 +237,6 @@ public class ProxyManagerTest {
      * app changes to the proxy device.
      */
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_PROXY_USE_APPS_ON_VIRTUAL_DEVICE_LISTENER)
     public void testUpdateProxyOfRunningAppsChange_changedUidIsStreamedApp_propagatesChange() {
         final VirtualDeviceManagerInternal localVdm =
                 Mockito.mock(VirtualDeviceManagerInternal.class);

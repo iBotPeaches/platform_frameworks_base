@@ -21,6 +21,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+import android.service.notification.RateEstimator;
 import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.Log;
@@ -257,6 +258,14 @@ public class NotificationUsageStats {
         }
     }
 
+    public synchronized void registerTooOldBlocked(NotificationRecord notification) {
+        AggregatedStats[] aggregatedStatsArray = getAggregatedStatsLocked(notification);
+        for (AggregatedStats stats : aggregatedStatsArray) {
+            stats.numTooOld++;
+        }
+        releaseAggregatedStatsLocked(aggregatedStatsArray);
+    }
+
     @GuardedBy("this")
     private AggregatedStats[] getAggregatedStatsLocked(NotificationRecord record) {
         return getAggregatedStatsLocked(record.getSbn().getPackageName());
@@ -405,6 +414,7 @@ public class NotificationUsageStats {
         public int numUndecoratedRemoteViews;
         public long mLastAccessTime;
         public int numImagesRemoved;
+        public int numTooOld;
 
         public AggregatedStats(Context context, String key) {
             this.key = key;
@@ -535,6 +545,7 @@ public class NotificationUsageStats {
             maybeCount("note_over_alert_rate", (numAlertViolations - previous.numAlertViolations));
             maybeCount("note_over_quota", (numQuotaViolations - previous.numQuotaViolations));
             maybeCount("note_images_removed", (numImagesRemoved - previous.numImagesRemoved));
+            maybeCount("not_too_old", (numTooOld - previous.numTooOld));
             noisyImportance.maybeCount(previous.noisyImportance);
             quietImportance.maybeCount(previous.quietImportance);
             finalImportance.maybeCount(previous.finalImportance);
@@ -570,6 +581,7 @@ public class NotificationUsageStats {
             previous.numAlertViolations = numAlertViolations;
             previous.numQuotaViolations = numQuotaViolations;
             previous.numImagesRemoved = numImagesRemoved;
+            previous.numTooOld = numTooOld;
             noisyImportance.update(previous.noisyImportance);
             quietImportance.update(previous.quietImportance);
             finalImportance.update(previous.finalImportance);
@@ -679,6 +691,8 @@ public class NotificationUsageStats {
             output.append("numQuotaViolations=").append(numQuotaViolations).append("\n");
             output.append(indentPlusTwo);
             output.append("numImagesRemoved=").append(numImagesRemoved).append("\n");
+            output.append(indentPlusTwo);
+            output.append("numTooOld=").append(numTooOld).append("\n");
             output.append(indentPlusTwo).append(noisyImportance.toString()).append("\n");
             output.append(indentPlusTwo).append(quietImportance.toString()).append("\n");
             output.append(indentPlusTwo).append(finalImportance.toString()).append("\n");
@@ -725,6 +739,7 @@ public class NotificationUsageStats {
             maybePut(dump, "notificationEnqueueRate", getEnqueueRate());
             maybePut(dump, "numAlertViolations", numAlertViolations);
             maybePut(dump, "numImagesRemoved", numImagesRemoved);
+            maybePut(dump, "numTooOld", numTooOld);
             noisyImportance.maybePut(dump, previous.noisyImportance);
             quietImportance.maybePut(dump, previous.quietImportance);
             finalImportance.maybePut(dump, previous.finalImportance);

@@ -52,6 +52,12 @@ func gatherRequiredDepsForTest() string {
 		"core.current.stubs",
 		"ext",
 		"framework",
+		"android_stubs_current",
+		"android_system_stubs_current",
+		"android_test_stubs_current",
+		"android_test_frameworks_core_stubs_current",
+		"android_module_lib_stubs_current",
+		"android_system_server_stubs_current",
 		"android_stubs_current.from-text",
 		"android_system_stubs_current.from-text",
 		"android_test_stubs_current.from-text",
@@ -72,10 +78,7 @@ func gatherRequiredDepsForTest() string {
 		"stub-annotations",
 	}
 
-	extraSdkLibraryModules := []string{
-		"framework-virtualization",
-		"framework-location",
-	}
+	extraSdkLibraryModules := non_updatable_modules
 
 	extraSystemModules := []string{
 		"core-public-stubs-system-modules",
@@ -178,10 +181,10 @@ func gatherRequiredDepsForTest() string {
 
 func TestCombinedApisDefaults(t *testing.T) {
 
+	testNonUpdatableModules := append(non_updatable_modules, "framework-foo", "framework-bar")
 	result := android.GroupFixturePreparers(
 		prepareForTestWithCombinedApis,
-		java.FixtureWithLastReleaseApis(
-			"framework-location", "framework-virtualization", "framework-foo", "framework-bar"),
+		java.FixtureWithLastReleaseApis(testNonUpdatableModules...),
 		android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
 			variables.VendorVars = map[string]map[string]string{
 				"boolean_var": {
@@ -190,65 +193,64 @@ func TestCombinedApisDefaults(t *testing.T) {
 			}
 		}),
 	).RunTestWithBp(t, `
-		java_sdk_library {
-			name: "framework-foo",
-			srcs: ["a.java"],
-			public: {
-				enabled: true,
-			},
-			system: {
-				enabled: true,
-			},
-			test: {
-				enabled: true,
-			},
-			module_lib: {
-				enabled: true,
-			},
-			api_packages: [
-				"foo",
-			],
-			sdk_version: "core_current",
-			annotations_enabled: true,
-		}
+	java_sdk_library {
+		name: "framework-foo",
+		srcs: ["a.java"],
+		public: {
+			enabled: true,
+		},
+		system: {
+			enabled: true,
+		},
+		test: {
+			enabled: true,
+		},
+		module_lib: {
+			enabled: true,
+		},
+		api_packages: [
+			"foo",
+		],
+		sdk_version: "core_current",
+		annotations_enabled: true,
+	}
+	java_sdk_library {
+		name: "framework-bar",
+		srcs: ["a.java"],
+		public: {
+			enabled: true,
+		},
+		system: {
+			enabled: true,
+		},
+		test: {
+			enabled: true,
+		},
+		module_lib: {
+			enabled: true,
+		},
+		api_packages: [
+			"foo",
+		],
+		sdk_version: "core_current",
+		annotations_enabled: true,
+	}
 
-		java_sdk_library {
-			name: "framework-bar",
-			srcs: ["a.java"],
-			public: {
-				enabled: true,
-			},
-			system: {
-				enabled: true,
-			},
-			test: {
-				enabled: true,
-			},
-			module_lib: {
-				enabled: true,
-			},
-			api_packages: [
-				"foo",
+	combined_apis {
+		name: "foo",
+		bootclasspath: [
+			"framework-bar",
+		] + select(boolean_var_for_testing(), {
+			true: [
+				"framework-foo",
 			],
-			sdk_version: "core_current",
-			annotations_enabled: true,
-		}
-
-		combined_apis {
-			name: "foo",
-			bootclasspath: [
-				"framework-bar",
-			] + select(boolean_var_for_testing(), {
-				true: [
-					"framework-foo",
-				],
-				default: [],
-			}),
-		}
+			default: [],
+		}),
+	}
 	`)
 
 	subModuleDependsOnSelectAppendedModule := java.CheckModuleHasDependency(t,
-		result.TestContext, "foo-current.txt", "", "framework-foo")
+		result.TestContext, "foo-current.txt", "android_common", "framework-foo")
 	android.AssertBoolEquals(t, "Submodule expected to depend on the select-appended module",
 		true, subModuleDependsOnSelectAppendedModule)
 }

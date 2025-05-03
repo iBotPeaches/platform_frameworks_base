@@ -22,6 +22,7 @@ import static com.android.server.am.ActivityManagerService.Injector;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -38,10 +39,15 @@ import android.content.pm.PackageManagerInternal;
 import android.os.FileUtils;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Parcel;
 import android.os.Process;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.text.TextUtils;
 
+import com.android.internal.os.Clock;
+import com.android.internal.os.MonotonicClock;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
 import com.android.server.appop.AppOpsService;
@@ -74,7 +80,17 @@ public class ApplicationStartInfoTest {
     private static final String TAG = ApplicationStartInfoTest.class.getSimpleName();
     private static final ComponentName COMPONENT = new ComponentName("com.android.test", ".Foo");
 
+    private static final int APP_1_UID = 10123;
+    private static final int APP_1_PID_1 = 12345;
+    private static final int APP_1_PID_2 = 12346;
+    private static final int APP_1_DEFINING_UID = 23456;
+    private static final int APP_1_UID_USER_2 = 1010123;
+    private static final int APP_1_PID_USER_2 = 12347;
+    private static final String APP_1_PROCESS_NAME = "com.android.test.stub1:process";
+    private static final String APP_1_PACKAGE_NAME = "com.android.test.stub1";
+
     @Rule public ServiceThreadRule mServiceThreadRule = new ServiceThreadRule();
+    @Rule public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
     @Mock private AppOpsService mAppOpsService;
     @Mock private PackageManagerInternal mPackageManagerInt;
 
@@ -111,6 +127,19 @@ public class ApplicationStartInfoTest {
         // Remove stale instance of PackageManagerInternal if there is any
         LocalServices.removeServiceForTest(PackageManagerInternal.class);
         LocalServices.addService(PackageManagerInternal.class, mPackageManagerInt);
+
+        mAppStartInfoTracker.mMonotonicClock = new MonotonicClock(
+                Clock.SYSTEM_CLOCK.elapsedRealtime(), Clock.SYSTEM_CLOCK);
+        mAppStartInfoTracker.clearProcessStartInfo(true);
+        mAppStartInfoTracker.mAppStartInfoLoaded.set(true);
+        mAppStartInfoTracker.mAppStartInfoHistoryListSize =
+                mAppStartInfoTracker.APP_START_INFO_HISTORY_LIST_SIZE;
+        doNothing().when(mAppStartInfoTracker).schedulePersistProcessStartInfo(anyBoolean());
+
+        mAppStartInfoTracker.mProcStartStoreDir = new File(mContext.getFilesDir(),
+                AppStartInfoTracker.APP_START_STORE_DIR);
+        mAppStartInfoTracker.mProcStartInfoFile = new File(mAppStartInfoTracker.mProcStartStoreDir,
+                AppStartInfoTracker.APP_START_INFO_FILE);
     }
 
     @After
@@ -119,52 +148,37 @@ public class ApplicationStartInfoTest {
     }
 
     @Test
+    @EnableFlags(android.app.Flags.FLAG_APP_START_INFO_COMPONENT)
     public void testApplicationStartInfo() throws Exception {
-        mAppStartInfoTracker.clearProcessStartInfo(true);
-        mAppStartInfoTracker.mAppStartInfoLoaded.set(true);
-        mAppStartInfoTracker.mAppStartInfoHistoryListSize =
-                mAppStartInfoTracker.APP_START_INFO_HISTORY_LIST_SIZE;
-        mAppStartInfoTracker.mProcStartStoreDir = new File(mContext.getFilesDir(),
-                AppStartInfoTracker.APP_START_STORE_DIR);
+        // Make sure we can write to the file.
         assertTrue(FileUtils.createDir(mAppStartInfoTracker.mProcStartStoreDir));
-        mAppStartInfoTracker.mProcStartInfoFile = new File(mAppStartInfoTracker.mProcStartStoreDir,
-                AppStartInfoTracker.APP_START_INFO_FILE);
 
-        doNothing().when(mAppStartInfoTracker).schedulePersistProcessStartInfo(anyBoolean());
-
-        final int app1Uid = 10123;
-        final int app1Pid1 = 12345;
-        final int app1Pid2 = 12346;
-        final int app1DefiningUid = 23456;
-        final int app1UidUser2 = 1010123;
-        final int app1PidUser2 = 12347;
-        final String app1ProcessName = "com.android.test.stub1:process";
-        final String app1PackageName = "com.android.test.stub1";
         final long appStartTimestampIntentStarted = 1000000;
         final long appStartTimestampActivityLaunchFinished = 2000000;
+        final long appStartTimestampFirstFrameDrawn = 2500000;
         final long appStartTimestampReportFullyDrawn = 3000000;
         final long appStartTimestampService = 4000000;
         final long appStartTimestampBroadcast = 5000000;
         final long appStartTimestampRContentProvider = 6000000;
 
         ProcessRecord app = makeProcessRecord(
-                app1Pid1,                    // pid
-                app1Uid,                     // uid
-                app1Uid,                     // packageUid
+                APP_1_PID_1,                 // pid
+                APP_1_UID,                   // uid
+                APP_1_UID,                   // packageUid
                 null,                        // definingUid
-                app1ProcessName,             // processName
-                app1PackageName);            // packageName
+                APP_1_PROCESS_NAME,          // processName
+                APP_1_PACKAGE_NAME);         // packageName
 
         ArrayList<ApplicationStartInfo> list = new ArrayList<ApplicationStartInfo>();
 
         // Case 1: Activity start intent failed
-        mAppStartInfoTracker.onIntentStarted(buildIntent(COMPONENT),
+        mAppStartInfoTracker.onActivityIntentStarted(buildIntent(COMPONENT),
                 appStartTimestampIntentStarted);
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(1);
         assertEquals(list.size(), 0);
 
-        verifyInProgApplicationStartInfo(
+        verifyInProgressApplicationStartInfo(
                 0,                                                    // index
                 0,                                                    // pid
                 0,                                                    // uid
@@ -176,36 +190,36 @@ public class ApplicationStartInfoTest {
                 ApplicationStartInfo.START_TYPE_UNSET,                // state type
                 ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
 
-        mAppStartInfoTracker.onIntentFailed(appStartTimestampIntentStarted);
+        mAppStartInfoTracker.onActivityIntentFailed(appStartTimestampIntentStarted);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(0);
         assertEquals(list.size(), 0);
 
         mAppStartInfoTracker.clearProcessStartInfo(true);
 
         // Case 2: Activity start launch cancelled
-        mAppStartInfoTracker.onIntentStarted(buildIntent(COMPONENT),
+        mAppStartInfoTracker.onActivityIntentStarted(buildIntent(COMPONENT),
                 appStartTimestampIntentStarted);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(1);
         assertEquals(list.size(), 0);
 
         mAppStartInfoTracker.onActivityLaunched(appStartTimestampIntentStarted, COMPONENT,
                 ApplicationStartInfo.START_TYPE_COLD, app);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(1);
         assertEquals(list.size(), 1);
 
-        verifyInProgApplicationStartInfo(
+        verifyInProgressApplicationStartInfo(
                 0,                                                    // index
-                app1Pid1,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
+                APP_1_PID_1,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_START_ACTIVITY,     // reason
                 ApplicationStartInfo.STARTUP_STATE_STARTED,           // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
@@ -213,46 +227,48 @@ public class ApplicationStartInfoTest {
 
         mAppStartInfoTracker.onActivityLaunchCancelled(appStartTimestampIntentStarted);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(0);
         assertEquals(list.size(), 1);
 
         verifyApplicationStartInfo(
                 list.get(0),                                          // info
-                app1Pid1,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
+                APP_1_PID_1,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_START_ACTIVITY,     // reason
                 ApplicationStartInfo.STARTUP_STATE_ERROR,             // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
-                ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
+                ApplicationStartInfo.LAUNCH_MODE_STANDARD,            // launch mode
+                ApplicationStartInfo.START_COMPONENT_ACTIVITY);       // start component
 
         mAppStartInfoTracker.clearProcessStartInfo(true);
 
         // Case 3: Activity start success
-        mAppStartInfoTracker.onIntentStarted(buildIntent(COMPONENT),
+        mAppStartInfoTracker.onActivityIntentStarted(buildIntent(COMPONENT),
                 appStartTimestampIntentStarted);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(1);
         assertEquals(list.size(), 0);
 
         mAppStartInfoTracker.onActivityLaunched(appStartTimestampIntentStarted, COMPONENT,
                 ApplicationStartInfo.START_TYPE_COLD, app);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(1);
         assertEquals(list.size(), 1);
 
-        verifyInProgApplicationStartInfo(
+        // The records will now be in both backing data structures, so verify in each.
+        verifyInProgressApplicationStartInfo(
                 0,                                                    // index
-                app1Pid1,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
+                APP_1_PID_1,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_START_ACTIVITY,     // reason
                 ApplicationStartInfo.STARTUP_STATE_STARTED,           // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
@@ -260,121 +276,128 @@ public class ApplicationStartInfoTest {
 
         verifyApplicationStartInfo(
                 list.get(0),                                          // info
-                app1Pid1,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
+                APP_1_PID_1,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_START_ACTIVITY,     // reason
                 ApplicationStartInfo.STARTUP_STATE_STARTED,           // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
-                ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
+                ApplicationStartInfo.LAUNCH_MODE_STANDARD,            // launch mode
+                ApplicationStartInfo.START_COMPONENT_ACTIVITY);       // start component
 
         mAppStartInfoTracker.onActivityLaunchFinished(appStartTimestampIntentStarted, COMPONENT,
                 appStartTimestampActivityLaunchFinished, ApplicationStartInfo.LAUNCH_MODE_STANDARD);
+        mAppStartInfoTracker.addTimestampToStart(APP_1_PACKAGE_NAME, APP_1_UID,
+                appStartTimestampFirstFrameDrawn, ApplicationStartInfo.START_TIMESTAMP_FIRST_FRAME);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(1);
         assertEquals(list.size(), 1);
 
-        verifyInProgApplicationStartInfo(
+        verifyInProgressApplicationStartInfo(
                 0,                                                    // index
-                app1Pid1,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
+                APP_1_PID_1,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_START_ACTIVITY,     // reason
                 ApplicationStartInfo.STARTUP_STATE_FIRST_FRAME_DRAWN, // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
                 ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
 
-        mAppStartInfoTracker.onReportFullyDrawn(appStartTimestampIntentStarted,
+        mAppStartInfoTracker.onActivityReportFullyDrawn(appStartTimestampIntentStarted,
                 appStartTimestampReportFullyDrawn);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1Pid1, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_1, 0, list);
         verifyInProgressRecordsSize(0);
         assertEquals(list.size(), 1);
 
         verifyApplicationStartInfo(
                 list.get(0),                                          // info
-                app1Pid1,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
+                APP_1_PID_1,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_START_ACTIVITY,     // reason
                 ApplicationStartInfo.STARTUP_STATE_FIRST_FRAME_DRAWN, // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
-                ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
+                ApplicationStartInfo.LAUNCH_MODE_STANDARD,            // launch mode
+                ApplicationStartInfo.START_COMPONENT_ACTIVITY);       // start component
 
         // Don't clear records for use in subsequent cases.
 
         // Case 4: Create an other app1 record with different pid started for a service
         sleep(1);
         app = makeProcessRecord(
-                app1Pid2,                    // pid
-                app1Uid,                     // uid
-                app1Uid,                     // packageUid
-                app1DefiningUid,             // definingUid
-                app1ProcessName,             // processName
-                app1PackageName);            // packageName
+                APP_1_PID_2,                 // pid
+                APP_1_UID,                   // uid
+                APP_1_UID,                   // packageUid
+                APP_1_DEFINING_UID,          // definingUid
+                APP_1_PROCESS_NAME,          // processName
+                APP_1_PACKAGE_NAME);         // packageName
         ServiceRecord service = ServiceRecord.newEmptyInstanceForTest(mAms);
 
-        mAppStartInfoTracker.handleProcessServiceStart(appStartTimestampService, app, service,
-                false);
+        mAppStartInfoTracker.handleProcessServiceStart(appStartTimestampService, app, service);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, 0, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, 0, 0, list);
         assertEquals(list.size(), 2);
 
         verifyApplicationStartInfo(
                 list.get(0),                                          // info
-                app1Pid2,                                             // pid
-                app1Uid,                                              // uid
-                app1Uid,                                              // packageUid
-                app1DefiningUid,                                      // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PID_2,                                          // pid
+                APP_1_UID,                                            // uid
+                APP_1_UID,                                            // packageUid
+                APP_1_DEFINING_UID,                                   // definingUid
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_SERVICE,            // reason
                 ApplicationStartInfo.STARTUP_STATE_STARTED,           // startup state
-                ApplicationStartInfo.START_TYPE_WARM,                 // state type
-                ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
+                ApplicationStartInfo.START_TYPE_COLD,                 // state type
+                ApplicationStartInfo.LAUNCH_MODE_STANDARD,            // launch mode
+                ApplicationStartInfo.START_COMPONENT_SERVICE);        // start component
 
         // Case 5: Create an instance of app1 with a different user started for a broadcast
         sleep(1);
         app = makeProcessRecord(
-                app1PidUser2,                    // pid
-                app1UidUser2,                    // uid
-                app1UidUser2,                    // packageUid
+                APP_1_PID_USER_2,                // pid
+                APP_1_UID_USER_2,                // uid
+                APP_1_UID_USER_2,                // packageUid
                 null,                            // definingUid
-                app1ProcessName,                 // processName
-                app1PackageName);                // packageName
+                APP_1_PROCESS_NAME,              // processName
+                APP_1_PACKAGE_NAME);             // packageName
 
         mAppStartInfoTracker.handleProcessBroadcastStart(appStartTimestampBroadcast, app,
-                null, true /* isColdStart */);
+                buildIntent(COMPONENT), false /* isAlarm */);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1UidUser2, app1PidUser2, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID_USER_2, APP_1_PID_USER_2, 0,
+                list);
         assertEquals(list.size(), 1);
 
         verifyApplicationStartInfo(
                 list.get(0),                                          // info
-                app1PidUser2,                                         // pid
-                app1UidUser2,                                         // uid
-                app1UidUser2,                                         // packageUid
+                APP_1_PID_USER_2,                                     // pid
+                APP_1_UID_USER_2,                                     // uid
+                APP_1_UID_USER_2,                                     // packageUid
                 null,                                                 // definingUid
-                app1ProcessName,                                      // processName
+                APP_1_PROCESS_NAME,                                   // processName
                 ApplicationStartInfo.START_REASON_BROADCAST,          // reason
                 ApplicationStartInfo.STARTUP_STATE_STARTED,           // startup state
                 ApplicationStartInfo.START_TYPE_COLD,                 // state type
-                ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
+                ApplicationStartInfo.LAUNCH_MODE_STANDARD,            // launch mode
+                ApplicationStartInfo.START_COMPONENT_BROADCAST);      // start component
 
         // Case 6: User 2 gets removed
-        mAppStartInfoTracker.onPackageRemoved(app1PackageName, app1UidUser2, false);
+        mAppStartInfoTracker.onPackageRemoved(APP_1_PACKAGE_NAME, APP_1_UID_USER_2, false);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1UidUser2, app1PidUser2, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID_USER_2, APP_1_PID_USER_2, 0,
+                list);
         assertEquals(list.size(), 0);
 
         list.clear();
-        mAppStartInfoTracker.getStartInfo(app1PackageName, app1Uid, app1PidUser2, 0, list);
+        mAppStartInfoTracker.getStartInfo(APP_1_PACKAGE_NAME, APP_1_UID, APP_1_PID_USER_2, 0, list);
         assertEquals(list.size(), 2);
 
 
@@ -395,7 +418,7 @@ public class ApplicationStartInfoTest {
                 app2PackageName);                // packageName
 
         mAppStartInfoTracker.handleProcessContentProviderStart(appStartTimestampRContentProvider,
-                app, false);
+                app);
         list.clear();
         mAppStartInfoTracker.getStartInfo(app2PackageName, app2UidUser2, app2PidUser2, 0, list);
         assertEquals(list.size(), 1);
@@ -409,12 +432,14 @@ public class ApplicationStartInfoTest {
                 app2ProcessName,                                      // processName
                 ApplicationStartInfo.START_REASON_CONTENT_PROVIDER,   // reason
                 ApplicationStartInfo.STARTUP_STATE_STARTED,           // startup state
-                ApplicationStartInfo.START_TYPE_WARM,                 // state type
-                ApplicationStartInfo.LAUNCH_MODE_STANDARD);           // launch mode
+                ApplicationStartInfo.START_TYPE_COLD,                 // state type
+                ApplicationStartInfo.LAUNCH_MODE_STANDARD,            // launch mode
+                ApplicationStartInfo.START_COMPONENT_CONTENT_PROVIDER // start component
+        );
 
         // Case 8: Save and load again
         ArrayList<ApplicationStartInfo> original = new ArrayList<ApplicationStartInfo>();
-        mAppStartInfoTracker.getStartInfo(null, app1Uid, 0, 0, original);
+        mAppStartInfoTracker.getStartInfo(null, APP_1_UID, 0, 0, original);
         assertTrue(original.size() > 0);
 
         mAppStartInfoTracker.persistProcessStartInfo();
@@ -422,17 +447,182 @@ public class ApplicationStartInfoTest {
 
         mAppStartInfoTracker.clearProcessStartInfo(false);
         list.clear();
-        mAppStartInfoTracker.getStartInfo(null, app1Uid, 0, 0, list);
+        mAppStartInfoTracker.getStartInfo(null, APP_1_UID, 0, 0, list);
         assertEquals(0, list.size());
 
         mAppStartInfoTracker.loadExistingProcessStartInfo();
         list.clear();
-        mAppStartInfoTracker.getStartInfo(null, app1Uid, 0, 0, list);
+        mAppStartInfoTracker.getStartInfo(null, APP_1_UID, 0, 0, list);
         assertEquals(original.size(), list.size());
 
         for (int i = list.size() - 1; i >= 0; i--) {
             assertTrue(list.get(i).equals(original.get(i)));
         }
+    }
+
+    /**
+     * Test to make sure that in progress records stay within their size limits and discard the
+     * correct records.
+     */
+    @SuppressWarnings("GuardedBy")
+    @Test
+    @EnableFlags(android.app.Flags.FLAG_APP_START_INFO_COMPONENT)
+    public void testInProgressRecordsLimit() throws Exception {
+        ProcessRecord app = makeProcessRecord(
+                APP_1_PID_1,                 // pid
+                APP_1_UID,                   // uid
+                APP_1_UID,                   // packageUid
+                null,                        // definingUid
+                APP_1_PROCESS_NAME,          // processName
+                APP_1_PACKAGE_NAME);         // packageName
+
+        // Mock performing 2 x MAX_IN_PROGRESS_RECORDS successful starts and ensure that the list
+        // never exceeds the expected size of MAX_IN_PROGRESS_RECORDS.
+        for (int i = 0; i < AppStartInfoTracker.MAX_IN_PROGRESS_RECORDS * 2; i++) {
+            Long startTime = Long.valueOf(i);
+            mAppStartInfoTracker.onActivityIntentStarted(buildIntent(COMPONENT), startTime);
+            verifyInProgressRecordsSize(
+                    Math.min(i + 1, AppStartInfoTracker.MAX_IN_PROGRESS_RECORDS));
+
+            mAppStartInfoTracker.onActivityLaunched(startTime, COMPONENT,
+                    ApplicationStartInfo.START_TYPE_COLD, app);
+            verifyInProgressRecordsSize(
+                    Math.min(i + 1, AppStartInfoTracker.MAX_IN_PROGRESS_RECORDS));
+
+            mAppStartInfoTracker.onActivityLaunchFinished(startTime, COMPONENT,
+                    startTime + 100, ApplicationStartInfo.LAUNCH_MODE_STANDARD);
+            verifyInProgressRecordsSize(
+                    Math.min(i + 1, AppStartInfoTracker.MAX_IN_PROGRESS_RECORDS));
+
+            // Make sure that the record added in this iteration is still present.
+            assertTrue(mAppStartInfoTracker.mInProgressRecords.containsKey(startTime));
+        }
+
+        // Confirm that after 2 x MAX_IN_PROGRESS_RECORDS starts only MAX_IN_PROGRESS_RECORDS are
+        // present.
+        verifyInProgressRecordsSize(AppStartInfoTracker.MAX_IN_PROGRESS_RECORDS);
+    }
+
+    /**
+     * Test to make sure that records are returned in correct order, from most recently added at
+     * index 0 to least recently added at index size - 1.
+     */
+    @Test
+    public void testHistoricalRecordsOrdering() throws Exception {
+        // Clear old records
+        mAppStartInfoTracker.clearProcessStartInfo(false);
+
+        // Add some records with timestamps 0 decreasing as clock increases.
+        ProcessRecord app = makeProcessRecord(
+                APP_1_PID_1,                     // pid
+                APP_1_UID,                       // uid
+                APP_1_UID,                       // packageUid
+                null,                            // definingUid
+                APP_1_PROCESS_NAME,              // processName
+                APP_1_PACKAGE_NAME);             // packageName
+
+        mAppStartInfoTracker.handleProcessBroadcastStart(3, app, buildIntent(COMPONENT),
+                false /* isAlarm */);
+        // Add a brief delay between timestamps to make sure the clock, which is in milliseconds has
+        // actually incremented.
+        sleep(1);
+        mAppStartInfoTracker.handleProcessBroadcastStart(2, app, buildIntent(COMPONENT),
+                false /* isAlarm */);
+        sleep(1);
+        mAppStartInfoTracker.handleProcessBroadcastStart(1, app, buildIntent(COMPONENT),
+                false /* isAlarm */);
+
+        // Get records
+        ArrayList<ApplicationStartInfo> list = new ArrayList<ApplicationStartInfo>();
+        mAppStartInfoTracker.getStartInfo(null, APP_1_UID, 0, 0, list);
+
+        // Confirm that records are in correct order, with index 0 representing the most recently
+        // added record and index size - 1 representing the least recently added one.
+        assertEquals(3, list.size());
+        assertEquals(1L, list.get(0).getStartupTimestamps().get(0).longValue());
+        assertEquals(2L, list.get(1).getStartupTimestamps().get(0).longValue());
+        assertEquals(3L, list.get(2).getStartupTimestamps().get(0).longValue());
+    }
+
+    /**
+     * Test to make sure that persist and restore correctly maintains the state of the monotonic
+     * clock.
+     */
+    @Test
+    public void testPersistAndRestoreMonotonicClock() {
+        // Make sure we can write to the file.
+        assertTrue(FileUtils.createDir(mAppStartInfoTracker.mProcStartStoreDir));
+
+        // No need to persist records for this test, clear any that may be there.
+        mAppStartInfoTracker.clearProcessStartInfo(false);
+
+        // Set clock with an arbitrary 5 minute offset, just needs to be longer than it would take
+        // for code to run.
+        mAppStartInfoTracker.mMonotonicClock = new MonotonicClock(5 * 60 * 1000,
+                Clock.SYSTEM_CLOCK);
+
+        // Record the current time.
+        long originalMonotonicTime = mAppStartInfoTracker.mMonotonicClock.monotonicTime();
+
+        // Now persist the process start info. Records were cleared above so this should just
+        // persist the monotonic time.
+        mAppStartInfoTracker.persistProcessStartInfo();
+
+        // Null out the clock to make sure its set on load.
+        mAppStartInfoTracker.mMonotonicClock = null;
+        assertNull(mAppStartInfoTracker.mMonotonicClock);
+
+        // Now load from disk.
+        mAppStartInfoTracker.loadExistingProcessStartInfo();
+
+        // Confirm clock has been set and that its current time is greater than or equal to the
+        // previous one, thereby ensuring it was loaded from disk.
+        assertNotNull(mAppStartInfoTracker.mMonotonicClock);
+        assertTrue(mAppStartInfoTracker.mMonotonicClock.monotonicTime() >= originalMonotonicTime);
+    }
+
+    /**
+     * Test to confirm that parcel read and write implementations match, correctly loading records
+     * with the same values and leaving no data unread.
+     */
+    @Test
+    public void testParcelReadWriteMatch() throws Exception {
+        // Create a start info records with all fields set.
+        ApplicationStartInfo startInfo = new ApplicationStartInfo(1234L);
+        startInfo.setPid(123);
+        startInfo.setRealUid(987);
+        startInfo.setPackageUid(654);
+        startInfo.setDefiningUid(321);
+        startInfo.setReason(ApplicationStartInfo.START_REASON_LAUNCHER);
+        startInfo.setStartupState(ApplicationStartInfo.STARTUP_STATE_FIRST_FRAME_DRAWN);
+        startInfo.setStartType(ApplicationStartInfo.START_TYPE_WARM);
+        startInfo.setLaunchMode(ApplicationStartInfo.LAUNCH_MODE_SINGLE_TOP);
+        startInfo.setPackageName(APP_1_PACKAGE_NAME);
+        startInfo.setProcessName(APP_1_PROCESS_NAME);
+        startInfo.addStartupTimestamp(ApplicationStartInfo.START_TIMESTAMP_LAUNCH, 999L);
+        startInfo.addStartupTimestamp(ApplicationStartInfo.START_TIMESTAMP_FIRST_FRAME, 888L);
+        startInfo.setForceStopped(true);
+        startInfo.setStartComponent(ApplicationStartInfo.START_COMPONENT_OTHER);
+        startInfo.setIntent(buildIntent(COMPONENT));
+
+        // Write the start info to a parcel.
+        Parcel parcel = Parcel.obtain();
+        startInfo.writeToParcel(parcel, 0 /* flags */);
+
+        // Set the data position back to 0 so it's ready to be read.
+        parcel.setDataPosition(0);
+
+        // Now load the record from the parcel.
+        ApplicationStartInfo startInfoFromParcel = new ApplicationStartInfo(parcel);
+
+        // Make sure there is no unread data remaining in the parcel, and confirm that the loaded
+        // start info object is equal to the one it was written from. Check dataAvail first as if
+        // that check fails then the next check will fail too, but knowing the status of this check
+        // will tell us that we're missing a read or write. Check the objects are equals second as
+        // if the avail check passes and equals fails, then we know we're reading all the data just
+        // not to the correct fields.
+        assertEquals(0, parcel.dataAvail());
+        assertTrue(startInfo.equals(startInfoFromParcel));
     }
 
     private static <T> void setFieldValue(Class clazz, Object obj, String fieldName, T val) {
@@ -482,25 +672,30 @@ public class ApplicationStartInfoTest {
 
     private void verifyInProgressRecordsSize(int expectedSize) {
         synchronized (mAppStartInfoTracker.mLock) {
-            assertEquals(mAppStartInfoTracker.mInProgRecords.size(), expectedSize);
+            assertEquals(mAppStartInfoTracker.mInProgressRecords.size(), expectedSize);
         }
     }
 
-    private void verifyInProgApplicationStartInfo(int index,
+    /**
+     * Convenience helper to access the record from the in progress data structure. Only applies for
+     * activity starts.
+     */
+    private void verifyInProgressApplicationStartInfo(int index,
             Integer pid, Integer uid, Integer packageUid,
             Integer definingUid, String processName,
             Integer reason, Integer startupState, Integer startType, Integer launchMode) {
         synchronized (mAppStartInfoTracker.mLock) {
-            verifyApplicationStartInfo(mAppStartInfoTracker.mInProgRecords.valueAt(index),
+            verifyApplicationStartInfo(mAppStartInfoTracker.mInProgressRecords.valueAt(index),
                     pid, uid, packageUid, definingUid, processName, reason, startupState,
-                    startType, launchMode);
+                    startType, launchMode, ApplicationStartInfo.START_COMPONENT_ACTIVITY);
         }
     }
 
     private void verifyApplicationStartInfo(ApplicationStartInfo info,
             Integer pid, Integer uid, Integer packageUid,
             Integer definingUid, String processName,
-            Integer reason, Integer startupState, Integer startType, Integer launchMode) {
+            Integer reason, Integer startupState, Integer startType, Integer launchMode,
+            Integer startComponent) {
         assertNotNull(info);
 
         if (pid != null) {
@@ -529,6 +724,9 @@ public class ApplicationStartInfoTest {
         }
         if (launchMode != null) {
             assertEquals(launchMode.intValue(), info.getLaunchMode());
+        }
+        if (startComponent != null) {
+            assertEquals(startComponent.intValue(), info.getStartComponent());
         }
     }
 

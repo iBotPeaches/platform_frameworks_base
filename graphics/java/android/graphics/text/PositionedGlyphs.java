@@ -26,6 +26,7 @@ import android.graphics.Typeface;
 import android.graphics.fonts.Font;
 
 import com.android.internal.util.Preconditions;
+import com.android.text.flags.Flags;
 
 import dalvik.annotation.optimization.CriticalNative;
 
@@ -46,9 +47,11 @@ import java.util.Objects;
  * @see TextRunShaper#shapeTextRun(CharSequence, int, int, int, int, float, float, boolean, Paint)
  */
 public final class PositionedGlyphs {
-    private static final NativeAllocationRegistry REGISTRY =
-            NativeAllocationRegistry.createMalloced(
-                    Typeface.class.getClassLoader(), nReleaseFunc());
+    private static class NoImagePreloadHolder {
+        private static final NativeAllocationRegistry REGISTRY =
+                NativeAllocationRegistry.createMalloced(
+                        Typeface.class.getClassLoader(), nReleaseFunc());
+    }
 
     private final long mLayoutPtr;
     private final float mXOffset;
@@ -130,6 +133,9 @@ public final class PositionedGlyphs {
     @NonNull
     public Font getFont(@IntRange(from = 0) int index) {
         Preconditions.checkArgumentInRange(index, 0, glyphCount() - 1, "index");
+        if (Flags.typefaceRedesignReadonly()) {
+            return mFonts.get(nGetFontId(mLayoutPtr, index));
+        }
         return mFonts.get(index);
     }
 
@@ -243,23 +249,32 @@ public final class PositionedGlyphs {
      */
     public PositionedGlyphs(long layoutPtr, float xOffset, float yOffset) {
         mLayoutPtr = layoutPtr;
-        int glyphCount = nGetGlyphCount(layoutPtr);
-        mFonts = new ArrayList<>(glyphCount);
         mXOffset = xOffset;
         mYOffset = yOffset;
 
-        long prevPtr = 0;
-        Font prevFont = null;
-        for (int i = 0; i < glyphCount; ++i) {
-            long ptr = nGetFont(layoutPtr, i);
-            if (prevPtr != ptr) {
-                prevPtr = ptr;
-                prevFont = new Font(ptr);
+        if (Flags.typefaceRedesignReadonly()) {
+            int fontCount = nGetFontCount(layoutPtr);
+            mFonts = new ArrayList<>(fontCount);
+            for (int i = 0; i < fontCount; ++i) {
+                mFonts.add(new Font(nGetFontRef(layoutPtr, i)));
             }
-            mFonts.add(prevFont);
+        } else {
+            int glyphCount = nGetGlyphCount(layoutPtr);
+            mFonts = new ArrayList<>(glyphCount);
+
+            long prevPtr = 0;
+            Font prevFont = null;
+            for (int i = 0; i < glyphCount; ++i) {
+                long ptr = nGetFont(layoutPtr, i);
+                if (prevPtr != ptr) {
+                    prevPtr = ptr;
+                    prevFont = new Font(ptr);
+                }
+                mFonts.add(prevFont);
+            }
         }
 
-        REGISTRY.registerNativeAllocation(this, layoutPtr);
+        NoImagePreloadHolder.REGISTRY.registerNativeAllocation(this, layoutPtr);
     }
 
     @CriticalNative
@@ -288,6 +303,12 @@ public final class PositionedGlyphs {
     private static native float nGetWeightOverride(long minikinLayout, int i);
     @CriticalNative
     private static native float nGetItalicOverride(long minikinLayout, int i);
+    @CriticalNative
+    private static native int nGetFontCount(long minikinLayout);
+    @CriticalNative
+    private static native long nGetFontRef(long minikinLayout, int fontId);
+    @CriticalNative
+    private static native int nGetFontId(long minikinLayout, int glyphIndex);
 
     @Override
     public boolean equals(Object o) {

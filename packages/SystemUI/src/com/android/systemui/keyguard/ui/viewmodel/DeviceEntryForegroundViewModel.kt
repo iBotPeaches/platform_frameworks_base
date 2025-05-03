@@ -21,16 +21,20 @@ import android.content.Context
 import com.android.settingslib.Utils
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryUdfpsInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
 import kotlin.math.roundToInt
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -38,20 +42,25 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
 /** Models the UI state for the device entry icon foreground view (displayed icon). */
+@OptIn(FlowPreview::class)
 @ExperimentalCoroutinesApi
+@SysUISingleton
 class DeviceEntryForegroundViewModel
 @Inject
 constructor(
-    val context: Context,
-    configurationInteractor: ConfigurationInteractor,
+    @ShadeDisplayAware val context: Context,
+    @ShadeDisplayAware configurationInteractor: ConfigurationInteractor,
     deviceEntryUdfpsInteractor: DeviceEntryUdfpsInteractor,
     transitionInteractor: KeyguardTransitionInteractor,
     deviceEntryIconViewModel: DeviceEntryIconViewModel,
     udfpsOverlayInteractor: UdfpsOverlayInteractor,
 ) {
     private val isShowingAodOrDozing: Flow<Boolean> =
-        transitionInteractor.startedKeyguardState.map { keyguardState ->
-            keyguardState == KeyguardState.AOD || keyguardState == KeyguardState.DOZING
+        combine(
+            transitionInteractor.startedKeyguardTransitionStep,
+            transitionInteractor.transitionValue(KeyguardState.DOZING),
+        ) { startedKeyguardStep, dozingTransitionValue ->
+            startedKeyguardStep.to == KeyguardState.AOD || dozingTransitionValue == 1f
         }
 
     private fun getColor(usingBackgroundProtection: Boolean): Int {
@@ -61,13 +70,6 @@ constructor(
             Utils.getColorAttrDefaultColor(context, R.attr.wallpaperTextColorAccent)
         }
     }
-
-    private val color: Flow<Int> =
-        deviceEntryIconViewModel.useBackgroundProtection.flatMapLatest { useBgProtection ->
-            configurationInteractor.onAnyConfigurationChange
-                .map { getColor(useBgProtection) }
-                .onStart { emit(getColor(useBgProtection)) }
-        }
 
     // While dozing, the display can show the AOD UI; show the AOD udfps when dozing
     private val useAodIconVariant: Flow<Boolean> =
@@ -79,10 +81,26 @@ constructor(
             }
         }
 
+    private val color: Flow<Int> =
+        useAodIconVariant
+            .flatMapLatest { useAodVariant ->
+                if (useAodVariant) {
+                    flowOf(android.graphics.Color.WHITE)
+                } else {
+                    deviceEntryIconViewModel.useBackgroundProtection.flatMapLatest { useBgProtection
+                        ->
+                        configurationInteractor.onAnyConfigurationChange
+                            .map { getColor(useBgProtection) }
+                            .onStart { emit(getColor(useBgProtection)) }
+                    }
+                }
+            }
+            .distinctUntilChanged()
+
     private val padding: Flow<Int> =
         deviceEntryUdfpsInteractor.isUdfpsSupported.flatMapLatest { udfpsSupported ->
             if (udfpsSupported) {
-                udfpsOverlayInteractor.iconPadding
+                udfpsOverlayInteractor.iconPadding.debounce(udfpsPaddingDebounceDuration.toLong())
             } else {
                 configurationInteractor.scaleForResolution.map { scale ->
                     (context.resources.getDimensionPixelSize(R.dimen.lock_icon_padding) * scale)
@@ -92,12 +110,11 @@ constructor(
         }
 
     val viewModel: Flow<ForegroundIconViewModel> =
-        combine(
-            deviceEntryIconViewModel.iconType,
-            useAodIconVariant,
+        combine(deviceEntryIconViewModel.iconType, useAodIconVariant, color, padding) {
+            iconType,
+            useAodVariant,
             color,
-            padding,
-        ) { iconType, useAodVariant, color, padding ->
+            padding ->
             ForegroundIconViewModel(
                 type = iconType,
                 useAodVariant = useAodVariant,
@@ -105,6 +122,9 @@ constructor(
                 padding = padding,
             )
         }
+
+    private val udfpsPaddingDebounceDuration: Int
+        get() = context.resources.getInteger(R.integer.udfps_padding_debounce_duration)
 
     data class ForegroundIconViewModel(
         val type: DeviceEntryIconView.IconType,

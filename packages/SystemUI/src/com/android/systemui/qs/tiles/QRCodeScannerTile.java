@@ -21,13 +21,14 @@ import android.os.Handler;
 import android.os.Looper;
 import android.service.quicksettings.Tile;
 import android.util.Log;
-import android.view.View;
+import android.widget.Button;
 
 import androidx.annotation.Nullable;
 
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.logging.MetricsLogger;
 import com.android.systemui.animation.ActivityTransitionAnimator;
+import com.android.systemui.animation.Expandable;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.plugins.ActivityStarter;
@@ -99,7 +100,7 @@ public class QRCodeScannerTile extends QSTileImpl<QSTile.State> {
     }
 
     @Override
-    protected void handleClick(@Nullable View view) {
+    protected void handleClick(@Nullable Expandable expandable) {
         Intent intent = mQRCodeScannerController.getIntent();
         if (intent == null) {
             // This should never happen as the fact that we are handling clicks means that the
@@ -109,7 +110,7 @@ public class QRCodeScannerTile extends QSTileImpl<QSTile.State> {
         }
 
         ActivityTransitionAnimator.Controller animationController =
-                view == null ? null : ActivityTransitionAnimator.Controller.fromView(view,
+                expandable == null ? null : expandable.activityTransitionController(
                         InteractionJankMonitor.CUJ_SHADE_APP_LAUNCH_FROM_QS_TILE);
         mActivityStarter.startActivity(intent, true /* dismissShade */,
                 animationController, true /* showOverLockscreenWhenLocked */);
@@ -119,13 +120,14 @@ public class QRCodeScannerTile extends QSTileImpl<QSTile.State> {
     protected void handleUpdateState(State state, Object arg) {
         state.label = mContext.getString(R.string.qr_code_scanner_title);
         state.contentDescription = state.label;
-        state.icon = ResourceIcon.get(R.drawable.ic_qr_code_scanner);
+        state.icon = maybeLoadResourceIcon(R.drawable.ic_qr_code_scanner);
         state.state = mQRCodeScannerController.isAbleToLaunchScannerActivity() ? Tile.STATE_INACTIVE
                 : Tile.STATE_UNAVAILABLE;
         // The assumption is that if the OEM has the QR code scanner module enabled then the scanner
         // would go to "Unavailable" state only when GMS core is updating.
         state.secondaryLabel = state.state == Tile.STATE_UNAVAILABLE
                 ? mContext.getString(R.string.qr_code_scanner_updating_secondary_label) : null;
+        state.expandedAccessibilityClassName = Button.class.getName();
     }
 
     @Override

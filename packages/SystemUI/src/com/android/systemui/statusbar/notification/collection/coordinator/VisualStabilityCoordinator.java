@@ -18,18 +18,24 @@ package com.android.systemui.statusbar.notification.collection.coordinator;
 
 import static com.android.systemui.keyguard.WakefulnessLifecycle.WAKEFULNESS_ASLEEP;
 
-import android.util.Log;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.systemui.Dumpable;
+import com.android.systemui.Flags;
+import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.WakefulnessLifecycle;
+import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor;
+import com.android.systemui.keyguard.shared.model.Edge;
+import com.android.systemui.keyguard.shared.model.KeyguardState;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
+import com.android.systemui.scene.shared.flag.SceneContainerFlag;
+import com.android.systemui.scene.shared.model.Scenes;
 import com.android.systemui.shade.domain.interactor.ShadeAnimationInteractor;
+import com.android.systemui.shade.domain.interactor.ShadeInteractor;
 import com.android.systemui.statusbar.notification.VisibilityLocationProvider;
 import com.android.systemui.statusbar.notification.collection.GroupEntry;
 import com.android.systemui.statusbar.notification.collection.ListEntry;
@@ -37,9 +43,12 @@ import com.android.systemui.statusbar.notification.collection.NotifPipeline;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.listbuilder.pluggable.NotifStabilityManager;
 import com.android.systemui.statusbar.notification.collection.provider.VisualStabilityProvider;
-import com.android.systemui.statusbar.policy.HeadsUpManager;
-import com.android.systemui.util.Compile;
+import com.android.systemui.statusbar.notification.domain.interactor.SeenNotificationsInteractor;
+import com.android.systemui.statusbar.notification.shared.NotificationMinimalism;
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
+import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.util.concurrency.DelayableExecutor;
+import com.android.systemui.util.kotlin.BooleanFlowOperators;
 import com.android.systemui.util.kotlin.JavaAdapter;
 
 import java.io.PrintWriter;
@@ -58,16 +67,20 @@ import javax.inject.Inject;
 // TODO(b/204468557): Move to @CoordinatorScope
 @SysUISingleton
 public class VisualStabilityCoordinator implements Coordinator, Dumpable {
-    public static final String TAG = "VisualStability";
-    public static final boolean DEBUG = Compile.IS_DEBUG && Log.isLoggable(TAG, Log.VERBOSE);
     private final DelayableExecutor mDelayableExecutor;
     private final HeadsUpManager mHeadsUpManager;
+    private final SeenNotificationsInteractor mSeenNotificationsInteractor;
     private final ShadeAnimationInteractor mShadeAnimationInteractor;
     private final StatusBarStateController mStatusBarStateController;
     private final JavaAdapter mJavaAdapter;
     private final VisibilityLocationProvider mVisibilityLocationProvider;
     private final VisualStabilityProvider mVisualStabilityProvider;
     private final WakefulnessLifecycle mWakefulnessLifecycle;
+    private final CommunalSceneInteractor mCommunalSceneInteractor;
+    private final ShadeInteractor mShadeInteractor;
+    private final KeyguardTransitionInteractor mKeyguardTransitionInteractor;
+    private final KeyguardStateController mKeyguardStateController;
+    private final VisualStabilityCoordinatorLogger mLogger;
 
     private boolean mSleepy = true;
     private boolean mFullyDozed;
@@ -75,6 +88,9 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
     private boolean mPulsing;
     private boolean mNotifPanelCollapsing;
     private boolean mNotifPanelLaunchingActivity;
+    private boolean mCommunalShowing = false;
+    private boolean mLockscreenShowing = false;
+    private boolean mLockscreenInGoneTransition = false;
 
     private boolean mPipelineRunAllowed;
     private boolean mReorderingAllowed;
@@ -98,18 +114,30 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
             HeadsUpManager headsUpManager,
             ShadeAnimationInteractor shadeAnimationInteractor,
             JavaAdapter javaAdapter,
+            SeenNotificationsInteractor seenNotificationsInteractor,
             StatusBarStateController statusBarStateController,
             VisibilityLocationProvider visibilityLocationProvider,
             VisualStabilityProvider visualStabilityProvider,
-            WakefulnessLifecycle wakefulnessLifecycle) {
+            WakefulnessLifecycle wakefulnessLifecycle,
+            CommunalSceneInteractor communalSceneInteractor,
+            ShadeInteractor shadeInteractor,
+            KeyguardTransitionInteractor keyguardTransitionInteractor,
+            KeyguardStateController keyguardStateController,
+            VisualStabilityCoordinatorLogger logger) {
         mHeadsUpManager = headsUpManager;
         mShadeAnimationInteractor = shadeAnimationInteractor;
         mJavaAdapter = javaAdapter;
+        mSeenNotificationsInteractor = seenNotificationsInteractor;
         mVisibilityLocationProvider = visibilityLocationProvider;
         mVisualStabilityProvider = visualStabilityProvider;
         mWakefulnessLifecycle = wakefulnessLifecycle;
         mStatusBarStateController = statusBarStateController;
         mDelayableExecutor = delayableExecutor;
+        mCommunalSceneInteractor = communalSceneInteractor;
+        mShadeInteractor = shadeInteractor;
+        mKeyguardTransitionInteractor = keyguardTransitionInteractor;
+        mKeyguardStateController = keyguardStateController;
+        mLogger = logger;
 
         dumpManager.registerDumpable(this);
     }
@@ -126,17 +154,56 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
                 this::onShadeOrQsClosingChanged);
         mJavaAdapter.alwaysCollectFlow(mShadeAnimationInteractor.isLaunchingActivity(),
                 this::onLaunchingActivityChanged);
+        mJavaAdapter.alwaysCollectFlow(
+                BooleanFlowOperators.INSTANCE.allOf(
+                        mCommunalSceneInteractor.isIdleOnCommunal(),
+                        BooleanFlowOperators.INSTANCE.not(mShadeInteractor.isAnyFullyExpanded())
+                ),
+                this::onCommunalShowingChanged);
+
+        if (SceneContainerFlag.isEnabled()) {
+            mJavaAdapter.alwaysCollectFlow(mKeyguardTransitionInteractor.transitionValue(
+                            KeyguardState.LOCKSCREEN),
+                    this::onLockscreenKeyguardStateTransitionValueChanged);
+        }
+
+        if (Flags.checkLockscreenGoneTransition()) {
+            if (SceneContainerFlag.isEnabled()) {
+                mJavaAdapter.alwaysCollectFlow(mKeyguardTransitionInteractor.isInTransition(
+                                Edge.create(KeyguardState.LOCKSCREEN, Scenes.Gone), null),
+                        this::onLockscreenInGoneTransitionChanged);
+            } else {
+                mKeyguardStateController.addCallback(mKeyguardFadeAwayAnimationCallback);
+            }
+        }
 
         pipeline.setVisualStabilityManager(mNotifStabilityManager);
     }
+
+    final KeyguardStateController.Callback mKeyguardFadeAwayAnimationCallback =
+            new KeyguardStateController.Callback() {
+                @Override
+                public void onKeyguardFadingAwayChanged() {
+                    onLockscreenInGoneTransitionChanged(
+                            mKeyguardStateController.isKeyguardFadingAway());
+                }
+            };
 
     // TODO(b/203826051): Ensure stability manager can allow reordering off-screen
     //  HUNs to the top of the shade
     private final NotifStabilityManager mNotifStabilityManager =
             new NotifStabilityManager("VisualStabilityCoordinator") {
                 private boolean canMoveForHeadsUp(NotificationEntry entry) {
-                    return entry != null && mHeadsUpManager.isHeadsUpEntry(entry.getKey())
-                            && !mVisibilityLocationProvider.isInVisibleLocation(entry);
+                    if (entry == null) {
+                        return false;
+                    }
+                    boolean isTopUnseen = NotificationMinimalism.isEnabled()
+                            && (mSeenNotificationsInteractor.isTopUnseenNotification(entry)
+                                || mSeenNotificationsInteractor.isTopOngoingNotification(entry));
+                    if (isTopUnseen || mHeadsUpManager.isHeadsUpEntry(entry.getKey())) {
+                        return !mVisibilityLocationProvider.isInVisibleLocation(entry);
+                    }
+                    return false;
                 }
 
                 @Override
@@ -199,14 +266,16 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
     private void updateAllowedStates(String field, boolean value) {
         boolean wasPipelineRunAllowed = mPipelineRunAllowed;
         boolean wasReorderingAllowed = mReorderingAllowed;
-        mPipelineRunAllowed = !isPanelCollapsingOrLaunchingActivity();
+        // No need to run notification pipeline when the lockscreen is in fading animation.
+        mPipelineRunAllowed = !(isPanelCollapsingOrLaunchingActivity()
+                || (Flags.checkLockscreenGoneTransition() && mLockscreenInGoneTransition));
         mReorderingAllowed = isReorderingAllowed();
-        if (DEBUG && (wasPipelineRunAllowed != mPipelineRunAllowed
-                || wasReorderingAllowed != mReorderingAllowed)) {
-            Log.d(TAG, "Stability allowances changed:"
-                    + "  pipelineRunAllowed " + wasPipelineRunAllowed + "->" + mPipelineRunAllowed
-                    + "  reorderingAllowed " + wasReorderingAllowed + "->" + mReorderingAllowed
-                    + "  when setting " + field + "=" + value);
+        if (wasPipelineRunAllowed != mPipelineRunAllowed
+                || wasReorderingAllowed != mReorderingAllowed) {
+            mLogger.logAllowancesChanged(
+                    wasPipelineRunAllowed, mPipelineRunAllowed,
+                    wasReorderingAllowed, mReorderingAllowed,
+                    field, value);
         }
         if (mPipelineRunAllowed && mIsSuppressingPipelineRun) {
             mNotifStabilityManager.invalidateList("pipeline run suppression ended");
@@ -231,7 +300,10 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
     }
 
     private boolean isReorderingAllowed() {
-        return ((mFullyDozed && mSleepy) || !mPanelExpanded) && !mPulsing;
+        final boolean sleepyAndDozed = mFullyDozed && mSleepy;
+        final boolean stackShowing = mPanelExpanded
+                || (SceneContainerFlag.isEnabled() && mLockscreenShowing);
+        return (sleepyAndDozed || !stackShowing || mCommunalShowing) && !mPulsing;
     }
 
     /**
@@ -287,7 +359,6 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
                     updateAllowedStates("fullyDozed", fullyDozed);
                 }
             };
-
     final WakefulnessLifecycle.Observer mWakefulnessObserver = new WakefulnessLifecycle.Observer() {
         @Override
         public void onFinishedGoingToSleep() {
@@ -310,11 +381,15 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
         pw.println("pipelineRunAllowed: " + mPipelineRunAllowed);
         pw.println("  notifPanelCollapsing: " + mNotifPanelCollapsing);
         pw.println("  launchingNotifActivity: " + mNotifPanelLaunchingActivity);
+        if (Flags.checkLockscreenGoneTransition()) {
+            pw.println("  lockscreenInGoneTransition: " + mLockscreenInGoneTransition);
+        }
         pw.println("reorderingAllowed: " + mReorderingAllowed);
         pw.println("  sleepy: " + mSleepy);
         pw.println("  fullyDozed: " + mFullyDozed);
         pw.println("  panelExpanded: " + mPanelExpanded);
         pw.println("  pulsing: " + mPulsing);
+        pw.println("  communalShowing: " + mCommunalShowing);
         pw.println("isSuppressingPipelineRun: " + mIsSuppressingPipelineRun);
         pw.println("isSuppressingGroupChange: " + mIsSuppressingGroupChange);
         pw.println("isSuppressingEntryReorder: " + mIsSuppressingEntryReorder);
@@ -337,5 +412,35 @@ public class VisualStabilityCoordinator implements Coordinator, Dumpable {
     private void onLaunchingActivityChanged(boolean isLaunchingActivity) {
         mNotifPanelLaunchingActivity = isLaunchingActivity;
         updateAllowedStates("notifPanelLaunchingActivity", isLaunchingActivity);
+    }
+
+    private void onCommunalShowingChanged(boolean isShowing) {
+        mCommunalShowing = isShowing;
+        updateAllowedStates("communalShowing", isShowing);
+    }
+
+    private void onLockscreenKeyguardStateTransitionValueChanged(float value) {
+        if (SceneContainerFlag.isUnexpectedlyInLegacyMode()) {
+            return;
+        }
+
+        final boolean isShowing = value > 0.0f;
+        if (isShowing == mLockscreenShowing) {
+            return;
+        }
+
+        mLockscreenShowing = isShowing;
+        updateAllowedStates("lockscreenShowing", isShowing);
+    }
+
+    private void onLockscreenInGoneTransitionChanged(boolean inGoneTransition) {
+        if (!Flags.checkLockscreenGoneTransition()) {
+            return;
+        }
+        if (inGoneTransition == mLockscreenInGoneTransition) {
+            return;
+        }
+        mLockscreenInGoneTransition = inGoneTransition;
+        updateAllowedStates("lockscreenInGoneTransition", mLockscreenInGoneTransition);
     }
 }

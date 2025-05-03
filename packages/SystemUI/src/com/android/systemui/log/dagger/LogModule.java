@@ -32,8 +32,6 @@ import com.android.systemui.plugins.clocks.ClockMessageBuffers;
 import com.android.systemui.qs.QSFragmentLegacy;
 import com.android.systemui.qs.pipeline.shared.QSPipelineFlagsRepository;
 import com.android.systemui.qs.pipeline.shared.TileSpec;
-import com.android.systemui.statusbar.notification.NotifPipelineFlags;
-import com.android.systemui.util.Compile;
 import com.android.systemui.util.wakelock.WakeLockLog;
 
 import dagger.Lazy;
@@ -56,77 +54,12 @@ public class LogModule {
         return factory.create("DozeLog", 150);
     }
 
-    /** Provides a logging buffer for all logs related to the data layer of notifications. */
-    @Provides
-    @SysUISingleton
-    @NotificationLog
-    public static LogBuffer provideNotificationsLogBuffer(
-            LogBufferFactory factory,
-            NotifPipelineFlags notifPipelineFlags) {
-        int maxSize = 1000;
-        if (Compile.IS_DEBUG && notifPipelineFlags.isDevLoggingEnabled()) {
-            maxSize *= 10;
-        }
-        return factory.create("NotifLog", maxSize, Compile.IS_DEBUG /* systrace */);
-    }
-
-    /** Provides a logging buffer for all logs related to notifications on the lockscreen. */
-    @Provides
-    @SysUISingleton
-    @NotificationLockscreenLog
-    public static LogBuffer provideNotificationLockScreenLogBuffer(
-            LogBufferFactory factory) {
-        return factory.create("NotifLockscreenLog", 50, false /* systrace */);
-    }
-
-    /** Provides a logging buffer for logs related to heads up presentation of notifications. */
-    @Provides
-    @SysUISingleton
-    @NotificationHeadsUpLog
-    public static LogBuffer provideNotificationHeadsUpLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifHeadsUpLog", 1000);
-    }
-
-    /** Provides a logging buffer for logs related to inflation of notifications. */
-    @Provides
-    @SysUISingleton
-    @NotifInflationLog
-    public static LogBuffer provideNotifInflationLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifInflationLog", 250);
-    }
-
-    /** Provides a logging buffer for notification interruption calculations. */
-    @Provides
-    @SysUISingleton
-    @NotificationInterruptLog
-    public static LogBuffer provideNotificationInterruptLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifInterruptLog", 100);
-    }
-
-    /** Provides a logging buffer for notification rendering events. */
-    @Provides
-    @SysUISingleton
-    @NotificationRenderLog
-    public static LogBuffer provideNotificationRenderLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifRenderLog", 100);
-    }
-
     /** Provides a logging buffer for all logs for lockscreen to shade transition events. */
     @Provides
     @SysUISingleton
     @LSShadeTransitionLog
     public static LogBuffer provideLSShadeTransitionControllerBuffer(LogBufferFactory factory) {
         return factory.create("LSShadeTransitionLog", 50);
-    }
-
-    /** */
-    @Provides
-    @SysUISingleton
-    @SensitiveNotificationProtectionLog
-    public static LogBuffer provideSensitiveNotificationProtectionLogBuffer(
-            LogBufferFactory factory
-    ) {
-        return factory.create("SensitiveNotificationProtectionLog", 10);
     }
 
     /** Provides a logging buffer for shade window messages. */
@@ -153,44 +86,12 @@ public class LogModule {
         return factory.create("ShadeTouchLog", 500, false);
     }
 
-    /** Provides a logging buffer for all logs related to managing notification sections. */
-    @Provides
-    @SysUISingleton
-    @NotificationSectionLog
-    public static LogBuffer provideNotificationSectionLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifSectionLog", 1000 /* maxSize */, false /* systrace */);
-    }
-
-    /** Provides a logging buffer for all logs related to remote input controller. */
-    @Provides
-    @SysUISingleton
-    @NotificationRemoteInputLog
-    public static LogBuffer provideNotificationRemoteInputLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifRemoteInputLog", 50 /* maxSize */, false /* systrace */);
-    }
-
     /** Provides a logging buffer for all logs related to keyguard media controller. */
     @Provides
     @SysUISingleton
     @KeyguardMediaControllerLog
     public static LogBuffer provideKeyguardMediaControllerLogBuffer(LogBufferFactory factory) {
         return factory.create("KeyguardMediaControllerLog", 50 /* maxSize */, false /* systrace */);
-    }
-
-    /** Provides a logging buffer for all logs related to unseen notifications. */
-    @Provides
-    @SysUISingleton
-    @UnseenNotificationLog
-    public static LogBuffer provideUnseenNotificationLogBuffer(LogBufferFactory factory) {
-        return factory.create("UnseenNotifLog", 20 /* maxSize */, false /* systrace */);
-    }
-
-    /** Provides a logging buffer for all logs related to the data layer of notifications. */
-    @Provides
-    @SysUISingleton
-    @NotifInteractionLog
-    public static LogBuffer provideNotifInteractionLogBuffer(LogBufferFactory factory) {
-        return factory.create("NotifInteractionLog", 50);
     }
 
     /** Provides a logging buffer for all logs related to Quick Settings. */
@@ -361,7 +262,27 @@ public class LogModule {
     @SysUISingleton
     @MediaCarouselControllerLog
     public static LogBuffer provideMediaCarouselControllerBuffer(LogBufferFactory factory) {
-        return factory.create("MediaCarouselCtlrLog", 20);
+        return factory.create("MediaCarouselCtlrLog", 100);
+    }
+
+    /**
+     * Provides a buffer for media loading changes
+     */
+    @Provides
+    @SysUISingleton
+    @MediaLog
+    public static LogBuffer providesMediaLogBuffer(LogBufferFactory factory) {
+        return factory.create("MediaLog", 20);
+    }
+
+    /**
+     * Provides a buffer for media device changes
+     */
+    @Provides
+    @SysUISingleton
+    @MediaDeviceLog
+    public static LogBuffer providesMediaDeviceLogBuffer(LogBufferFactory factory) {
+        return factory.create("MediaDeviceLog", 50);
     }
 
     /** Allows logging buffers to be tweaked via adb on debug builds but not on prod builds. */
@@ -452,13 +373,23 @@ public class LogModule {
     }
 
     /**
+     * Provides a {@link LogBuffer} for use by SIM events.
+     */
+    @Provides
+    @SysUISingleton
+    @SimLog
+    public static LogBuffer provideSimLogBuffer(LogBufferFactory factory) {
+        return factory.create("SimLog", 500);
+    }
+
+    /**
      * Provides a {@link LogBuffer} for use by {@link com.android.keyguard.KeyguardUpdateMonitor}.
      */
     @Provides
     @SysUISingleton
     @CarrierTextManagerLog
     public static LogBuffer provideCarrierTextManagerLog(LogBufferFactory factory) {
-        return factory.create("CarrierTextManagerLog", 100);
+        return factory.create("CarrierTextManagerLog", 400);
     }
 
     /**
@@ -550,6 +481,16 @@ public class LogModule {
     }
 
     /**
+     * Provides a {@link LogBuffer} for keyguard quick affordances-related logs.
+     */
+    @Provides
+    @SysUISingleton
+    @KeyguardQuickAffordancesLog
+    public static LogBuffer provideKeyguardQuickAffordancesLogBuffer(LogBufferFactory factory) {
+        return factory.create("KeyguardQuickAffordancesLog", 100);
+    }
+
+    /**
      * Provides a {@link LogBuffer} for keyguard transition animation logs.
      */
     @Provides
@@ -590,6 +531,16 @@ public class LogModule {
     }
 
     /**
+     * Provides a {@link LogBuffer} for communal touch-handling logs.
+     */
+    @Provides
+    @SysUISingleton
+    @CommunalTouchLog
+    public static LogBuffer provideCommunalTouchLogBuffer(LogBufferFactory factory) {
+        return factory.create("CommunalTouchLog", 250);
+    }
+
+    /**
      * Provides a {@link TableLogBuffer} for communal-related logs.
      */
     @Provides
@@ -607,12 +558,21 @@ public class LogModule {
         return factory.create("DisplayMetricsRepo", 50);
     }
 
+    /** Provides a {@link LogBuffer} for focus related logs. */
+    @Provides
+    @SysUISingleton
+    @FocusedDisplayRepoLog
+    public static LogBuffer provideFocusedDisplayRepoLogBuffer(LogBufferFactory factory) {
+        return factory.create("FocusedDisplayRepo", 50);
+    }
+
     /** Provides a {@link LogBuffer} for the scene framework. */
     @Provides
     @SysUISingleton
     @SceneFrameworkLog
     public static LogBuffer provideSceneFrameworkLogBuffer(LogBufferFactory factory) {
-        return factory.create("SceneFramework", 50);
+        return factory
+                .create("SceneFramework", 50, /* systrace */ true, /* alwaysLogToLogcat */  true);
     }
 
     /** Provides a {@link LogBuffer} for the bluetooth QS tile dialog. */
@@ -629,6 +589,14 @@ public class LogModule {
     @KeyboardLog
     public static LogBuffer provideKeyboardLogBuffer(LogBufferFactory factory) {
         return factory.create("KeyboardLog", 50);
+    }
+
+    /** Provides a {@link LogBuffer} for the input devices tutorial. */
+    @Provides
+    @SysUISingleton
+    @InputDeviceTutorialLog
+    public static LogBuffer provideInputDeviceTutorialLogBuffer(LogBufferFactory factory) {
+        return factory.create("InputDeviceTutorialLog", 50);
     }
 
     /** Provides a {@link LogBuffer} for {@link PackageChangeRepository} */
@@ -653,5 +621,29 @@ public class LogModule {
     @NavbarOrientationTrackingLog
     public static LogBuffer provideNavbarOrientationTrackingLogBuffer(LogBufferFactory factory) {
         return factory.create("NavbarOrientationTrackingLog", 50);
+    }
+
+    /** Provides a {@link LogBuffer} for use by the DeviceEntryIcon and related classes. */
+    @Provides
+    @SysUISingleton
+    @DeviceEntryIconLog
+    public static LogBuffer provideDeviceEntryIconLogBuffer(LogBufferFactory factory) {
+        return factory.create("DeviceEntryIconLog", 100);
+    }
+
+    /** Provides a {@link LogBuffer} for use by the volume loggers. */
+    @Provides
+    @SysUISingleton
+    @VolumeLog
+    public static LogBuffer provideVolumeLogBuffer(LogBufferFactory factory) {
+        return factory.create("VolumeLog", 50);
+    }
+
+    /** Provides a {@link LogBuffer} for use by long touch event handlers. */
+    @Provides
+    @SysUISingleton
+    @LongPressTouchLog
+    public static LogBuffer providesLongPressTouchLog(LogBufferFactory factory) {
+        return factory.create("LongPressViewLog", 200);
     }
 }

@@ -16,6 +16,7 @@
 
 package com.android.systemui.animation
 
+import android.content.ComponentName
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Insets
@@ -59,11 +60,23 @@ constructor(
     /** The view that will be ghosted and from which the background will be extracted. */
     private val ghostedView: View,
 
-    /** The [CujType] associated to this animation. */
-    private val cujType: Int? = null,
+    /** The [CujType] associated to this launch animation. */
+    private val launchCujType: Int? = null,
+    override val transitionCookie: ActivityTransitionAnimator.TransitionCookie? = null,
+    override val component: ComponentName? = null,
+
+    /** The [CujType] associated to this return animation. */
+    private val returnCujType: Int? = null,
+
+    /**
+     * Whether this controller should be invalidated after its first use, and whenever [ghostedView]
+     * is detached.
+     */
+    private val isEphemeral: Boolean = false,
     private var interactionJankMonitor: InteractionJankMonitor =
         InteractionJankMonitor.getInstance(),
 ) : ActivityTransitionAnimator.Controller {
+    override val isLaunching: Boolean = true
 
     /** The container to which we will add the ghost view and expanding background. */
     override var transitionContainer = ghostedView.rootView as ViewGroup
@@ -103,6 +116,28 @@ constructor(
      */
     private val background: Drawable?
 
+    /** CUJ identifier accounting for whether this controller is for a launch or a return. */
+    private val cujType: Int?
+        get() =
+            if (isLaunching) {
+                launchCujType
+            } else {
+                returnCujType
+            }
+
+    /**
+     * Used to automatically clean up the internal state once [ghostedView] is detached from the
+     * hierarchy.
+     */
+    private val detachListener =
+        object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {}
+
+            override fun onViewDetachedFromWindow(v: View) {
+                onDispose()
+            }
+        }
+
     init {
         // Make sure the View we launch from implements LaunchableView to avoid visibility issues.
         if (ghostedView !is LaunchableView) {
@@ -139,6 +174,16 @@ constructor(
         }
 
         background = findBackground(ghostedView)
+
+        if (TransitionAnimator.returnAnimationsEnabled() && isEphemeral) {
+            ghostedView.addOnAttachStateChangeListener(detachListener)
+        }
+    }
+
+    override fun onDispose() {
+        if (TransitionAnimator.returnAnimationsEnabled()) {
+            ghostedView.removeOnAttachStateChangeListener(detachListener)
+        }
     }
 
     /**
@@ -148,7 +193,7 @@ constructor(
     protected open fun setBackgroundCornerRadius(
         background: Drawable,
         topCornerRadius: Float,
-        bottomCornerRadius: Float
+        bottomCornerRadius: Float,
     ) {
         // By default, we rely on WrappedDrawable to set/restore the background radii before/after
         // each draw.
@@ -179,7 +224,7 @@ constructor(
         val state =
             TransitionAnimator.State(
                 topCornerRadius = getCurrentTopCornerRadius(),
-                bottomCornerRadius = getCurrentBottomCornerRadius()
+                bottomCornerRadius = getCurrentBottomCornerRadius(),
             )
         fillGhostedViewState(state)
         return state
@@ -190,14 +235,20 @@ constructor(
         // so we have to take the optical insets into account.
         ghostedView.getLocationOnScreen(ghostedViewLocation)
         val insets = backgroundInsets
-        state.top = ghostedViewLocation[1] + insets.top
+        val boundCorrections: Rect =
+            if (ghostedView is LaunchableView) {
+                ghostedView.getPaddingForLaunchAnimation()
+            } else {
+                Rect()
+            }
+        state.top = ghostedViewLocation[1] + insets.top + boundCorrections.top
         state.bottom =
             ghostedViewLocation[1] + (ghostedView.height * ghostedView.scaleY).roundToInt() -
-                insets.bottom
-        state.left = ghostedViewLocation[0] + insets.left
+                insets.bottom + boundCorrections.bottom
+        state.left = ghostedViewLocation[0] + insets.left + boundCorrections.left
         state.right =
             ghostedViewLocation[0] + (ghostedView.width * ghostedView.scaleX).roundToInt() -
-                insets.right
+                insets.right + boundCorrections.right
     }
 
     override fun onTransitionAnimationStart(isExpandingFullyAbove: Boolean) {
@@ -247,7 +298,7 @@ constructor(
     override fun onTransitionAnimationProgress(
         state: TransitionAnimator.State,
         progress: Float,
-        linearProgress: Float
+        linearProgress: Float,
     ) {
         val ghostView = this.ghostView ?: return
         val backgroundView = this.backgroundView!!
@@ -295,11 +346,11 @@ constructor(
             scale,
             scale,
             ghostedViewState.centerX - transitionContainerLocation[0],
-            ghostedViewState.centerY - transitionContainerLocation[1]
+            ghostedViewState.centerY - transitionContainerLocation[1],
         )
         ghostViewMatrix.postTranslate(
             (leftChange + rightChange) / 2f,
-            (topChange + bottomChange) / 2f
+            (topChange + bottomChange) / 2f,
         )
         ghostView.animationMatrix = ghostViewMatrix
 
@@ -337,6 +388,7 @@ constructor(
         if (ghostedView is LaunchableView) {
             // Restore the ghosted view visibility.
             ghostedView.setShouldBlockVisibilityChanges(false)
+            ghostedView.onActivityLaunchAnimationEnd()
         } else {
             // Make the ghosted view visible. We ensure that the view is considered VISIBLE by
             // accessibility by first making it INVISIBLE then VISIBLE (see b/204944038#comment17
@@ -344,6 +396,10 @@ constructor(
             ghostedView.visibility = View.INVISIBLE
             ghostedView.visibility = View.VISIBLE
             ghostedView.invalidate()
+        }
+
+        if (isEphemeral) {
+            onDispose()
         }
     }
 
@@ -439,7 +495,7 @@ constructor(
         private fun updateRadii(
             radii: FloatArray,
             topCornerRadius: Float,
-            bottomCornerRadius: Float
+            bottomCornerRadius: Float,
         ) {
             radii[0] = topCornerRadius
             radii[1] = topCornerRadius

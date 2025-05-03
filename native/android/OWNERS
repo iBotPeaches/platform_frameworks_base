@@ -2,12 +2,11 @@ jreck@google.com #{LAST_RESORT_SUGGESTION}
 
 # General NDK API reviewers
 per-file libandroid.map.txt = danalbert@google.com, etalvala@google.com, michaelwr@google.com
-per-file libandroid.map.txt = jreck@google.com, zyy@google.com
+per-file libandroid.map.txt = jreck@google.com, zyy@google.com, mattbuckley@google.com
 
 # Networking
 per-file libandroid_net.map.txt, net.c = set noparent
-per-file libandroid_net.map.txt, net.c = codewiz@google.com, jchalard@google.com, junyulai@google.com
-per-file libandroid_net.map.txt, net.c = lorenzo@google.com, reminv@google.com, satk@google.com
+per-file libandroid_net.map.txt, net.c = file:platform/packages/modules/Connectivity:main:/OWNERS_core_networking
 
 # Fonts
 per-file system_fonts.cpp = file:/graphics/java/android/graphics/fonts/OWNERS
@@ -16,6 +15,8 @@ per-file system_fonts.cpp = file:/graphics/java/android/graphics/fonts/OWNERS
 per-file native_window_jni.cpp = file:/services/core/java/com/android/server/wm/OWNERS
 per-file native_activity.cpp = file:/services/core/java/com/android/server/wm/OWNERS
 per-file surface_control.cpp = file:/services/core/java/com/android/server/wm/OWNERS
+per-file surface_control_input_receiver.cpp = file:/services/core/java/com/android/server/wm/OWNERS
+per-file input_transfer_token.cpp = file:/services/core/java/com/android/server/wm/OWNERS
 
 # Graphics
 per-file choreographer.cpp = file:/graphics/java/android/graphics/OWNERS
@@ -27,5 +28,7 @@ per-file surface_texture.cpp = file:/graphics/java/android/graphics/OWNERS
 # Input
 per-file input.cpp = file:/INPUT_OWNERS
 
-# PerformanceHint
+# ADPF
 per-file performance_hint.cpp = file:/ADPF_OWNERS
+per-file system_health.cpp = file:/ADPF_OWNERS
+per-file thermal.cpp = file:/ADPF_OWNERS

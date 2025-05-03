@@ -18,6 +18,7 @@ package android.hardware;
 
 import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
+import android.annotation.SuppressLint;
 import android.hardware.flags.Flags;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -50,6 +51,8 @@ public final class OverlayProperties implements Parcelable {
     // Invoked on destruction
     private Runnable mCloser;
 
+    private LutProperties[] mLutProperties;
+
     private OverlayProperties(long nativeObject) {
         if (nativeObject != 0) {
             mCloser = sRegistry.registerNativeAllocation(this, nativeObject);
@@ -70,16 +73,19 @@ public final class OverlayProperties implements Parcelable {
     }
 
     /**
-     * @return True if the device can support fp16, false otherwise.
-     * TODO: Move this to isCombinationSupported once the flag flips
-     * @hide
+     * Returns the lut properties of the device.
      */
-    public boolean isFp16SupportedForHdr() {
+    @FlaggedApi(Flags.FLAG_LUTS_API)
+    @SuppressLint("ArrayReturn")
+    @NonNull
+    public LutProperties[] getLutProperties() {
         if (mNativeObject == 0) {
-            return false;
+            return null;
         }
-        return nIsCombinationSupported(
-                mNativeObject, DataSpace.DATASPACE_SCRGB, HardwareBuffer.RGBA_FP16);
+        if (mLutProperties == null) {
+            mLutProperties = nGetLutProperties(mNativeObject);
+        }
+        return mLutProperties;
     }
 
     /**
@@ -87,7 +93,7 @@ public final class OverlayProperties implements Parcelable {
      * and {@link HardwareBuffer.Format} is supported on the device.
      *
      * @return True if the device can support efficiently compositing the content described by the
-     *         dataspace and format. False if GPOU composition fallback is otherwise required.
+     *         dataspace and format. False if GPU composition fallback is otherwise required.
      */
     @FlaggedApi(Flags.FLAG_OVERLAYPROPERTIES_CLASS_API)
     public boolean isCombinationSupported(@DataSpace.ColorDataSpace int dataspace,
@@ -148,10 +154,10 @@ public final class OverlayProperties implements Parcelable {
 
     private static native long nGetDestructor();
     private static native long nCreateDefault();
-    private static native boolean nSupportFp16ForHdr(long nativeObject);
     private static native boolean nSupportMixedColorSpaces(long nativeObject);
     private static native boolean nIsCombinationSupported(
             long nativeObject, int dataspace, int format);
     private static native void nWriteOverlayPropertiesToParcel(long nativeObject, Parcel dest);
     private static native long nReadOverlayPropertiesFromParcel(Parcel in);
+    private static native LutProperties[] nGetLutProperties(long nativeObject);
 }

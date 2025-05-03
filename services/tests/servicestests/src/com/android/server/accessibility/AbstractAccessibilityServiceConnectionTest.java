@@ -89,6 +89,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteCallback;
 import android.os.RemoteException;
+import android.os.test.FakePermissionEnforcer;
 import android.util.Pair;
 import android.view.Display;
 import android.view.KeyEvent;
@@ -173,14 +174,15 @@ public class AbstractAccessibilityServiceConnectionTest {
     @Mock private AccessibilityTrace mMockA11yTrace;
     @Mock private WindowManagerInternal mMockWindowManagerInternal;
     @Mock private SystemActionPerformer mMockSystemActionPerformer;
-    @Mock private IBinder mMockService;
-    @Mock private IAccessibilityServiceClient mMockServiceInterface;
+    @Mock private IBinder mMockClientBinder;
+    @Mock private IAccessibilityServiceClient mMockClient;
     @Mock private KeyEventDispatcher mMockKeyEventDispatcher;
     @Mock private IAccessibilityInteractionConnection mMockIA11yInteractionConnection;
     @Mock private IAccessibilityInteractionConnectionCallback mMockCallback;
     @Mock private FingerprintGestureDispatcher mMockFingerprintGestureDispatcher;
     @Mock private MagnificationProcessor mMockMagnificationProcessor;
     @Mock private RemoteCallback.OnResultListener mMockListener;
+    FakePermissionEnforcer mFakePermissionEnforcer = new FakePermissionEnforcer();
 
     @Before
     public void setup() {
@@ -198,6 +200,8 @@ public class AbstractAccessibilityServiceConnectionTest {
         PowerManager powerManager =
                 new PowerManager(mMockContext, mMockIPowerManager, mMockIThermalService, mHandler);
         when(mMockContext.getSystemService(Context.POWER_SERVICE)).thenReturn(powerManager);
+        when(mMockContext.getSystemService(Context.PERMISSION_ENFORCER_SERVICE))
+                .thenReturn(mFakePermissionEnforcer);
         when(mMockContext.getPackageManager()).thenReturn(mMockPackageManager);
         when(mMockPackageManager.hasSystemFeature(FEATURE_FINGERPRINT)).thenReturn(true);
 
@@ -214,7 +218,7 @@ public class AbstractAccessibilityServiceConnectionTest {
                 .thenReturn(mA11yWindowInfos.get(0));
         when(mMockA11yWindowManager.findA11yWindowInfoByIdLocked(PIP_WINDOWID))
                 .thenReturn(mA11yWindowInfos.get(1));
-        when(mMockA11yWindowManager.getDisplayIdByUserIdAndWindowIdLocked(USER_ID,
+        when(mMockA11yWindowManager.getDisplayIdByUserIdAndWindowId(USER_ID,
             WINDOWID_ONSECONDDISPLAY)).thenReturn(SECONDARY_DISPLAY_ID);
         when(mMockA11yWindowManager.getWindowListLocked(SECONDARY_DISPLAY_ID))
             .thenReturn(mA11yWindowInfosOnSecondDisplay);
@@ -243,9 +247,9 @@ public class AbstractAccessibilityServiceConnectionTest {
                 mSpyServiceInfo, SERVICE_ID, mHandler, new Object(), mMockSecurityPolicy,
                 mMockSystemSupport, mMockA11yTrace, mMockWindowManagerInternal,
                 mMockSystemActionPerformer, mMockA11yWindowManager);
-        // Assume that the service is connected
-        mServiceConnection.mService = mMockService;
-        mServiceConnection.mServiceInterface = mMockServiceInterface;
+        // Assume that the client is connected
+        mServiceConnection.mClientBinder = mMockClientBinder;
+        mServiceConnection.mClient = mMockClient;
 
         // Update security policy for this service
         when(mMockSecurityPolicy.checkAccessibilityAccess(mServiceConnection)).thenReturn(true);
@@ -269,7 +273,7 @@ public class AbstractAccessibilityServiceConnectionTest {
         final KeyEvent mockKeyEvent = mock(KeyEvent.class);
 
         mServiceConnection.onKeyEvent(mockKeyEvent, sequenceNumber);
-        verify(mMockServiceInterface).onKeyEvent(mockKeyEvent, sequenceNumber);
+        verify(mMockClient).onKeyEvent(mockKeyEvent, sequenceNumber);
     }
 
     @Test

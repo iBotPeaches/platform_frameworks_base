@@ -9,12 +9,11 @@ import android.provider.AlarmClock
 import android.service.quicksettings.Tile
 import android.text.TextUtils
 import android.text.format.DateFormat
-import android.view.View
+import android.widget.Button
 import androidx.annotation.VisibleForTesting
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.logging.MetricsLogger
-import com.android.systemui.res.R
-import com.android.systemui.animation.ActivityTransitionAnimator
+import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.plugins.ActivityStarter
@@ -25,12 +24,15 @@ import com.android.systemui.qs.QSHost
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.logging.QSLogger
 import com.android.systemui.qs.tileimpl.QSTileImpl
+import com.android.systemui.res.R
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.statusbar.policy.NextAlarmController
 import java.util.Locale
 import javax.inject.Inject
 
-class AlarmTile @Inject constructor(
+class AlarmTile
+@Inject
+constructor(
     host: QSHost,
     uiEventLogger: QsEventLogger,
     @Background backgroundLooper: Looper,
@@ -41,27 +43,28 @@ class AlarmTile @Inject constructor(
     activityStarter: ActivityStarter,
     qsLogger: QSLogger,
     private val userTracker: UserTracker,
-    nextAlarmController: NextAlarmController
-) : QSTileImpl<QSTile.State>(
-    host,
-    uiEventLogger,
-    backgroundLooper,
-    mainHandler,
-    falsingManager,
-    metricsLogger,
-    statusBarStateController,
-    activityStarter,
-    qsLogger
-) {
+    nextAlarmController: NextAlarmController,
+) :
+    QSTileImpl<QSTile.State>(
+        host,
+        uiEventLogger,
+        backgroundLooper,
+        mainHandler,
+        falsingManager,
+        metricsLogger,
+        statusBarStateController,
+        activityStarter,
+        qsLogger,
+    ) {
 
     private var lastAlarmInfo: AlarmManager.AlarmClockInfo? = null
-    private val icon = ResourceIcon.get(R.drawable.ic_alarm)
-    @VisibleForTesting
-    internal val defaultIntent = Intent(AlarmClock.ACTION_SHOW_ALARMS)
-    private val callback = NextAlarmController.NextAlarmChangeCallback { nextAlarm ->
-        lastAlarmInfo = nextAlarm
-        refreshState()
-    }
+    private var icon: QSTile.Icon? = null
+    @VisibleForTesting internal val defaultIntent = Intent(AlarmClock.ACTION_SHOW_ALARMS)
+    private val callback =
+        NextAlarmController.NextAlarmChangeCallback { nextAlarm ->
+            lastAlarmInfo = nextAlarm
+            refreshState()
+        }
 
     init {
         nextAlarmController.observe(this, callback)
@@ -70,33 +73,41 @@ class AlarmTile @Inject constructor(
     override fun newTileState(): QSTile.State {
         return QSTile.State().apply {
             handlesLongClick = false
+            expandedAccessibilityClassName = Button::class.java.name
         }
     }
 
-    override fun handleClick(view: View?) {
-        val animationController = view?.let {
-            ActivityTransitionAnimator.Controller.fromView(
-                    it, InteractionJankMonitor.CUJ_SHADE_APP_LAUNCH_FROM_QS_TILE)
-        }
+    override fun handleClick(expandable: Expandable?) {
+        val animationController =
+            expandable?.activityTransitionController(
+                InteractionJankMonitor.CUJ_SHADE_APP_LAUNCH_FROM_QS_TILE
+            )
         val pendingIntent = lastAlarmInfo?.showIntent
         if (pendingIntent != null) {
             mActivityStarter.postStartActivityDismissingKeyguard(pendingIntent, animationController)
         } else {
-            mActivityStarter.postStartActivityDismissingKeyguard(defaultIntent, 0,
-                    animationController)
+            mActivityStarter.postStartActivityDismissingKeyguard(
+                defaultIntent,
+                0,
+                animationController,
+            )
         }
     }
 
     override fun handleUpdateState(state: QSTile.State, arg: Any?) {
+        if (icon == null) {
+            icon = maybeLoadResourceIcon(R.drawable.ic_alarm)
+        }
         state.icon = icon
         state.label = tileLabel
         lastAlarmInfo?.let {
             state.secondaryLabel = formatNextAlarm(it)
             state.state = Tile.STATE_ACTIVE
-        } ?: run {
-            state.secondaryLabel = mContext.getString(R.string.qs_alarm_tile_no_alarm)
-            state.state = Tile.STATE_INACTIVE
         }
+            ?: run {
+                state.secondaryLabel = mContext.getString(R.string.qs_alarm_tile_no_alarm)
+                state.state = Tile.STATE_INACTIVE
+            }
         state.contentDescription = TextUtils.concat(state.label, ", ", state.secondaryLabel)
     }
 

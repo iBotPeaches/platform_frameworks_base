@@ -33,7 +33,6 @@ import android.annotation.SuppressLint;
 import android.annotation.UserIdInt;
 import android.app.ActivityOptions;
 import android.app.KeyguardManager;
-import android.app.Notification;
 import android.app.admin.DevicePolicyManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -59,20 +58,23 @@ import androidx.annotation.WorkerThread;
 import com.android.internal.statusbar.NotificationVisibility;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.systemui.Dumpable;
+import com.android.systemui.Flags;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
+import com.android.systemui.deviceentry.domain.interactor.DeviceUnlockedInteractor;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlagsClassic;
-import com.android.systemui.flags.Flags;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.plugins.statusbar.StatusBarStateController.StateListener;
 import com.android.systemui.recents.OverviewProxyService;
+import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.notifcollection.CommonNotifCollection;
 import com.android.systemui.statusbar.notification.collection.render.NotificationVisibilityProvider;
+import com.android.systemui.statusbar.notification.row.shared.LockscreenOtpRedaction;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.util.ListenerSet;
@@ -287,6 +289,8 @@ public class NotificationLockscreenUserManagerImpl implements
     protected ContentObserver mLockscreenSettingsObserver;
     protected ContentObserver mSettingsObserver;
 
+    private final Lazy<DeviceUnlockedInteractor> mDeviceUnlockedInteractorLazy;
+
     @Inject
     public NotificationLockscreenUserManagerImpl(Context context,
             BroadcastDispatcher broadcastDispatcher,
@@ -306,7 +310,8 @@ public class NotificationLockscreenUserManagerImpl implements
             SecureSettings secureSettings,
             DumpManager dumpManager,
             LockPatternUtils lockPatternUtils,
-            FeatureFlagsClassic featureFlags) {
+            FeatureFlagsClassic featureFlags,
+            Lazy<DeviceUnlockedInteractor> deviceUnlockedInteractorLazy) {
         mContext = context;
         mMainExecutor = mainExecutor;
         mBackgroundExecutor = backgroundExecutor;
@@ -326,6 +331,7 @@ public class NotificationLockscreenUserManagerImpl implements
         mSecureSettings = secureSettings;
         mKeyguardStateController = keyguardStateController;
         mFeatureFlags = featureFlags;
+        mDeviceUnlockedInteractorLazy = deviceUnlockedInteractorLazy;
 
         mLockScreenUris.add(SHOW_LOCKSCREEN);
         mLockScreenUris.add(SHOW_PRIVATE_LOCKSCREEN);
@@ -420,7 +426,7 @@ public class NotificationLockscreenUserManagerImpl implements
         filter.addAction(Intent.ACTION_USER_UNLOCKED);
         filter.addAction(Intent.ACTION_MANAGED_PROFILE_AVAILABLE);
         filter.addAction(Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE);
-        if (allowPrivateProfile()){
+        if (privateSpaceFlagsEnabled()) {
             filter.addAction(Intent.ACTION_PROFILE_AVAILABLE);
             filter.addAction(Intent.ACTION_PROFILE_UNAVAILABLE);
         }
@@ -656,10 +662,12 @@ public class NotificationLockscreenUserManagerImpl implements
                 !userAllowsPrivateNotificationsInPublic(mCurrentUserId);
         boolean isNotifForManagedProfile = mCurrentManagedProfiles.contains(userId);
         boolean isNotifUserRedacted = !userAllowsPrivateNotificationsInPublic(userId);
+        boolean isNotifSensitive = LockscreenOtpRedaction.isEnabled()
+                && ent.getRanking() != null && ent.getRanking().hasSensitiveContent();
 
-        // redact notifications if the current user is redacting notifications; however if the
-        // notification is associated with a managed profile, we rely on the managed profile
-        // setting to determine whether to redact it
+        // redact notifications if the current user is redacting notifications or the notification
+        // contains sensitive content. However if the notification is associated with a managed
+        // profile, we rely on the managed profile setting to determine whether to redact it.
         boolean isNotifRedacted = (!isNotifForManagedProfile && isCurrentUserRedactingNotifs)
                 || isNotifUserRedacted;
 
@@ -668,10 +676,11 @@ public class NotificationLockscreenUserManagerImpl implements
         boolean userForcesRedaction = packageHasVisibilityOverride(ent.getSbn().getKey());
 
         if (keyguardPrivateNotifications()) {
-            return !mKeyguardAllowingNotifications
-                    || userForcesRedaction || notificationRequestsRedaction && isNotifRedacted;
+            return !mKeyguardAllowingNotifications || isNotifSensitive
+                    || userForcesRedaction || (notificationRequestsRedaction && isNotifRedacted);
         } else {
-            return userForcesRedaction || notificationRequestsRedaction && isNotifRedacted;
+            return userForcesRedaction || isNotifSensitive
+                    || (notificationRequestsRedaction && isNotifRedacted);
         }
     }
 
@@ -746,8 +755,13 @@ public class NotificationLockscreenUserManagerImpl implements
         // camera on the keyguard has a state of SHADE but the keyguard is still showing.
         final boolean showingKeyguard = mState != StatusBarState.SHADE
                 || mKeyguardStateController.isShowing();
-        final boolean devicePublic = showingKeyguard && mKeyguardStateController.isMethodSecure();
-
+        final boolean devicePublic;
+        if (SceneContainerFlag.isEnabled()) {
+            devicePublic = !mDeviceUnlockedInteractorLazy.get()
+                    .getDeviceUnlockStatus().getValue().isUnlocked();
+        } else {
+            devicePublic = showingKeyguard && mKeyguardStateController.isMethodSecure();
+        }
 
         // Look for public mode users. Users are considered public in either case of:
         //   - device keyguard is shown in secure mode;
@@ -800,11 +814,17 @@ public class NotificationLockscreenUserManagerImpl implements
 
     private void notifyNotificationStateChanged() {
         if (!Looper.getMainLooper().isCurrentThread()) {
-            mMainExecutor.execute(() -> {
+            if (Flags.checkLockscreenGoneTransition()) {
                 for (NotificationStateChangedListener listener : mNotifStateChangedListeners) {
-                    listener.onNotificationStateChanged();
+                    mMainExecutor.execute(listener::onNotificationStateChanged);
                 }
-            });
+            } else {
+                mMainExecutor.execute(() -> {
+                    for (NotificationStateChangedListener listener : mNotifStateChangedListeners) {
+                        listener.onNotificationStateChanged();
+                    }
+                });
+            }
         } else {
             for (NotificationStateChangedListener listener : mNotifStateChangedListeners) {
                 listener.onNotificationStateChanged();
@@ -813,11 +833,15 @@ public class NotificationLockscreenUserManagerImpl implements
     }
 
     private boolean profileAvailabilityActions(String action){
-        return allowPrivateProfile()?
+        return privateSpaceFlagsEnabled()?
                 Objects.equals(action,Intent.ACTION_PROFILE_AVAILABLE)||
                         Objects.equals(action,Intent.ACTION_PROFILE_UNAVAILABLE):
                 Objects.equals(action,Intent.ACTION_MANAGED_PROFILE_AVAILABLE)||
                         Objects.equals(action,Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE);
+    }
+
+    private static boolean privateSpaceFlagsEnabled() {
+        return allowPrivateProfile() && android.multiuser.Flags.enablePrivateSpaceFeatures();
     }
 
     @Override

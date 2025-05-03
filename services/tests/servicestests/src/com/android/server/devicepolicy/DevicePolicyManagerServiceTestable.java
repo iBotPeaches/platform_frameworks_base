@@ -24,14 +24,13 @@ import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManagerInternal;
 import android.app.admin.DevicePolicyManagerLiteInternal;
 import android.app.backup.IBackupManager;
+import android.app.supervision.SupervisionManagerInternal;
 import android.app.usage.UsageStatsManagerInternal;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManagerInternal;
 import android.database.ContentObserver;
-import android.hardware.usb.UsbManager;
-import android.media.IAudioService;
 import android.net.IIpConnectivityMetrics;
 import android.net.Uri;
 import android.os.Bundle;
@@ -62,6 +61,7 @@ import com.android.server.wm.ActivityTaskManagerInternal;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -216,11 +216,6 @@ public class DevicePolicyManagerServiceTestable extends DevicePolicyManagerServi
         }
 
         @Override
-        IAudioService getIAudioService() {
-            return services.iaudioService;
-        }
-
-        @Override
         PersistentDataBlockManagerInternal getPersistentDataBlockManagerInternal() {
             return services.persistentDataBlockManagerInternal;
         }
@@ -241,11 +236,6 @@ public class DevicePolicyManagerServiceTestable extends DevicePolicyManagerServi
         @Override
         LockPatternUtils newLockPatternUtils() {
             return services.lockPatternUtils;
-        }
-
-        @Override
-        UsbManager getUsbManager() {
-            return services.usbManager;
         }
 
         @Override
@@ -337,6 +327,11 @@ public class DevicePolicyManagerServiceTestable extends DevicePolicyManagerServi
         }
 
         @Override
+        List<String> roleManagerGetRoleHoldersAsUser(String role, UserHandle userHandle) {
+            return services.roleManagerForMock.getRoleHoldersAsUser(role, userHandle);
+        }
+
+        @Override
         PendingIntent pendingIntentGetActivityAsUser(Context context, int requestCode,
                 Intent intent, int flags, Bundle options, UserHandle user) {
             return null;
@@ -380,18 +375,8 @@ public class DevicePolicyManagerServiceTestable extends DevicePolicyManagerServi
         }
 
         @Override
-        void settingsSecurePutInt(String name, int value) {
-            services.settings.settingsSecurePutInt(name, value);
-        }
-
-        @Override
         void settingsGlobalPutInt(String name, int value) {
             services.settings.settingsGlobalPutInt(name, value);
-        }
-
-        @Override
-        void settingsSecurePutString(String name, String value) {
-            services.settings.settingsSecurePutString(name, value);
         }
 
         @Override
@@ -463,11 +448,6 @@ public class DevicePolicyManagerServiceTestable extends DevicePolicyManagerServi
         @Override
         public void runCryptoSelfTest() {}
 
-        @Override
-        public String[] getPersonalAppsForSuspension(int userId) {
-            return new String[]{};
-        }
-
         public void setSystemCurrentTimeMillis(long value) {
             mCurrentTimeMillis = value;
         }
@@ -508,6 +488,11 @@ public class DevicePolicyManagerServiceTestable extends DevicePolicyManagerServi
         @Override
         public Context createContextAsUser(UserHandle user) {
             return context;
+        }
+
+        @Override
+        SupervisionManagerInternal getSupervisionManager() {
+            return services.supervisionManagerInternal;
         }
     }
 

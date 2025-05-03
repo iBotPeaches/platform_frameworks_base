@@ -18,6 +18,7 @@ package android.media;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
+import android.content.AttributionSource;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioFormat;
@@ -86,7 +87,7 @@ interface IAudioService {
 
     oneway void playerAttributes(in int piid, in AudioAttributes attr);
 
-    oneway void playerEvent(in int piid, in int event, in int eventId);
+    oneway void playerEvent(in int piid, in int event, in int[] eventId);
 
     oneway void releasePlayer(in int piid);
 
@@ -99,6 +100,8 @@ interface IAudioService {
     oneway void playerSessionId(in int piid, in int sessionId);
 
     oneway void portEvent(in int portId, in int event, in @nullable PersistableBundle extras);
+
+    void permissionUpdateBarrier();
 
     // Java-only methods below.
     void adjustStreamVolume(int streamType, int direction, int flags, String callingPackage);
@@ -141,7 +144,7 @@ interface IAudioService {
     @UnsupportedAppUsage
     int getStreamMaxVolume(int streamType);
 
-    @EnforcePermission("MODIFY_AUDIO_ROUTING")
+    @EnforcePermission(anyOf={"MODIFY_AUDIO_SETTINGS_PRIVILEGED", "MODIFY_AUDIO_ROUTING"})
     List<AudioVolumeGroup> getAudioVolumeGroups();
 
     @EnforcePermission(anyOf={"MODIFY_AUDIO_SETTINGS_PRIVILEGED", "MODIFY_AUDIO_ROUTING"})
@@ -185,6 +188,21 @@ interface IAudioService {
     boolean isHotwordStreamSupported(boolean lookbackAudio);
 
     void setMicrophoneMute(boolean on, String callingPackage, int userId, in String attributionTag);
+
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    void setInputGainIndex(in AudioDeviceAttributes ada, int index);
+
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    int getInputGainIndex(in AudioDeviceAttributes ada);
+
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    int getMaxInputGainIndex();
+
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    int getMinInputGainIndex();
+
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    boolean isInputGainFixed(in AudioDeviceAttributes ada);
 
     oneway void setMicrophoneMuteFromSwitch(boolean on);
 
@@ -231,7 +249,7 @@ interface IAudioService {
 
     int getEncodedSurroundMode(int targetSdkVersion);
 
-    void setSpeakerphoneOn(IBinder cb, boolean on);
+    void setSpeakerphoneOn(IBinder cb, boolean on, in AttributionSource attributionSource);
 
     boolean isSpeakerphoneOn();
 
@@ -249,7 +267,7 @@ interface IAudioService {
 
     boolean isBluetoothA2dpOn();
 
-    int requestAudioFocus(in AudioAttributes aa, int durationHint, IBinder cb,
+    int requestAudioFocus(in AudioAttributes aa, int focusReqType, IBinder cb,
             IAudioFocusDispatcher fd, in String clientId, in String callingPackageName,
             in String attributionTag, int flags, IAudioPolicyCallback pcb, int sdk);
 
@@ -260,9 +278,10 @@ interface IAudioService {
 
     int getCurrentAudioFocus();
 
-    void startBluetoothSco(IBinder cb, int targetSdkVersion);
-    void startBluetoothScoVirtualCall(IBinder cb);
-    void stopBluetoothSco(IBinder cb);
+    void startBluetoothSco(IBinder cb, int targetSdkVersion,
+            in AttributionSource attributionSource);
+    void startBluetoothScoVirtualCall(IBinder cb, in AttributionSource attributionSource);
+    void stopBluetoothSco(IBinder cb, in AttributionSource attributionSource);
 
     void forceVolumeControlStream(int streamType, IBinder cb);
 
@@ -300,9 +319,14 @@ interface IAudioService {
 
     void notifyVolumeControllerVisible(in IVolumeController controller, boolean visible);
 
+    @EnforcePermission("MODIFY_AUDIO_SETTINGS_PRIVILEGED")
+    oneway void setVolumeControllerLongPressTimeoutEnabled(boolean enable);
+
     boolean isStreamAffectedByRingerMode(int streamType);
 
     boolean isStreamAffectedByMute(int streamType);
+
+    boolean isStreamMutableByUi(int streamType);
 
     void disableSafeMediaVolume(String callingPackage);
 
@@ -361,7 +385,8 @@ interface IAudioService {
     String registerAudioPolicy(in AudioPolicyConfig policyConfig,
             in IAudioPolicyCallback pcb, boolean hasFocusListener, boolean isFocusPolicy,
             boolean isTestFocusPolicy,
-            boolean isVolumeController, in IMediaProjection projection);
+            boolean isVolumeController, in IMediaProjection projection,
+            in AttributionSource attributionSource);
 
     oneway void unregisterAudioPolicyAsync(in IAudioPolicyCallback pcb);
 
@@ -381,6 +406,8 @@ interface IAudioService {
     int setFocusPropertiesForPolicy(int duckingBehavior, in IAudioPolicyCallback pcb);
 
     void setVolumePolicy(in VolumePolicy policy);
+
+    VolumePolicy getVolumePolicy();
 
     boolean hasRegisteredDynamicPolicy();
 
@@ -459,6 +486,7 @@ interface IAudioService {
 
     List<AudioDeviceAttributes> getDevicesForAttributesUnprotected(in AudioAttributes attributes);
 
+    @EnforcePermission(anyOf = {"MODIFY_AUDIO_ROUTING", "QUERY_AUDIO_STATE"})
     void addOnDevicesForAttributesChangedListener(in AudioAttributes attributes,
             in IDevicesForAttributesCallback callback);
 
@@ -531,7 +559,7 @@ interface IAudioService {
 
     int[] getAvailableCommunicationDeviceIds();
 
-    boolean setCommunicationDevice(IBinder cb, int portId);
+    boolean setCommunicationDevice(IBinder cb, int portId, in AttributionSource attributionSource);
 
     int getCommunicationDevice();
 
@@ -554,7 +582,7 @@ interface IAudioService {
 
     long getMaxAdditionalOutputDeviceDelay(in AudioDeviceAttributes device);
 
-    int requestAudioFocusForTest(in AudioAttributes aa, int durationHint, IBinder cb,
+    int requestAudioFocusForTest(in AudioAttributes aa, int focusReqType, IBinder cb,
             in IAudioFocusDispatcher fd, in String clientId, in String callingPackageName,
             int flags, int uid, int sdk);
 
@@ -611,6 +639,9 @@ interface IAudioService {
     void setSpatializerEnabled(boolean enabled);
 
     boolean canBeSpatialized(in AudioAttributes aa, in AudioFormat af);
+
+    /* Returns a List<Integer> */
+    List getSpatializedChannelMasks();
 
     void registerSpatializerCallback(in ISpatializerCallback cb);
 
@@ -698,6 +729,10 @@ interface IAudioService {
     @EnforcePermission("MODIFY_AUDIO_ROUTING")
     List<AudioFocusInfo> getFocusStack();
 
+    @EnforcePermission("MODIFY_AUDIO_ROUTING")
+    oneway void sendFocusLossAndUpdate(in AudioFocusInfo focusLoser, in IAudioPolicyCallback apcb);
+
+    @EnforcePermission("MODIFY_AUDIO_ROUTING")
     boolean sendFocusLoss(in AudioFocusInfo focusLoser, in IAudioPolicyCallback apcb);
 
     @EnforcePermission("MODIFY_AUDIO_ROUTING")
@@ -756,14 +791,14 @@ interface IAudioService {
 
     void unregisterLoudnessCodecUpdatesDispatcher(in ILoudnessCodecUpdatesDispatcher dispatcher);
 
-    oneway void startLoudnessCodecUpdates(int sessionId);
+    void startLoudnessCodecUpdates(int sessionId);
 
-    oneway void stopLoudnessCodecUpdates(int sessionId);
+    void stopLoudnessCodecUpdates(int sessionId);
 
-    oneway void addLoudnessCodecInfo(int sessionId, int mediaCodecHash,
+    void addLoudnessCodecInfo(int sessionId, int mediaCodecHash,
             in LoudnessCodecInfo codecInfo);
 
-    oneway void removeLoudnessCodecInfo(int sessionId, in LoudnessCodecInfo codecInfo);
+    void removeLoudnessCodecInfo(int sessionId, in LoudnessCodecInfo codecInfo);
 
     PersistableBundle getLoudnessParams(in LoudnessCodecInfo codecInfo);
 

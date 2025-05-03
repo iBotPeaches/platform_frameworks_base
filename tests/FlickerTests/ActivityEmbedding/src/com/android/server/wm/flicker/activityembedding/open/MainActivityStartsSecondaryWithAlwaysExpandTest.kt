@@ -16,8 +16,8 @@
 
 package com.android.server.wm.flicker.activityembedding.open
 
+import android.graphics.Rect
 import android.platform.test.annotations.Presubmit
-import android.tools.datatypes.Rect
 import android.tools.flicker.junit.FlickerParametersRunnerFactory
 import android.tools.flicker.legacy.FlickerBuilder
 import android.tools.flicker.legacy.LegacyFlickerTest
@@ -39,7 +39,7 @@ import org.junit.runners.Parameterized
  * Setup: Launch A|B in split with B being the secondary activity. Transitions: A start C with
  * alwaysExpand=true, expect C to launch in fullscreen and cover split A|B.
  *
- * To run this test: `atest FlickerTestsOther:MainActivityStartsSecondaryWithAlwaysExpandTest`
+ * To run this test: `atest FlickerTestsActivityEmbedding:MainActivityStartsSecondaryWithAlwaysExpandTest`
  */
 @RequiresDevice
 @RunWith(Parameterized::class)
@@ -132,7 +132,7 @@ class MainActivityStartsSecondaryWithAlwaysExpandTest(flicker: LegacyFlickerTest
 
     companion object {
         /** {@inheritDoc} */
-        private var startDisplayBounds = Rect.EMPTY
+        private var startDisplayBounds = Rect()
 
         /**
          * Creates the test configurations.

@@ -28,6 +28,7 @@ import com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession
 import com.android.dx.mockito.inline.extended.ExtendedMockito.never
 import com.android.dx.mockito.inline.extended.ExtendedMockito.times
 import com.android.dx.mockito.inline.extended.ExtendedMockito.verify
+import com.android.dx.mockito.inline.extended.MockedVoidMethod
 import com.android.dx.mockito.inline.extended.StaticMockitoSession
 import com.android.internal.logging.InstanceId
 import com.android.internal.logging.UiEventLogger
@@ -46,7 +47,6 @@ import org.mockito.Mock
 import org.mockito.Mockito.clearInvocations
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.verifyNoMoreInteractions
-import org.mockito.Mockito.verifyZeroInteractions
 import org.mockito.MockitoAnnotations
 import org.mockito.quality.Strictness
 
@@ -175,7 +175,7 @@ class StylusManagerTest : SysuiTestCase() {
     fun startListener_hasStarted_doesNothing() {
         stylusManager.startListener()
 
-        verifyZeroInteractions(inputManager)
+        verifyNoMoreInteractions(inputManager)
     }
 
     @Test
@@ -193,7 +193,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onInputDeviceAdded(STYLUS_DEVICE_ID)
 
-        verifyZeroInteractions(stylusCallback)
+        verifyNoMoreInteractions(stylusCallback)
     }
 
     @Test
@@ -246,7 +246,7 @@ class StylusManagerTest : SysuiTestCase() {
     @Test
     fun onInputDeviceAdded_btStylus_firstUsed_setsFlag() {
         stylusManager.onInputDeviceAdded(BT_STYLUS_DEVICE_ID)
-        verify({ InputSettings.setStylusEverUsed(mContext, true) }, times(1))
+        verify(MockedVoidMethod { InputSettings.setStylusEverUsed(mContext, true) }, times(1))
     }
 
     @Test
@@ -282,7 +282,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onInputDeviceChanged(STYLUS_DEVICE_ID)
 
-        verifyZeroInteractions(stylusCallback)
+        verifyNoMoreInteractions(stylusCallback)
     }
 
     @Test
@@ -356,7 +356,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onInputDeviceRemoved(STYLUS_DEVICE_ID)
 
-        verifyZeroInteractions(stylusCallback)
+        verifyNoMoreInteractions(stylusCallback)
     }
 
     @Test
@@ -512,7 +512,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onBatteryStateChanged(STYLUS_DEVICE_ID, 1, batteryState)
 
-        verify({ InputSettings.setStylusEverUsed(mContext, true) }, times(1))
+        verify(MockedVoidMethod { InputSettings.setStylusEverUsed(mContext, true) }, times(1))
     }
 
     @Test
@@ -565,7 +565,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onBatteryStateChanged(STYLUS_DEVICE_ID, 1, batteryState)
 
-        verifyZeroInteractions(uiEventLogger)
+        verifyNoMoreInteractions(uiEventLogger)
     }
 
     @Test
@@ -574,7 +574,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onBatteryStateChanged(STYLUS_DEVICE_ID, 1, batteryState)
 
-        verifyZeroInteractions(uiEventLogger)
+        verifyNoMoreInteractions(uiEventLogger)
     }
 
     @Test
@@ -613,7 +613,7 @@ class StylusManagerTest : SysuiTestCase() {
 
         stylusManager.onBatteryStateChanged(STYLUS_DEVICE_ID, 1, batteryState)
 
-        verify({ InputSettings.setStylusEverUsed(mContext, true) }, never())
+        verify(MockedVoidMethod { InputSettings.setStylusEverUsed(mContext, true) }, never())
     }
 
     @Test
@@ -630,7 +630,7 @@ class StylusManagerTest : SysuiTestCase() {
     fun onBatteryStateChanged_hasNotStarted_doesNothing() {
         stylusManager.onBatteryStateChanged(STYLUS_DEVICE_ID, 1, batteryState)
 
-        verifyZeroInteractions(inputManager)
+        verifyNoMoreInteractions(inputManager)
     }
 
     @Test

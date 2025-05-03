@@ -16,7 +16,11 @@
 package com.android.systemui.statusbar.phone
 
 import android.content.Context
+import android.hardware.devicestate.DeviceState
+import android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY
+import android.hardware.devicestate.DeviceState.PROPERTY_POWER_CONFIGURATION_TRIGGER_SLEEP
 import android.hardware.devicestate.DeviceStateManager.DeviceStateCallback
+import android.hardware.devicestate.feature.flags.Flags as DeviceStateManagerFlags
 import com.android.internal.R
 
 /**
@@ -45,13 +49,22 @@ internal class FoldStateListener(
 
     private var wasFolded: Boolean? = null
 
-    override fun onStateChanged(state: Int) {
-        val isFolded = foldedDeviceStates.contains(state)
+    override fun onDeviceStateChanged(state: DeviceState) {
+        val isFolded: Boolean
+        val willGoToSleep: Boolean
+
+        if (DeviceStateManagerFlags.deviceStatePropertyMigration()) {
+            isFolded = state.hasProperty(PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY)
+            willGoToSleep = state.hasProperty(PROPERTY_POWER_CONFIGURATION_TRIGGER_SLEEP)
+        } else {
+            isFolded = foldedDeviceStates.contains(state.identifier)
+            willGoToSleep = goToSleepDeviceStates.contains(state.identifier)
+        }
+
         if (wasFolded == isFolded) {
             return
         }
         wasFolded = isFolded
-        val willGoToSleep = goToSleepDeviceStates.contains(state)
         listener.onFoldStateChanged(isFolded, willGoToSleep)
     }
 }

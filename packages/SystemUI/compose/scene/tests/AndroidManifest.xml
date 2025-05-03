@@ -17,7 +17,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.android.compose.animation.scene.tests" >
 
-    <application>
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <application
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
         <uses-library android:name="android.test.runner" />
     </application>
 

@@ -22,6 +22,11 @@ import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSET;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+import static android.view.InsetsSource.FLAG_FORCE_CONSUMING;
+import static android.view.WindowInsets.Type.captionBar;
+import static android.view.WindowInsets.Type.ime;
+import static android.view.WindowInsets.Type.navigationBars;
+import static android.view.WindowInsets.Type.statusBars;
 import static android.view.WindowInsets.Type.systemOverlays;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
@@ -35,6 +40,7 @@ import static android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.any;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.anyFloat;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.anyInt;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.eq;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
@@ -77,7 +83,10 @@ import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.ShellCallback;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.util.ArraySet;
 import android.view.IRemoteAnimationFinishedCallback;
 import android.view.IRemoteAnimationRunner;
 import android.view.InsetsFrameProvider;
@@ -91,6 +100,8 @@ import android.view.WindowManager;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.window.flags.Flags;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -99,6 +110,7 @@ import org.mockito.Mockito;
 import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 
@@ -163,7 +175,7 @@ public class WindowContainerTests extends WindowTestsBase {
     @Test
     public void testAddChildSetsSurfacePosition() {
         reset(mTransaction);
-        try (MockSurfaceBuildingContainer top = new MockSurfaceBuildingContainer(mWm)) {
+        try (MockSurfaceBuildingContainer top = new MockSurfaceBuildingContainer(mDisplayContent)) {
             WindowContainer child = new WindowContainer(mWm);
             child.setBounds(1, 1, 10, 10);
 
@@ -266,7 +278,7 @@ public class WindowContainerTests extends WindowTestsBase {
     @Test
     public void testRemoveImmediatelyClearsLastSurfacePosition() {
         reset(mTransaction);
-        try (MockSurfaceBuildingContainer top = new MockSurfaceBuildingContainer(mWm)) {
+        try (MockSurfaceBuildingContainer top = new MockSurfaceBuildingContainer(mDisplayContent)) {
             final WindowContainer<WindowContainer> child1 = new WindowContainer(mWm);
             child1.setBounds(1, 1, 10, 10);
 
@@ -565,36 +577,17 @@ public class WindowContainerTests extends WindowTestsBase {
 
     @Test
     public void testGetOrientation_childSpecified() {
-        testGetOrientation_childSpecifiedConfig(false, SCREEN_ORIENTATION_LANDSCAPE,
-                SCREEN_ORIENTATION_LANDSCAPE);
-        testGetOrientation_childSpecifiedConfig(false, SCREEN_ORIENTATION_UNSET,
-                SCREEN_ORIENTATION_UNSPECIFIED);
-    }
-
-    private void testGetOrientation_childSpecifiedConfig(boolean childVisible, int childOrientation,
-            int expectedOrientation) {
         final TestWindowContainerBuilder builder = new TestWindowContainerBuilder(mWm);
-        final TestWindowContainer root = builder.setLayer(0).build();
+        final TestWindowContainer root = builder.build();
         root.setFillsParent(true);
+        assertEquals(SCREEN_ORIENTATION_UNSET, root.getOrientation());
 
-        builder.setIsVisible(childVisible);
+        final TestWindowContainer child = root.addChildWindow();
+        child.setFillsParent(true);
+        assertEquals(SCREEN_ORIENTATION_UNSET, root.getOrientation());
 
-        if (childOrientation != SCREEN_ORIENTATION_UNSET) {
-            builder.setOrientation(childOrientation);
-        }
-
-        final TestWindowContainer child1 = root.addChildWindow(builder);
-        child1.setFillsParent(true);
-
-        assertEquals(expectedOrientation, root.getOrientation());
-    }
-
-    @Test
-    public void testGetOrientation_Unset() {
-        final TestWindowContainerBuilder builder = new TestWindowContainerBuilder(mWm);
-        final TestWindowContainer root = builder.setLayer(0).setIsVisible(true).build();
-        // Unspecified well because we didn't specify anything...
-        assertEquals(SCREEN_ORIENTATION_UNSPECIFIED, root.getOrientation());
+        child.setOverrideOrientation(SCREEN_ORIENTATION_LANDSCAPE);
+        assertEquals(SCREEN_ORIENTATION_LANDSCAPE, root.getOrientation());
     }
 
     @Test
@@ -820,17 +813,10 @@ public class WindowContainerTests extends WindowTestsBase {
 
         final TestWindowContainer root2 = builder.setLayer(0).build();
 
+        assertEquals("Roots have the same z-order", 0, root.compareTo(root2));
         assertEquals(0, root.compareTo(root));
         assertEquals(-1, child1.compareTo(child2));
         assertEquals(1, child2.compareTo(child1));
-
-        boolean inTheSameTree = true;
-        try {
-            root.compareTo(root2);
-        } catch (IllegalArgumentException e) {
-            inTheSameTree = false;
-        }
-        assertFalse(inTheSameTree);
 
         assertEquals(-1, child1.compareTo(child11));
         assertEquals(1, child21.compareTo(root));
@@ -980,9 +966,38 @@ public class WindowContainerTests extends WindowTestsBase {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_CAPTION_COMPAT_INSET_FORCE_CONSUMPTION)
+    public void testAddLocalInsets_addsFlagsFromProvider() {
+        final Task rootTask = createTask(mDisplayContent);
+        final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+
+        final Binder owner = new Binder();
+        Rect insetsRect = new Rect(0, 200, 1080, 700);
+        final int flags = FLAG_FORCE_CONSUMING;
+        final InsetsFrameProvider provider =
+                new InsetsFrameProvider(owner, 1, captionBar())
+                        .setArbitraryRectangle(insetsRect)
+                        .setFlags(flags);
+        task.addLocalInsetsFrameProvider(provider, owner);
+
+        final int sourceFlags = task.mLocalInsetsSources.get(provider.getId()).getFlags();
+        assertEquals(flags, sourceFlags);
+    }
+
+    private static void addLocalInsets(WindowContainer wc) {
+        final Binder owner = new Binder();
+        Rect genericOverlayInsetsRect1 = new Rect(0, 200, 1080, 700);
+        final InsetsFrameProvider provider1 =
+                new InsetsFrameProvider(owner, 1, WindowInsets.Type.systemOverlays())
+                        .setArbitraryRectangle(genericOverlayInsetsRect1);
+        wc.addLocalInsetsFrameProvider(provider1, owner);
+    }
+
+    @Test
     public void testOnDisplayChanged() {
         final Task rootTask = createTask(mDisplayContent);
         final Task task = createTaskInRootTask(rootTask, 0 /* userId */);
+        addLocalInsets(task);
         final ActivityRecord activity = createActivityRecord(mDisplayContent, task);
 
         final DisplayContent newDc = createNewDisplay();
@@ -991,6 +1006,7 @@ public class WindowContainerTests extends WindowTestsBase {
 
         verify(rootTask).onDisplayChanged(newDc);
         verify(task).onDisplayChanged(newDc);
+        assertTrue(task.mLocalInsetsSources.size() == 1);
         verify(activity).onDisplayChanged(newDc);
         assertEquals(newDc, rootTask.mDisplayContent);
         assertEquals(newDc, task.mDisplayContent);
@@ -1000,6 +1016,7 @@ public class WindowContainerTests extends WindowTestsBase {
     @Test
     public void testOnDisplayChanged_cleanupChanging() {
         final Task task = createTask(mDisplayContent);
+        addLocalInsets(task);
         spyOn(task.mSurfaceFreezer);
         mDisplayContent.mChangingContainers.add(task);
 
@@ -1007,6 +1024,7 @@ public class WindowContainerTests extends WindowTestsBase {
         // This happens on display info changed.
         task.onDisplayChanged(mDisplayContent);
 
+        assertTrue(task.mLocalInsetsSources.size() == 1);
         assertTrue(mDisplayContent.mChangingContainers.contains(task));
         verify(task.mSurfaceFreezer, never()).unfreeze(any());
 
@@ -1668,6 +1686,178 @@ public class WindowContainerTests extends WindowTestsBase {
         assertFalse("The source must be removed.", hasLocalSource(task, provider.getId()));
     }
 
+    @Test
+    public void testSetExcludeInsetsTypes_appliedOnNodeAndChildren() {
+        final TestWindowContainerBuilder builder = new TestWindowContainerBuilder(mWm);
+        final TestWindowContainer root = builder.setLayer(0).build();
+
+        final TestWindowContainer child1 = root.addChildWindow();
+        final TestWindowContainer child2 = root.addChildWindow();
+        final TestWindowContainer child11 = child1.addChildWindow();
+        final TestWindowContainer child12 = child1.addChildWindow();
+        final TestWindowContainer child21 = child2.addChildWindow();
+
+        assertEquals(0, root.mMergedExcludeInsetsTypes);
+        assertEquals(0, child1.mMergedExcludeInsetsTypes);
+        assertEquals(0, child11.mMergedExcludeInsetsTypes);
+        assertEquals(0, child12.mMergedExcludeInsetsTypes);
+        assertEquals(0, child2.mMergedExcludeInsetsTypes);
+        assertEquals(0, child21.mMergedExcludeInsetsTypes);
+
+        child1.setExcludeInsetsTypes(ime());
+        assertEquals(0, root.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child1.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child11.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child12.mMergedExcludeInsetsTypes);
+        assertEquals(0, child2.mMergedExcludeInsetsTypes);
+        assertEquals(0, child21.mMergedExcludeInsetsTypes);
+
+        child11.setExcludeInsetsTypes(navigationBars());
+        assertEquals(0, root.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child1.mMergedExcludeInsetsTypes);
+        assertEquals(ime() | navigationBars(), child11.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child12.mMergedExcludeInsetsTypes);
+        assertEquals(0, child2.mMergedExcludeInsetsTypes);
+        assertEquals(0, child21.mMergedExcludeInsetsTypes);
+
+        // overwriting the same value has no change
+        for (int i = 0; i < 2; i++) {
+            root.setExcludeInsetsTypes(statusBars());
+            assertEquals(statusBars(), root.mMergedExcludeInsetsTypes);
+            assertEquals(statusBars() | ime(), child1.mMergedExcludeInsetsTypes);
+            assertEquals(statusBars() | ime() | navigationBars(),
+                    child11.mMergedExcludeInsetsTypes);
+            assertEquals(statusBars() | ime(), child12.mMergedExcludeInsetsTypes);
+            assertEquals(statusBars(), child2.mMergedExcludeInsetsTypes);
+            assertEquals(statusBars(), child21.mMergedExcludeInsetsTypes);
+        }
+
+        // set and reset type statusBars on child. Should have no effect because of parent
+        child2.setExcludeInsetsTypes(statusBars());
+        assertEquals(statusBars(), root.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars() | ime(), child1.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars() | ime() | navigationBars(), child11.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars() | ime(), child12.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars(), child2.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars(), child21.mMergedExcludeInsetsTypes);
+
+        // reset
+        child2.setExcludeInsetsTypes(0);
+        assertEquals(statusBars(), root.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars() | ime(), child1.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars() | ime() | navigationBars(), child11.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars() | ime(), child12.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars(), child2.mMergedExcludeInsetsTypes);
+        assertEquals(statusBars(), child21.mMergedExcludeInsetsTypes);
+
+        // when parent has statusBars also removed, it should be cleared from all children in the
+        // hierarchy
+        root.setExcludeInsetsTypes(0);
+        assertEquals(0, root.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child1.mMergedExcludeInsetsTypes);
+        assertEquals(ime() | navigationBars(), child11.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child12.mMergedExcludeInsetsTypes);
+        assertEquals(0, child2.mMergedExcludeInsetsTypes);
+        assertEquals(0, child21.mMergedExcludeInsetsTypes);
+
+        // change on node should have no effect on siblings
+        child12.setExcludeInsetsTypes(captionBar());
+        assertEquals(0, root.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child1.mMergedExcludeInsetsTypes);
+        assertEquals(ime() | navigationBars(), child11.mMergedExcludeInsetsTypes);
+        assertEquals(captionBar() | ime(), child12.mMergedExcludeInsetsTypes);
+        assertEquals(0, child2.mMergedExcludeInsetsTypes);
+        assertEquals(0, child21.mMergedExcludeInsetsTypes);
+    }
+
+    @Test
+    @RequiresFlagsEnabled(android.view.inputmethod.Flags.FLAG_REFACTOR_INSETS_CONTROLLER)
+    public void testSetExcludeInsetsTypes_appliedAfterReparenting() {
+        final SurfaceControl mockSurfaceControl = mock(SurfaceControl.class);
+        final DisplayContent mockDisplayContent = mock(DisplayContent.class);
+        final var mockInsetsStateController = mock(InsetsStateController.class);
+        doReturn(mockInsetsStateController).when(mockDisplayContent).getInsetsStateController();
+
+        final WindowContainer root1 = createWindowContainerSpy(mockSurfaceControl,
+                mockDisplayContent);
+        final WindowContainer root2 = createWindowContainerSpy(mockSurfaceControl,
+                mockDisplayContent);
+        final WindowContainer child = createWindowContainerSpy(mockSurfaceControl,
+                mockDisplayContent);
+        doNothing().when(child).onConfigurationChanged(any());
+
+        root1.setExcludeInsetsTypes(ime());
+        root2.setExcludeInsetsTypes(captionBar());
+        assertEquals(ime(), root1.mMergedExcludeInsetsTypes);
+        assertEquals(captionBar(), root2.mMergedExcludeInsetsTypes);
+        assertEquals(0, child.mMergedExcludeInsetsTypes);
+        clearInvocations(mockInsetsStateController);
+
+        root1.addChild(child, 0);
+        assertEquals(ime(), child.mMergedExcludeInsetsTypes);
+        verify(mockInsetsStateController).notifyInsetsChanged(
+                new ArraySet<>(List.of(child.asWindowState())));
+        clearInvocations(mockInsetsStateController);
+
+        // Make sure that reparenting does not call notifyInsetsChanged twice
+        child.reparent(root2, 0);
+        assertEquals(captionBar(), child.mMergedExcludeInsetsTypes);
+        verify(mockInsetsStateController).notifyInsetsChanged(
+                new ArraySet<>(List.of(child.asWindowState())));
+    }
+
+    @Test
+    @RequiresFlagsEnabled(android.view.inputmethod.Flags.FLAG_REFACTOR_INSETS_CONTROLLER)
+    public void testSetExcludeInsetsTypes_notifyInsetsAfterChange() {
+        final var mockDisplayContent = mock(DisplayContent.class);
+        final var mockInsetsStateController = mock(InsetsStateController.class);
+        doReturn(mockInsetsStateController).when(mockDisplayContent).getInsetsStateController();
+
+        final TestWindowContainerBuilder builder = new TestWindowContainerBuilder(mWm);
+        final WindowState mockRootWs = mock(WindowState.class);
+        final TestWindowContainer root = builder.setLayer(0).setAsWindowState(mockRootWs).build();
+        root.mDisplayContent = mockDisplayContent;
+        verify(mockInsetsStateController, never()).notifyInsetsChanged(any());
+
+        root.setExcludeInsetsTypes(ime());
+        assertEquals(ime(), root.mMergedExcludeInsetsTypes);
+        verify(mockInsetsStateController).notifyInsetsChanged(
+                new ArraySet<>(List.of(root.asWindowState())));
+        clearInvocations(mockInsetsStateController);
+
+        // adding a child (while parent has set excludedInsetsTypes) should trigger
+        // notifyInsetsChanged
+        final WindowState mockChildWs = mock(WindowState.class);
+        final TestWindowContainer child1 = builder.setLayer(0).setAsWindowState(
+                mockChildWs).build();
+        child1.mDisplayContent = mockDisplayContent;
+        root.addChildWindow(child1);
+        // TestWindowContainer overrides onParentChanged and therefore doesn't call into
+        // mergeExcludeInsetsTypesAndNotifyInsetsChanged. This is checked in another test
+        assertTrue(child1.mOnParentChangedCalled);
+        child1.setExcludeInsetsTypes(ime());
+        assertEquals(ime(), child1.mMergedExcludeInsetsTypes);
+        verify(mockInsetsStateController).notifyInsetsChanged(
+                new ArraySet<>(List.of(child1.asWindowState())));
+        clearInvocations(mockInsetsStateController);
+
+        // not changing excludedInsetsTypes should not trigger notifyInsetsChanged again
+        root.setExcludeInsetsTypes(ime());
+        assertEquals(ime(), root.mMergedExcludeInsetsTypes);
+        assertEquals(ime(), child1.mMergedExcludeInsetsTypes);
+        verify(mockInsetsStateController, never()).notifyInsetsChanged(any());
+    }
+
+    private WindowContainer<?> createWindowContainerSpy(SurfaceControl mockSurfaceControl,
+            DisplayContent mockDisplayContent) {
+        final WindowContainer<?> wc = spy(new WindowContainer<>(mWm));
+        final WindowState mocWs = mock(WindowState.class);
+        doReturn(mocWs).when(wc).asWindowState();
+        wc.mSurfaceControl = mockSurfaceControl;
+        wc.mDisplayContent = mockDisplayContent;
+        return wc;
+    }
+
     private static boolean hasLocalSource(WindowContainer container, int sourceId) {
         if (container.mLocalInsetsSources == null) {
             return false;
@@ -1683,6 +1873,7 @@ public class WindowContainerTests extends WindowTestsBase {
         private boolean mFillsParent;
         private boolean mWaitForTransitStart;
         private Integer mOrientation;
+        private WindowState mWindowState;
 
         private boolean mOnParentChangedCalled;
         private boolean mOnDescendantOverrideCalled;
@@ -1704,7 +1895,7 @@ public class WindowContainerTests extends WindowTestsBase {
         };
 
         TestWindowContainer(WindowManagerService wm, int layer, boolean isAnimating,
-                boolean isVisible, boolean waitTransitStart, Integer orientation) {
+                boolean isVisible, boolean waitTransitStart, Integer orientation, WindowState ws) {
             super(wm);
 
             mLayer = layer;
@@ -1713,6 +1904,7 @@ public class WindowContainerTests extends WindowTestsBase {
             mFillsParent = true;
             mOrientation = orientation;
             mWaitForTransitStart = waitTransitStart;
+            mWindowState = ws;
             spyOn(mSurfaceAnimator);
             doReturn(mIsAnimating).when(mSurfaceAnimator).isAnimating();
             doReturn(ANIMATION_TYPE_APP_TRANSITION).when(mSurfaceAnimator).getAnimationType();
@@ -1780,6 +1972,11 @@ public class WindowContainerTests extends WindowTestsBase {
         boolean isWaitingForTransitionStart() {
             return mWaitForTransitStart;
         }
+
+        @Override
+        WindowState asWindowState() {
+            return mWindowState;
+        }
     }
 
     private static class TestWindowContainerBuilder {
@@ -1789,6 +1986,7 @@ public class WindowContainerTests extends WindowTestsBase {
         private boolean mIsVisible;
         private boolean mIsWaitTransitStart;
         private Integer mOrientation;
+        private WindowState mWindowState;
 
         TestWindowContainerBuilder(WindowManagerService wm) {
             mWm = wm;
@@ -1796,6 +1994,7 @@ public class WindowContainerTests extends WindowTestsBase {
             mIsAnimating = false;
             mIsVisible = false;
             mOrientation = null;
+            mWindowState = null;
         }
 
         TestWindowContainerBuilder setLayer(int layer) {
@@ -1818,6 +2017,11 @@ public class WindowContainerTests extends WindowTestsBase {
             return this;
         }
 
+        TestWindowContainerBuilder setAsWindowState(WindowState ws) {
+            mWindowState = ws;
+            return this;
+        }
+
         TestWindowContainerBuilder setWaitForTransitionStart(boolean waitTransitStart) {
             mIsWaitTransitStart = waitTransitStart;
             return this;
@@ -1825,7 +2029,7 @@ public class WindowContainerTests extends WindowTestsBase {
 
         TestWindowContainer build() {
             return new TestWindowContainer(mWm, mLayer, mIsAnimating, mIsVisible,
-                    mIsWaitTransitStart, mOrientation);
+                    mIsWaitTransitStart, mOrientation, mWindowState);
         }
     }
 
@@ -1833,8 +2037,9 @@ public class WindowContainerTests extends WindowTestsBase {
             implements AutoCloseable {
         private final SurfaceSession mSession = new SurfaceSession();
 
-        MockSurfaceBuildingContainer(WindowManagerService wm) {
-            super(wm);
+        MockSurfaceBuildingContainer(DisplayContent dc) {
+            super(dc.mWmService);
+            onDisplayChanged(dc);
         }
 
         static class MockSurfaceBuilder extends SurfaceControl.Builder {

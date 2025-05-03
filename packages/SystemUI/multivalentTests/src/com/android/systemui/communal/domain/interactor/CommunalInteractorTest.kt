@@ -17,66 +17,89 @@
 
 package com.android.systemui.communal.domain.interactor
 
-import android.app.smartspace.SmartspaceTarget
-import android.appwidget.AppWidgetProviderInfo
+import android.app.admin.DevicePolicyManager
+import android.app.admin.devicePolicyManager
+import android.content.Intent
 import android.content.pm.UserInfo
 import android.os.UserHandle
+import android.os.UserManager
+import android.os.userManager
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
+import android.platform.test.flag.junit.FlagsParameterization
+import android.provider.Settings
 import android.provider.Settings.Secure.HUB_MODE_TUTORIAL_COMPLETED
 import android.widget.RemoteViews
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.compose.animation.scene.ObservableTransitionState
 import com.android.systemui.Flags.FLAG_COMMUNAL_HUB
+import com.android.systemui.Flags.FLAG_COMMUNAL_RESPONSIVE_GRID
+import com.android.systemui.Flags.FLAG_COMMUNAL_WIDGET_RESIZING
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.communal.data.repository.CommunalSettingsRepositoryImpl
+import com.android.systemui.broadcast.broadcastDispatcher
+import com.android.systemui.communal.data.model.CommunalSmartspaceTimer
 import com.android.systemui.communal.data.repository.FakeCommunalMediaRepository
 import com.android.systemui.communal.data.repository.FakeCommunalPrefsRepository
-import com.android.systemui.communal.data.repository.FakeCommunalRepository
+import com.android.systemui.communal.data.repository.FakeCommunalSceneRepository
+import com.android.systemui.communal.data.repository.FakeCommunalSmartspaceRepository
 import com.android.systemui.communal.data.repository.FakeCommunalTutorialRepository
 import com.android.systemui.communal.data.repository.FakeCommunalWidgetRepository
 import com.android.systemui.communal.data.repository.fakeCommunalMediaRepository
 import com.android.systemui.communal.data.repository.fakeCommunalPrefsRepository
-import com.android.systemui.communal.data.repository.fakeCommunalRepository
+import com.android.systemui.communal.data.repository.fakeCommunalSceneRepository
+import com.android.systemui.communal.data.repository.fakeCommunalSmartspaceRepository
 import com.android.systemui.communal.data.repository.fakeCommunalTutorialRepository
 import com.android.systemui.communal.data.repository.fakeCommunalWidgetRepository
 import com.android.systemui.communal.domain.model.CommunalContentModel
+import com.android.systemui.communal.domain.model.CommunalTransitionProgressModel
 import com.android.systemui.communal.shared.model.CommunalContentSize
 import com.android.systemui.communal.shared.model.CommunalScenes
-import com.android.systemui.communal.shared.model.CommunalWidgetContentModel
+import com.android.systemui.communal.shared.model.EditModeState
 import com.android.systemui.communal.widgets.EditWidgetsActivityStarter
 import com.android.systemui.coroutines.collectLastValue
+import com.android.systemui.flags.EnableSceneContainer
 import com.android.systemui.flags.Flags
 import com.android.systemui.flags.fakeFeatureFlagsClassic
 import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
 import com.android.systemui.keyguard.data.repository.fakeKeyguardRepository
+import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
+import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.kosmos.testScope
+import com.android.systemui.plugins.ActivityStarter
+import com.android.systemui.plugins.activityStarter
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.domain.interactor.sceneInteractor
-import com.android.systemui.scene.shared.flag.fakeSceneContainerFlags
 import com.android.systemui.scene.shared.model.Scenes
 import com.android.systemui.settings.FakeUserTracker
 import com.android.systemui.settings.fakeUserTracker
-import com.android.systemui.smartspace.data.repository.FakeSmartspaceRepository
-import com.android.systemui.smartspace.data.repository.fakeSmartspaceRepository
+import com.android.systemui.statusbar.phone.fakeManagedProfileController
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.repository.FakeUserRepository
 import com.android.systemui.user.data.repository.fakeUserRepository
-import com.android.systemui.util.mockito.mock
+import com.android.systemui.util.mockito.any
+import com.android.systemui.util.mockito.argumentCaptor
+import com.android.systemui.util.mockito.capture
+import com.android.systemui.util.mockito.nullable
 import com.android.systemui.util.mockito.whenever
-import com.android.systemui.util.settings.fakeSettings
+import com.android.systemui.utils.leaks.FakeManagedProfileController
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.MockitoAnnotations
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4
+import platform.test.runner.parameterized.Parameters
 
 /**
  * This class of test cases assume that communal is enabled. For disabled cases, see
@@ -84,8 +107,8 @@ import org.mockito.MockitoAnnotations
  */
 @SmallTest
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(AndroidJUnit4::class)
-class CommunalInteractorTest : SysuiTestCase() {
+@RunWith(ParameterizedAndroidJunit4::class)
+class CommunalInteractorTest(flags: FlagsParameterization) : SysuiTestCase() {
     @Mock private lateinit var mainUser: UserInfo
     @Mock private lateinit var secondaryUser: UserInfo
 
@@ -93,37 +116,51 @@ class CommunalInteractorTest : SysuiTestCase() {
     private val testScope = kosmos.testScope
 
     private lateinit var tutorialRepository: FakeCommunalTutorialRepository
-    private lateinit var communalRepository: FakeCommunalRepository
+    private lateinit var communalRepository: FakeCommunalSceneRepository
     private lateinit var mediaRepository: FakeCommunalMediaRepository
     private lateinit var widgetRepository: FakeCommunalWidgetRepository
-    private lateinit var smartspaceRepository: FakeSmartspaceRepository
+    private lateinit var smartspaceRepository: FakeCommunalSmartspaceRepository
     private lateinit var userRepository: FakeUserRepository
     private lateinit var keyguardRepository: FakeKeyguardRepository
     private lateinit var communalPrefsRepository: FakeCommunalPrefsRepository
     private lateinit var editWidgetsActivityStarter: EditWidgetsActivityStarter
     private lateinit var sceneInteractor: SceneInteractor
+    private lateinit var communalSceneInteractor: CommunalSceneInteractor
     private lateinit var userTracker: FakeUserTracker
+    private lateinit var activityStarter: ActivityStarter
+    private lateinit var userManager: UserManager
+    private lateinit var managedProfileController: FakeManagedProfileController
 
     private lateinit var underTest: CommunalInteractor
+
+    init {
+        mSetFlagsRule.setFlagsParameterization(flags)
+    }
 
     @Before
     fun setUp() {
         MockitoAnnotations.initMocks(this)
 
         tutorialRepository = kosmos.fakeCommunalTutorialRepository
-        communalRepository = kosmos.fakeCommunalRepository
+        communalRepository = kosmos.fakeCommunalSceneRepository
         mediaRepository = kosmos.fakeCommunalMediaRepository
         widgetRepository = kosmos.fakeCommunalWidgetRepository
-        smartspaceRepository = kosmos.fakeSmartspaceRepository
+        smartspaceRepository = kosmos.fakeCommunalSmartspaceRepository
         userRepository = kosmos.fakeUserRepository
         keyguardRepository = kosmos.fakeKeyguardRepository
         editWidgetsActivityStarter = kosmos.editWidgetsActivityStarter
         communalPrefsRepository = kosmos.fakeCommunalPrefsRepository
         sceneInteractor = kosmos.sceneInteractor
+        communalSceneInteractor = kosmos.communalSceneInteractor
         userTracker = kosmos.fakeUserTracker
+        activityStarter = kosmos.activityStarter
+        userManager = kosmos.userManager
+        managedProfileController = kosmos.fakeManagedProfileController
 
         whenever(mainUser.isMain).thenReturn(true)
         whenever(secondaryUser.isMain).thenReturn(false)
+        whenever(userManager.isQuietModeEnabled(any<UserHandle>())).thenReturn(false)
+        whenever(userManager.isManagedProfile(anyInt())).thenReturn(false)
         userRepository.setUserInfos(listOf(mainUser, secondaryUser))
 
         kosmos.fakeFeatureFlagsClassic.set(Flags.COMMUNAL_SERVICE_ENABLED, true)
@@ -180,14 +217,14 @@ class CommunalInteractorTest : SysuiTestCase() {
         }
 
     @Test
-    fun isCommunalAvailable_whenDreaming_true() =
+    fun isCommunalAvailable_whenKeyguardShowing_true() =
         testScope.runTest {
             val isAvailable by collectLastValue(underTest.isCommunalAvailable)
             assertThat(isAvailable).isFalse()
 
             keyguardRepository.setIsEncryptedOrLockdown(false)
             userRepository.setSelectedUserInfo(mainUser)
-            keyguardRepository.setDreaming(true)
+            keyguardRepository.setKeyguardShowing(true)
 
             assertThat(isAvailable).isTrue()
         }
@@ -217,138 +254,101 @@ class CommunalInteractorTest : SysuiTestCase() {
 
             val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
             userRepository.setUserInfos(userInfos)
-            userTracker.set(
-                userInfos = userInfos,
-                selectedUserIndex = 0,
-            )
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
             runCurrent()
 
             // Widgets available.
-            val widget1 = createWidgetForUser(1, USER_INFO_WORK.id)
-            val widget2 = createWidgetForUser(2, MAIN_USER_INFO.id)
-            val widget3 = createWidgetForUser(3, MAIN_USER_INFO.id)
-            val widgets = listOf(widget1, widget2, widget3)
-            widgetRepository.setCommunalWidgets(widgets)
+            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            widgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
+            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
 
-            assertThat(widgetContent!!).isNotEmpty()
-            widgetContent!!.forEachIndexed { index, model ->
-                assertThat(model.appWidgetId).isEqualTo(widgets[index].appWidgetId)
-            }
+            assertThat(checkNotNull(widgetContent)).isNotEmpty()
+            assertThat(widgetContent!![0].appWidgetId).isEqualTo(1)
+            assertThat(widgetContent!![1].appWidgetId).isEqualTo(2)
+            assertThat(widgetContent!![2].appWidgetId).isEqualTo(3)
         }
 
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
     @Test
-    fun smartspace_onlyShowTimersWithRemoteViews() =
-        testScope.runTest {
-            // Keyguard showing, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
-
-            // Not a timer
-            val target1 = mock(SmartspaceTarget::class.java)
-            whenever(target1.smartspaceTargetId).thenReturn("target1")
-            whenever(target1.featureType).thenReturn(SmartspaceTarget.FEATURE_WEATHER)
-            whenever(target1.remoteViews).thenReturn(mock(RemoteViews::class.java))
-            whenever(target1.creationTimeMillis).thenReturn(0L)
-
-            // Does not have RemoteViews
-            val target2 = mock(SmartspaceTarget::class.java)
-            whenever(target2.smartspaceTargetId).thenReturn("target2")
-            whenever(target2.featureType).thenReturn(SmartspaceTarget.FEATURE_TIMER)
-            whenever(target2.remoteViews).thenReturn(null)
-            whenever(target2.creationTimeMillis).thenReturn(0L)
-
-            // Timer and has RemoteViews
-            val target3 = mock(SmartspaceTarget::class.java)
-            whenever(target3.smartspaceTargetId).thenReturn("target3")
-            whenever(target3.featureType).thenReturn(SmartspaceTarget.FEATURE_TIMER)
-            whenever(target3.remoteViews).thenReturn(mock(RemoteViews::class.java))
-            whenever(target3.creationTimeMillis).thenReturn(0L)
-
-            val targets = listOf(target1, target2, target3)
-            smartspaceRepository.setCommunalSmartspaceTargets(targets)
-
-            val smartspaceContent by collectLastValue(underTest.ongoingContent)
-            assertThat(smartspaceContent?.size).isEqualTo(1)
-            assertThat(smartspaceContent?.get(0)?.key)
-                .isEqualTo(CommunalContentModel.KEY.smartspace("target3"))
-        }
-
-    @Test
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun smartspaceDynamicSizing_oneCard_fullSize() =
         testSmartspaceDynamicSizing(
             totalTargets = 1,
-            expectedSizes =
-                listOf(
-                    CommunalContentSize.FULL,
-                )
+            expectedSizes = listOf(CommunalContentSize.FixedSize.FULL),
         )
 
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
     @Test
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun smartspace_dynamicSizing_twoCards_halfSize() =
         testSmartspaceDynamicSizing(
             totalTargets = 2,
             expectedSizes =
-                listOf(
-                    CommunalContentSize.HALF,
-                    CommunalContentSize.HALF,
-                )
+                listOf(CommunalContentSize.FixedSize.HALF, CommunalContentSize.FixedSize.HALF),
         )
 
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
     @Test
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun smartspace_dynamicSizing_threeCards_thirdSize() =
         testSmartspaceDynamicSizing(
             totalTargets = 3,
             expectedSizes =
                 listOf(
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                )
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                ),
         )
 
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
     @Test
-    fun smartspace_dynamicSizing_fourCards_oneFullAndThreeThirdSize() =
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
+    fun smartspace_dynamicSizing_fourCards_threeThirdSizeAndOneFullSize() =
         testSmartspaceDynamicSizing(
             totalTargets = 4,
             expectedSizes =
                 listOf(
-                    CommunalContentSize.FULL,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                )
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.FULL,
+                ),
         )
 
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
     @Test
-    fun smartspace_dynamicSizing_fiveCards_twoHalfAndThreeThirdSize() =
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
+    fun smartspace_dynamicSizing_fiveCards_threeThirdAndTwoHalfSize() =
         testSmartspaceDynamicSizing(
             totalTargets = 5,
             expectedSizes =
                 listOf(
-                    CommunalContentSize.HALF,
-                    CommunalContentSize.HALF,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                )
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.HALF,
+                    CommunalContentSize.FixedSize.HALF,
+                ),
         )
 
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
     @Test
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun smartspace_dynamicSizing_sixCards_allThirdSize() =
         testSmartspaceDynamicSizing(
             totalTargets = 6,
             expectedSizes =
                 listOf(
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                    CommunalContentSize.THIRD,
-                )
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                    CommunalContentSize.FixedSize.THIRD,
+                ),
         )
 
     private fun testSmartspaceDynamicSizing(
@@ -361,14 +361,14 @@ class CommunalInteractorTest : SysuiTestCase() {
             keyguardRepository.setKeyguardOccluded(false)
             tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
 
-            val targets = mutableListOf<SmartspaceTarget>()
+            val targets = mutableListOf<CommunalSmartspaceTimer>()
             for (index in 0 until totalTargets) {
                 targets.add(smartspaceTimer(index.toString()))
             }
 
-            smartspaceRepository.setCommunalSmartspaceTargets(targets)
+            smartspaceRepository.setTimers(targets)
 
-            val smartspaceContent by collectLastValue(underTest.ongoingContent)
+            val smartspaceContent by collectLastValue(underTest.ongoingContent(false))
             assertThat(smartspaceContent?.size).isEqualTo(totalTargets)
             for (index in 0 until totalTargets) {
                 assertThat(smartspaceContent?.get(index)?.size).isEqualTo(expectedSizes[index])
@@ -384,7 +384,7 @@ class CommunalInteractorTest : SysuiTestCase() {
             // Media is playing.
             mediaRepository.mediaActive()
 
-            val umoContent by collectLastValue(underTest.ongoingContent)
+            val umoContent by collectLastValue(underTest.ongoingContent(true))
 
             assertThat(umoContent?.size).isEqualTo(1)
             assertThat(umoContent?.get(0)).isInstanceOf(CommunalContentModel.Umo::class.java)
@@ -392,6 +392,21 @@ class CommunalInteractorTest : SysuiTestCase() {
         }
 
     @Test
+    fun umo_mediaPlaying_mediaHostNotVisible_hidesUmo() =
+        testScope.runTest {
+            // Tutorial completed.
+            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+
+            // Media is playing.
+            mediaRepository.mediaActive()
+
+            val umoContent by collectLastValue(underTest.ongoingContent(false))
+            assertThat(umoContent?.size).isEqualTo(0)
+        }
+
+    /** TODO(b/378171351): Handle ongoing content in responsive grid. */
+    @Test
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
     fun ongoing_shouldOrderAndSizeByTimestamp() =
         testScope.runTest {
             // Keyguard showing, and tutorial completed.
@@ -401,32 +416,32 @@ class CommunalInteractorTest : SysuiTestCase() {
 
             // Timer1 started
             val timer1 = smartspaceTimer("timer1", timestamp = 1L)
-            smartspaceRepository.setCommunalSmartspaceTargets(listOf(timer1))
+            smartspaceRepository.setTimers(listOf(timer1))
 
             // Umo started
             mediaRepository.mediaActive(timestamp = 2L)
 
             // Timer2 started
             val timer2 = smartspaceTimer("timer2", timestamp = 3L)
-            smartspaceRepository.setCommunalSmartspaceTargets(listOf(timer1, timer2))
+            smartspaceRepository.setTimers(listOf(timer1, timer2))
 
             // Timer3 started
             val timer3 = smartspaceTimer("timer3", timestamp = 4L)
-            smartspaceRepository.setCommunalSmartspaceTargets(listOf(timer1, timer2, timer3))
+            smartspaceRepository.setTimers(listOf(timer1, timer2, timer3))
 
-            val ongoingContent by collectLastValue(underTest.ongoingContent)
+            val ongoingContent by collectLastValue(underTest.ongoingContent(true))
             assertThat(ongoingContent?.size).isEqualTo(4)
             assertThat(ongoingContent?.get(0)?.key)
                 .isEqualTo(CommunalContentModel.KEY.smartspace("timer3"))
-            assertThat(ongoingContent?.get(0)?.size).isEqualTo(CommunalContentSize.FULL)
+            assertThat(ongoingContent?.get(0)?.size).isEqualTo(CommunalContentSize.FixedSize.HALF)
             assertThat(ongoingContent?.get(1)?.key)
                 .isEqualTo(CommunalContentModel.KEY.smartspace("timer2"))
-            assertThat(ongoingContent?.get(1)?.size).isEqualTo(CommunalContentSize.THIRD)
+            assertThat(ongoingContent?.get(1)?.size).isEqualTo(CommunalContentSize.FixedSize.HALF)
             assertThat(ongoingContent?.get(2)?.key).isEqualTo(CommunalContentModel.KEY.umo())
-            assertThat(ongoingContent?.get(2)?.size).isEqualTo(CommunalContentSize.THIRD)
+            assertThat(ongoingContent?.get(2)?.size).isEqualTo(CommunalContentSize.FixedSize.HALF)
             assertThat(ongoingContent?.get(3)?.key)
                 .isEqualTo(CommunalContentModel.KEY.smartspace("timer1"))
-            assertThat(ongoingContent?.get(3)?.size).isEqualTo(CommunalContentSize.THIRD)
+            assertThat(ongoingContent?.get(3)?.size).isEqualTo(CommunalContentSize.FixedSize.HALF)
         }
 
     @Test
@@ -446,8 +461,13 @@ class CommunalInteractorTest : SysuiTestCase() {
     @Test
     fun ctaTile_afterDismiss_doesNotShow() =
         testScope.runTest {
+            // Set to main user, so we can dismiss the tile for the main user.
+            val user = userRepository.asMainUser()
+            userTracker.set(userInfos = listOf(user), selectedUserIndex = 0)
+            runCurrent()
+
             tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
-            communalPrefsRepository.setCtaDismissedForCurrentUser()
+            communalPrefsRepository.setCtaDismissed(user)
 
             val ctaTileContent by collectLastValue(underTest.ctaTileContent)
 
@@ -465,7 +485,7 @@ class CommunalInteractorTest : SysuiTestCase() {
             assertThat(desiredScene()).isEqualTo(CommunalScenes.Blank)
 
             val targetScene = CommunalScenes.Communal
-            communalRepository.setDesiredScene(targetScene)
+            communalRepository.changeScene(targetScene)
             desiredScene = collectLastValue(underTest.desiredScene)
             runCurrent()
             assertThat(desiredScene()).isEqualTo(targetScene)
@@ -476,35 +496,11 @@ class CommunalInteractorTest : SysuiTestCase() {
         testScope.runTest {
             val targetScene = CommunalScenes.Communal
 
-            underTest.onSceneChanged(targetScene)
+            underTest.changeScene(targetScene, "test")
 
-            val desiredScene = collectLastValue(communalRepository.desiredScene)
+            val desiredScene = collectLastValue(communalRepository.currentScene)
             runCurrent()
             assertThat(desiredScene()).isEqualTo(targetScene)
-        }
-
-    @Test
-    fun desiredScene_communalNotAvailable_returnsBlank() =
-        testScope.runTest {
-            kosmos.setCommunalAvailable(true)
-            runCurrent()
-
-            val desiredScene by collectLastValue(underTest.desiredScene)
-
-            underTest.onSceneChanged(CommunalScenes.Communal)
-            assertThat(desiredScene).isEqualTo(CommunalScenes.Communal)
-
-            kosmos.setCommunalAvailable(false)
-            runCurrent()
-
-            // Scene returns blank when communal is not available.
-            assertThat(desiredScene).isEqualTo(CommunalScenes.Blank)
-
-            kosmos.setCommunalAvailable(true)
-            runCurrent()
-
-            // After re-enabling, scene goes back to Communal.
-            assertThat(desiredScene).isEqualTo(CommunalScenes.Communal)
         }
 
     @Test
@@ -521,7 +517,8 @@ class CommunalInteractorTest : SysuiTestCase() {
             underTest.setTransitionState(transitionState)
 
             // We're on the target scene.
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Idle(targetScene))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Idle(targetScene))
         }
 
     @Test
@@ -539,7 +536,8 @@ class CommunalInteractorTest : SysuiTestCase() {
             underTest.setTransitionState(transitionState)
 
             // Transition progress is still idle, but we're not on the target scene.
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Idle(currentScene))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Idle(currentScene))
         }
 
     @Test
@@ -557,7 +555,8 @@ class CommunalInteractorTest : SysuiTestCase() {
             underTest.setTransitionState(transitionState)
 
             // Progress starts at 0.
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Idle(currentScene))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Idle(currentScene))
 
             val progress = MutableStateFlow(0f)
             transitionState =
@@ -565,6 +564,7 @@ class CommunalInteractorTest : SysuiTestCase() {
                     ObservableTransitionState.Transition(
                         fromScene = currentScene,
                         toScene = targetScene,
+                        currentScene = flowOf(targetScene),
                         progress = progress,
                         isInitiatedByUserInput = false,
                         isUserInputOngoing = flowOf(false),
@@ -574,16 +574,18 @@ class CommunalInteractorTest : SysuiTestCase() {
 
             // Partially transition.
             progress.value = .4f
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Transition(.4f))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Transition(.4f))
 
             // Transition is at full progress.
             progress.value = 1f
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Transition(1f))
+            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgressModel.Transition(1f))
 
             // Transition finishes.
             transitionState = MutableStateFlow(ObservableTransitionState.Idle(targetScene))
             underTest.setTransitionState(transitionState)
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Idle(targetScene))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Idle(targetScene))
         }
 
     @Test
@@ -601,7 +603,8 @@ class CommunalInteractorTest : SysuiTestCase() {
             underTest.setTransitionState(transitionState)
 
             // Progress starts at 0.
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Idle(currentScene))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Idle(currentScene))
 
             val progress = MutableStateFlow(0f)
             transitionState =
@@ -609,6 +612,7 @@ class CommunalInteractorTest : SysuiTestCase() {
                     ObservableTransitionState.Transition(
                         fromScene = currentScene,
                         toScene = targetScene,
+                        currentScene = flowOf(targetScene),
                         progress = progress,
                         isInitiatedByUserInput = false,
                         isUserInputOngoing = flowOf(false),
@@ -620,16 +624,19 @@ class CommunalInteractorTest : SysuiTestCase() {
             progress.value = .4f
 
             // This is a transition we don't care about the progress of.
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.OtherTransition)
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.OtherTransition)
 
             // Transition is at full progress.
             progress.value = 1f
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.OtherTransition)
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.OtherTransition)
 
             // Transition finishes.
             transitionState = MutableStateFlow(ObservableTransitionState.Idle(targetScene))
             underTest.setTransitionState(transitionState)
-            assertThat(transitionProgress).isEqualTo(CommunalTransitionProgress.Idle(targetScene))
+            assertThat(transitionProgress)
+                .isEqualTo(CommunalTransitionProgressModel.Idle(targetScene))
         }
 
     @Test
@@ -642,7 +649,7 @@ class CommunalInteractorTest : SysuiTestCase() {
             runCurrent()
             assertThat(isCommunalShowing()).isEqualTo(false)
 
-            underTest.onSceneChanged(CommunalScenes.Communal)
+            underTest.changeScene(CommunalScenes.Communal, "test")
 
             isCommunalShowing = collectLastValue(underTest.isCommunalShowing)
             runCurrent()
@@ -666,39 +673,47 @@ class CommunalInteractorTest : SysuiTestCase() {
             assertThat(isCommunalShowing).isFalse()
 
             // Verify scene changes (without the flag) to communal sets the value to true
-            underTest.onSceneChanged(CommunalScenes.Communal)
+            underTest.changeScene(CommunalScenes.Communal, "test")
             runCurrent()
             assertThat(isCommunalShowing).isTrue()
 
             // Verify scene changes (without the flag) to blank sets the value back to false
-            underTest.onSceneChanged(CommunalScenes.Blank)
+            underTest.changeScene(CommunalScenes.Blank, "test")
             runCurrent()
             assertThat(isCommunalShowing).isFalse()
         }
 
     @Test
+    @EnableSceneContainer
     fun isCommunalShowing_whenSceneContainerEnabled() =
         testScope.runTest {
-            kosmos.fakeSceneContainerFlags.enabled = true
-
             // Verify default is false
             val isCommunalShowing by collectLastValue(underTest.isCommunalShowing)
-            runCurrent()
-            assertThat(isCommunalShowing).isFalse()
-
-            // Verify scene changes without the flag doesn't have any impact
-            underTest.onSceneChanged(CommunalScenes.Communal)
-            runCurrent()
             assertThat(isCommunalShowing).isFalse()
 
             // Verify scene changes (with the flag) to communal sets the value to true
             sceneInteractor.changeScene(Scenes.Communal, loggingReason = "")
-            runCurrent()
             assertThat(isCommunalShowing).isTrue()
 
             // Verify scene changes (with the flag) to lockscreen sets the value to false
             sceneInteractor.changeScene(Scenes.Lockscreen, loggingReason = "")
-            runCurrent()
+            assertThat(isCommunalShowing).isFalse()
+        }
+
+    @Test
+    @EnableSceneContainer
+    fun isCommunalShowing_whenSceneContainerEnabledAndChangeToLegacyScene() =
+        testScope.runTest {
+            // Verify default is false
+            val isCommunalShowing by collectLastValue(underTest.isCommunalShowing)
+            assertThat(isCommunalShowing).isFalse()
+
+            // Verify legacy scene change still makes communal show
+            underTest.changeScene(CommunalScenes.Communal, "test")
+            assertThat(isCommunalShowing).isTrue()
+
+            // Verify legacy scene change to blank makes communal hidden
+            underTest.changeScene(CommunalScenes.Blank, "test")
             assertThat(isCommunalShowing).isFalse()
         }
 
@@ -728,6 +743,7 @@ class CommunalInteractorTest : SysuiTestCase() {
                 ObservableTransitionState.Transition(
                     fromScene = CommunalScenes.Communal,
                     toScene = CommunalScenes.Blank,
+                    currentScene = flowOf(CommunalScenes.Blank),
                     progress = flowOf(0f),
                     isInitiatedByUserInput = false,
                     isUserInputOngoing = flowOf(false),
@@ -756,6 +772,7 @@ class CommunalInteractorTest : SysuiTestCase() {
                 ObservableTransitionState.Transition(
                     fromScene = CommunalScenes.Blank,
                     toScene = CommunalScenes.Communal,
+                    currentScene = flowOf(CommunalScenes.Communal),
                     progress = flowOf(0f),
                     isInitiatedByUserInput = false,
                     isUserInputOngoing = flowOf(false),
@@ -775,6 +792,7 @@ class CommunalInteractorTest : SysuiTestCase() {
                 ObservableTransitionState.Transition(
                     fromScene = CommunalScenes.Communal,
                     toScene = CommunalScenes.Blank,
+                    currentScene = flowOf(CommunalScenes.Blank),
                     progress = flowOf(1.0f),
                     isInitiatedByUserInput = false,
                     isUserInputOngoing = flowOf(false),
@@ -787,16 +805,29 @@ class CommunalInteractorTest : SysuiTestCase() {
     @Test
     fun testShowWidgetEditorStartsActivity() =
         testScope.runTest {
+            val editModeState by collectLastValue(communalSceneInteractor.editModeState)
+
             underTest.showWidgetEditor()
+
+            assertThat(editModeState).isEqualTo(EditModeState.STARTING)
             verify(editWidgetsActivityStarter).startActivity()
         }
 
     @Test
-    fun showWidgetEditor_withPreselectedKey_startsActivity() =
+    fun showWidgetEditor_openWidgetPickerOnStart_startsActivity() =
         testScope.runTest {
-            val widgetKey = CommunalContentModel.KEY.widget(123)
-            underTest.showWidgetEditor(preselectedKey = widgetKey)
-            verify(editWidgetsActivityStarter).startActivity(widgetKey)
+            underTest.showWidgetEditor(shouldOpenWidgetPickerOnStart = true)
+            verify(editWidgetsActivityStarter).startActivity(shouldOpenWidgetPickerOnStart = true)
+        }
+
+    @Test
+    fun navigateToCommunalWidgetSettings_startsActivity() =
+        testScope.runTest {
+            underTest.navigateToCommunalWidgetSettings()
+            val intentCaptor = argumentCaptor<Intent>()
+            verify(activityStarter)
+                .postStartActivityDismissingKeyguard(capture(intentCaptor), eq(0))
+            assertThat(intentCaptor.value.action).isEqualTo(Settings.ACTION_COMMUNAL_SETTING)
         }
 
     @Test
@@ -810,146 +841,506 @@ class CommunalInteractorTest : SysuiTestCase() {
             // Only main user exists.
             val userInfos = listOf(MAIN_USER_INFO)
             userRepository.setUserInfos(userInfos)
-            userTracker.set(
-                userInfos = userInfos,
-                selectedUserIndex = 0,
-            )
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
             runCurrent()
 
             val widgetContent by collectLastValue(underTest.widgetContent)
             // Given three widgets, and one of them is associated with pre-existing work profile.
-            val widget1 = createWidgetForUser(1, USER_INFO_WORK.id)
-            val widget2 = createWidgetForUser(2, MAIN_USER_INFO.id)
-            val widget3 = createWidgetForUser(3, MAIN_USER_INFO.id)
-            val widgets = listOf(widget1, widget2, widget3)
-            widgetRepository.setCommunalWidgets(widgets)
+            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            widgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
+            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
             // One widget is filtered out and the remaining two link to main user id.
             assertThat(checkNotNull(widgetContent).size).isEqualTo(2)
             widgetContent!!.forEachIndexed { _, model ->
-                assertThat(model.providerInfo.profile?.identifier).isEqualTo(MAIN_USER_INFO.id)
+                assertThat(model is CommunalContentModel.WidgetContent.Widget).isTrue()
+                assertThat(
+                        (model as CommunalContentModel.WidgetContent.Widget)
+                            .providerInfo
+                            .profile
+                            ?.identifier
+                    )
+                    .isEqualTo(MAIN_USER_INFO.id)
             }
         }
 
     @Test
-    fun widgetContent_containsDisabledWidgets_whenCategoryNotAllowed() =
+    fun widgetContent_inQuietMode() =
         testScope.runTest {
-            // Communal available, and tutorial completed.
+            // Keyguard showing, and tutorial completed.
             keyguardRepository.setKeyguardShowing(true)
             keyguardRepository.setKeyguardOccluded(false)
             tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
-            userRepository.setSelectedUserInfo(mainUser)
 
+            // Work profile is set up.
             val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
             userRepository.setUserInfos(userInfos)
-            userTracker.set(
-                userInfos = userInfos,
-                selectedUserIndex = 0,
-            )
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
             runCurrent()
 
-            // Widgets available.
-            val widget1 =
-                createWidgetWithCategory(1, AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
-            val widget2 =
-                createWidgetWithCategory(2, AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD)
-            val widget3 =
-                createWidgetWithCategory(3, AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX)
-            val widgets = listOf(widget1, widget2, widget3)
-            widgetRepository.setCommunalWidgets(widgets)
+            // When work profile is paused.
+            whenever(userManager.isQuietModeEnabled(eq(UserHandle.of(USER_INFO_WORK.id))))
+                .thenReturn(true)
+            whenever(userManager.isManagedProfile(eq(USER_INFO_WORK.id))).thenReturn(true)
 
             val widgetContent by collectLastValue(underTest.widgetContent)
-            kosmos.fakeSettings.putIntForUser(
-                CommunalSettingsRepositoryImpl.GLANCEABLE_HUB_CONTENT_SETTING,
-                AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD,
-                mainUser.id
-            )
-            runCurrent()
+            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            widgetRepository.addWidget(appWidgetId = 2, userId = MAIN_USER_INFO.id)
+            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
 
-            // Only the keyguard widget is enabled.
-            assertThat(widgetContent).hasSize(3)
-            assertThat(widgetContent!!.get(0))
-                .isInstanceOf(CommunalContentModel.WidgetContent.DisabledWidget::class.java)
-            assertThat(widgetContent!!.get(1))
-                .isInstanceOf(CommunalContentModel.WidgetContent.Widget::class.java)
-            assertThat(widgetContent!!.get(2))
-                .isInstanceOf(CommunalContentModel.WidgetContent.DisabledWidget::class.java)
-        }
-
-    @Test
-    fun widgetContent_allEnabled_whenCategoryAllowed() =
-        testScope.runTest {
-            // Communal available, and tutorial completed.
-            keyguardRepository.setKeyguardShowing(true)
-            keyguardRepository.setKeyguardOccluded(false)
-            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
-            userRepository.setSelectedUserInfo(mainUser)
-
-            val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
-            userRepository.setUserInfos(userInfos)
-            userTracker.set(
-                userInfos = userInfos,
-                selectedUserIndex = 0,
-            )
-            runCurrent()
-
-            // Widgets available.
-            val widget1 =
-                createWidgetWithCategory(1, AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
-            val widget2 =
-                createWidgetWithCategory(2, AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD)
-            val widget3 =
-                createWidgetWithCategory(3, AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD)
-            val widgets = listOf(widget1, widget2, widget3)
-            widgetRepository.setCommunalWidgets(widgets)
-
-            val widgetContent by collectLastValue(underTest.widgetContent)
-            kosmos.fakeSettings.putIntForUser(
-                CommunalSettingsRepositoryImpl.GLANCEABLE_HUB_CONTENT_SETTING,
-                AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD or
-                    AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
-                mainUser.id
-            )
-            runCurrent()
-
-            // All widgets are enabled.
+            // The work profile widget is in quiet mode, while other widgets are not.
             assertThat(widgetContent).hasSize(3)
             widgetContent!!.forEach { model ->
                 assertThat(model)
                     .isInstanceOf(CommunalContentModel.WidgetContent.Widget::class.java)
             }
+            assertThat(
+                    (widgetContent!![0] as CommunalContentModel.WidgetContent.Widget).inQuietMode
+                )
+                .isTrue()
+            assertThat(
+                    (widgetContent!![1] as CommunalContentModel.WidgetContent.Widget).inQuietMode
+                )
+                .isFalse()
+            assertThat(
+                    (widgetContent!![2] as CommunalContentModel.WidgetContent.Widget).inQuietMode
+                )
+                .isFalse()
         }
 
-    private fun smartspaceTimer(id: String, timestamp: Long = 0L): SmartspaceTarget {
-        val timer = mock(SmartspaceTarget::class.java)
-        whenever(timer.smartspaceTargetId).thenReturn(id)
-        whenever(timer.featureType).thenReturn(SmartspaceTarget.FEATURE_TIMER)
-        whenever(timer.remoteViews).thenReturn(mock(RemoteViews::class.java))
-        whenever(timer.creationTimeMillis).thenReturn(timestamp)
-        return timer
+    @Test
+    fun filterWidgets_whenDisallowedByDevicePolicyForWorkProfile() =
+        testScope.runTest {
+            // Keyguard showing, and tutorial completed.
+            keyguardRepository.setKeyguardShowing(true)
+            keyguardRepository.setKeyguardOccluded(false)
+            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+
+            val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
+            userRepository.setUserInfos(userInfos)
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            userRepository.setSelectedUserInfo(MAIN_USER_INFO)
+            runCurrent()
+
+            val widgetContent by collectLastValue(underTest.widgetContent)
+            // One available work widget, one pending work widget, and one regular available widget.
+            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            widgetRepository.addPendingWidget(appWidgetId = 2, userId = USER_INFO_WORK.id)
+            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+
+            setKeyguardFeaturesDisabled(
+                USER_INFO_WORK,
+                DevicePolicyManager.KEYGUARD_DISABLE_WIDGETS_ALL,
+            )
+
+            // Widgets under work profile are filtered out. Only the regular widget remains.
+            assertThat(widgetContent).hasSize(1)
+            assertThat(widgetContent?.get(0)?.appWidgetId).isEqualTo(3)
+        }
+
+    @Test
+    fun filterWidgets_whenAllowedByDevicePolicyForWorkProfile() =
+        testScope.runTest {
+            // Keyguard showing, and tutorial completed.
+            keyguardRepository.setKeyguardShowing(true)
+            keyguardRepository.setKeyguardOccluded(false)
+            tutorialRepository.setTutorialSettingState(HUB_MODE_TUTORIAL_COMPLETED)
+
+            val userInfos = listOf(MAIN_USER_INFO, USER_INFO_WORK)
+            userRepository.setUserInfos(userInfos)
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            userRepository.setSelectedUserInfo(MAIN_USER_INFO)
+            runCurrent()
+
+            val widgetContent by collectLastValue(underTest.widgetContent)
+            // Given three widgets, and one of them is associated with work profile.
+            widgetRepository.addWidget(appWidgetId = 1, userId = USER_INFO_WORK.id)
+            widgetRepository.addPendingWidget(appWidgetId = 2, userId = USER_INFO_WORK.id)
+            widgetRepository.addWidget(appWidgetId = 3, userId = MAIN_USER_INFO.id)
+
+            setKeyguardFeaturesDisabled(
+                USER_INFO_WORK,
+                DevicePolicyManager.KEYGUARD_DISABLE_FEATURES_NONE,
+            )
+
+            // Widgets under work profile are available.
+            assertThat(widgetContent).hasSize(3)
+            assertThat(widgetContent?.get(0)?.appWidgetId).isEqualTo(1)
+            assertThat(widgetContent?.get(1)?.appWidgetId).isEqualTo(2)
+            assertThat(widgetContent?.get(2)?.appWidgetId).isEqualTo(3)
+        }
+
+    @Test
+    fun showCommunalFromOccluded_enteredOccludedFromHub() =
+        testScope.runTest {
+            kosmos.setCommunalAvailable(true)
+            val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
+            assertThat(showCommunalFromOccluded).isFalse()
+
+            kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.GLANCEABLE_HUB,
+                to = KeyguardState.OCCLUDED,
+                testScope,
+            )
+
+            assertThat(showCommunalFromOccluded).isTrue()
+        }
+
+    @Test
+    fun showCommunalFromOccluded_enteredOccludedFromLockscreen() =
+        testScope.runTest {
+            kosmos.setCommunalAvailable(true)
+            val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
+            assertThat(showCommunalFromOccluded).isFalse()
+
+            kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.LOCKSCREEN,
+                to = KeyguardState.OCCLUDED,
+                testScope,
+            )
+
+            assertThat(showCommunalFromOccluded).isFalse()
+        }
+
+    @Test
+    fun showCommunalFromOccluded_communalBecomesUnavailableWhileOccluded() =
+        testScope.runTest {
+            kosmos.setCommunalAvailable(true)
+            val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
+            assertThat(showCommunalFromOccluded).isFalse()
+
+            kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.GLANCEABLE_HUB,
+                to = KeyguardState.OCCLUDED,
+                testScope,
+            )
+            runCurrent()
+            kosmos.setCommunalAvailable(false)
+
+            assertThat(showCommunalFromOccluded).isFalse()
+        }
+
+    @Test
+    fun showCommunalFromOccluded_showBouncerWhileOccluded() =
+        testScope.runTest {
+            kosmos.setCommunalAvailable(true)
+            val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
+            assertThat(showCommunalFromOccluded).isFalse()
+
+            kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.GLANCEABLE_HUB,
+                to = KeyguardState.OCCLUDED,
+                testScope,
+            )
+            runCurrent()
+            kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.OCCLUDED,
+                to = KeyguardState.PRIMARY_BOUNCER,
+                testScope,
+            )
+
+            assertThat(showCommunalFromOccluded).isTrue()
+        }
+
+    @Test
+    fun showCommunalFromOccluded_enteredOccludedFromDreaming() =
+        testScope.runTest {
+            kosmos.setCommunalAvailable(true)
+            val showCommunalFromOccluded by collectLastValue(underTest.showCommunalFromOccluded)
+            assertThat(showCommunalFromOccluded).isFalse()
+
+            kosmos.fakeKeyguardTransitionRepository.sendTransitionSteps(
+                from = KeyguardState.DREAMING,
+                to = KeyguardState.OCCLUDED,
+                testScope,
+            )
+
+            assertThat(showCommunalFromOccluded).isTrue()
+        }
+
+    private fun smartspaceTimer(id: String, timestamp: Long = 0L): CommunalSmartspaceTimer {
+        return CommunalSmartspaceTimer(
+            smartspaceTargetId = id,
+            createdTimestampMillis = timestamp,
+            remoteViews = mock(RemoteViews::class.java),
+        )
     }
 
-    private fun createWidgetForUser(appWidgetId: Int, userId: Int): CommunalWidgetContentModel =
-        mock<CommunalWidgetContentModel> {
-            whenever(this.appWidgetId).thenReturn(appWidgetId)
-            val providerInfo = mock<AppWidgetProviderInfo>()
-            whenever(providerInfo.profile).thenReturn(UserHandle(userId))
-            whenever(this.providerInfo).thenReturn(providerInfo)
+    @Test
+    fun dismissDisclaimerSetsDismissedFlag() =
+        testScope.runTest {
+            val disclaimerDismissed by collectLastValue(underTest.isDisclaimerDismissed)
+            assertThat(disclaimerDismissed).isFalse()
+            underTest.setDisclaimerDismissed()
+            assertThat(disclaimerDismissed).isTrue()
         }
 
-    private fun createWidgetWithCategory(
-        appWidgetId: Int,
-        category: Int
-    ): CommunalWidgetContentModel =
-        mock<CommunalWidgetContentModel> {
-            whenever(this.appWidgetId).thenReturn(appWidgetId)
-            val providerInfo = mock<AppWidgetProviderInfo>().apply { widgetCategory = category }
-            whenever(providerInfo.profile).thenReturn(UserHandle(MAIN_USER_INFO.id))
-            whenever(this.providerInfo).thenReturn(providerInfo)
+    @Test
+    fun dismissDisclaimerTimeoutResetsDismissedFlag() =
+        testScope.runTest {
+            val disclaimerDismissed by collectLastValue(underTest.isDisclaimerDismissed)
+            underTest.setDisclaimerDismissed()
+            assertThat(disclaimerDismissed).isTrue()
+            advanceTimeBy(CommunalInteractor.DISCLAIMER_RESET_MILLIS)
+            assertThat(disclaimerDismissed).isFalse()
         }
 
-    private companion object {
-        val MAIN_USER_INFO = UserInfo(0, "primary", UserInfo.FLAG_MAIN)
-        val USER_INFO_WORK = UserInfo(10, "work", UserInfo.FLAG_PROFILE)
+    @Test
+    fun settingSelectedKey_flowUpdated() {
+        testScope.runTest {
+            val key = "test"
+            val selectedKey by collectLastValue(underTest.selectedKey)
+            underTest.setSelectedKey(key)
+            assertThat(selectedKey).isEqualTo(key)
+        }
+    }
+
+    @Test
+    fun unpauseWorkProfileEnablesWorkMode() =
+        testScope.runTest {
+            underTest.unpauseWorkProfile()
+
+            assertThat(managedProfileController.isWorkModeEnabled()).isTrue()
+        }
+
+    @Test
+    @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING)
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
+    fun resizeWidget_withoutUpdatingOrder() =
+        testScope.runTest {
+            val userInfos = listOf(MAIN_USER_INFO)
+            userRepository.setUserInfos(userInfos)
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            runCurrent()
+
+            // Widgets available.
+            widgetRepository.addWidget(
+                appWidgetId = 1,
+                userId = MAIN_USER_INFO.id,
+                rank = 0,
+                spanY = CommunalContentSize.FixedSize.HALF.span,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 2,
+                userId = MAIN_USER_INFO.id,
+                rank = 1,
+                spanY = CommunalContentSize.FixedSize.HALF.span,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 3,
+                userId = MAIN_USER_INFO.id,
+                rank = 2,
+                spanY = CommunalContentSize.FixedSize.HALF.span,
+            )
+
+            val widgetContent by collectLastValue(underTest.widgetContent)
+
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    1 to CommunalContentSize.FixedSize.HALF,
+                    2 to CommunalContentSize.FixedSize.HALF,
+                    3 to CommunalContentSize.FixedSize.HALF,
+                )
+                .inOrder()
+
+            underTest.resizeWidget(2, CommunalContentSize.FixedSize.FULL.span, emptyMap())
+
+            // Widget 2 should have been resized to FULL
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    1 to CommunalContentSize.FixedSize.HALF,
+                    2 to CommunalContentSize.FixedSize.FULL,
+                    3 to CommunalContentSize.FixedSize.HALF,
+                )
+                .inOrder()
+        }
+
+    @Test
+    @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING, FLAG_COMMUNAL_RESPONSIVE_GRID)
+    fun resizeWidget_withoutUpdatingOrder_responsive() =
+        testScope.runTest {
+            val userInfos = listOf(MAIN_USER_INFO)
+            userRepository.setUserInfos(userInfos)
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            runCurrent()
+
+            // Widgets available.
+            widgetRepository.addWidget(
+                appWidgetId = 1,
+                userId = MAIN_USER_INFO.id,
+                rank = 0,
+                spanY = 1,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 2,
+                userId = MAIN_USER_INFO.id,
+                rank = 1,
+                spanY = 1,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 3,
+                userId = MAIN_USER_INFO.id,
+                rank = 2,
+                spanY = 1,
+            )
+
+            val widgetContent by collectLastValue(underTest.widgetContent)
+
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    1 to CommunalContentSize.Responsive(1),
+                    2 to CommunalContentSize.Responsive(1),
+                    3 to CommunalContentSize.Responsive(1),
+                )
+                .inOrder()
+
+            underTest.resizeWidget(appWidgetId = 2, spanY = 5, widgetIdToRankMap = emptyMap())
+
+            // Widget 2 should have been resized to FULL
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    1 to CommunalContentSize.Responsive(1),
+                    2 to CommunalContentSize.Responsive(5),
+                    3 to CommunalContentSize.Responsive(1),
+                )
+                .inOrder()
+        }
+
+    @Test
+    @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING)
+    @DisableFlags(FLAG_COMMUNAL_RESPONSIVE_GRID)
+    fun resizeWidget_andUpdateOrder() =
+        testScope.runTest {
+            val userInfos = listOf(MAIN_USER_INFO)
+            userRepository.setUserInfos(userInfos)
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            runCurrent()
+
+            // Widgets available.
+            widgetRepository.addWidget(
+                appWidgetId = 1,
+                userId = MAIN_USER_INFO.id,
+                rank = 0,
+                spanY = CommunalContentSize.FixedSize.HALF.span,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 2,
+                userId = MAIN_USER_INFO.id,
+                rank = 1,
+                spanY = CommunalContentSize.FixedSize.HALF.span,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 3,
+                userId = MAIN_USER_INFO.id,
+                rank = 2,
+                spanY = CommunalContentSize.FixedSize.HALF.span,
+            )
+
+            val widgetContent by collectLastValue(underTest.widgetContent)
+
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    1 to CommunalContentSize.FixedSize.HALF,
+                    2 to CommunalContentSize.FixedSize.HALF,
+                    3 to CommunalContentSize.FixedSize.HALF,
+                )
+                .inOrder()
+
+            underTest.resizeWidget(
+                2,
+                CommunalContentSize.FixedSize.FULL.span,
+                mapOf(2 to 0, 1 to 1),
+            )
+
+            // Widget 2 should have been resized to FULL and moved to the front of the list
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    2 to CommunalContentSize.FixedSize.FULL,
+                    1 to CommunalContentSize.FixedSize.HALF,
+                    3 to CommunalContentSize.FixedSize.HALF,
+                )
+                .inOrder()
+        }
+
+    @Test
+    @EnableFlags(FLAG_COMMUNAL_WIDGET_RESIZING, FLAG_COMMUNAL_RESPONSIVE_GRID)
+    fun resizeWidget_andUpdateOrder_responsive() =
+        testScope.runTest {
+            val userInfos = listOf(MAIN_USER_INFO)
+            userRepository.setUserInfos(userInfos)
+            userTracker.set(userInfos = userInfos, selectedUserIndex = 0)
+            runCurrent()
+
+            // Widgets available.
+            widgetRepository.addWidget(
+                appWidgetId = 1,
+                userId = MAIN_USER_INFO.id,
+                rank = 0,
+                spanY = 1,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 2,
+                userId = MAIN_USER_INFO.id,
+                rank = 1,
+                spanY = 1,
+            )
+            widgetRepository.addWidget(
+                appWidgetId = 3,
+                userId = MAIN_USER_INFO.id,
+                rank = 2,
+                spanY = 1,
+            )
+
+            val widgetContent by collectLastValue(underTest.widgetContent)
+
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    1 to CommunalContentSize.Responsive(1),
+                    2 to CommunalContentSize.Responsive(1),
+                    3 to CommunalContentSize.Responsive(1),
+                )
+                .inOrder()
+
+            underTest.resizeWidget(
+                appWidgetId = 2,
+                spanY = 5,
+                widgetIdToRankMap = mapOf(2 to 0, 1 to 1),
+            )
+
+            // Widget 2 should have been resized to FULL and moved to the front of the list
+            assertThat(widgetContent?.map { it.appWidgetId to it.size })
+                .containsExactly(
+                    2 to CommunalContentSize.Responsive(5),
+                    1 to CommunalContentSize.Responsive(1),
+                    3 to CommunalContentSize.Responsive(1),
+                )
+                .inOrder()
+        }
+
+    private fun setKeyguardFeaturesDisabled(user: UserInfo, disabledFlags: Int) {
+        whenever(kosmos.devicePolicyManager.getKeyguardDisabledFeatures(nullable(), eq(user.id)))
+            .thenReturn(disabledFlags)
+        kosmos.broadcastDispatcher.sendIntentToMatchingReceiversOnly(
+            context,
+            Intent(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED),
+        )
+    }
+
+    companion object {
+        @JvmStatic
+        @Parameters(name = "{0}")
+        fun getParams(): List<FlagsParameterization> {
+            return FlagsParameterization.allCombinationsOf(FLAG_COMMUNAL_RESPONSIVE_GRID)
+        }
+
+        private val MAIN_USER_INFO = UserInfo(0, "primary", UserInfo.FLAG_MAIN)
+        private val USER_INFO_WORK =
+            UserInfo(
+                10,
+                "work",
+                /* iconPath= */ "",
+                /* flags= */ 0,
+                UserManager.USER_TYPE_PROFILE_MANAGED,
+            )
     }
 }

@@ -21,6 +21,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.StyleRes;
+import android.app.Flags;
 import android.app.Person;
 import android.content.Context;
 import android.content.res.ColorStateList;
@@ -200,6 +201,10 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
         if (nameOverride == null) {
             nameOverride = sender.getName();
         }
+        if (Flags.cleanUpSpansAndNewLines() && nameOverride != null) {
+            // remove formatting from sender name
+            nameOverride = nameOverride.toString();
+        }
         mSenderName = nameOverride;
         if (mSingleLine && !TextUtils.isEmpty(nameOverride)) {
             nameOverride = mContext.getResources().getString(
@@ -256,12 +261,20 @@ public class MessagingGroup extends NotificationOptimizedLinearLayout implements
         MessagingGroup createdGroup = sInstancePool.acquire();
         if (createdGroup == null) {
             createdGroup = (MessagingGroup) LayoutInflater.from(layout.getContext()).inflate(
-                    R.layout.notification_template_messaging_group, layout,
+                    getMessagingGroupLayoutResource(), layout,
                     false);
             createdGroup.addOnLayoutChangeListener(MessagingLayout.MESSAGING_PROPERTY_ANIMATOR);
         }
         layout.addView(createdGroup);
         return createdGroup;
+    }
+
+    private static int getMessagingGroupLayoutResource() {
+        if (Flags.notificationsRedesignTemplates()) {
+            return R.layout.notification_2025_messaging_group;
+        } else {
+            return R.layout.notification_template_messaging_group;
+        }
     }
 
     public void removeMessage(MessagingMessage messagingMessage,

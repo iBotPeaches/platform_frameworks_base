@@ -34,6 +34,7 @@ import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.wallet.controller.QuickAccessWalletController
 import com.android.systemui.wallet.util.getPaymentCards
 import javax.inject.Inject
@@ -51,7 +52,7 @@ import kotlinx.coroutines.withContext
 class QuickAccessWalletKeyguardQuickAffordanceConfig
 @Inject
 constructor(
-    @Application private val context: Context,
+    @ShadeDisplayAware private val context: Context,
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     private val walletController: QuickAccessWalletController,
     private val activityStarter: ActivityStarter,
@@ -59,7 +60,7 @@ constructor(
 
     override val key: String = BuiltInKeyguardQuickAffordanceKeys.QUICK_ACCESS_WALLET
 
-    override fun pickerName(): String = context.getString(R.string.accessibility_wallet_button)
+    override fun pickerName(): String = context.getString(R.string.wallet_title)
 
     override val pickerIconResourceId = R.drawable.ic_wallet_lockscreen
 
@@ -92,7 +93,8 @@ constructor(
                 walletController.setupWalletChangeObservers(
                     callback,
                     QuickAccessWalletController.WalletChangeEvent.WALLET_PREFERENCE_CHANGE,
-                    QuickAccessWalletController.WalletChangeEvent.DEFAULT_PAYMENT_APP_CHANGE
+                    QuickAccessWalletController.WalletChangeEvent.DEFAULT_PAYMENT_APP_CHANGE,
+                    QuickAccessWalletController.WalletChangeEvent.DEFAULT_WALLET_APP_CHANGE
                 )
 
                 withContext(backgroundDispatcher) {
@@ -104,7 +106,8 @@ constructor(
                 awaitClose {
                     walletController.unregisterWalletChangeObservers(
                         QuickAccessWalletController.WalletChangeEvent.WALLET_PREFERENCE_CHANGE,
-                        QuickAccessWalletController.WalletChangeEvent.DEFAULT_PAYMENT_APP_CHANGE
+                        QuickAccessWalletController.WalletChangeEvent.DEFAULT_PAYMENT_APP_CHANGE,
+                        QuickAccessWalletController.WalletChangeEvent.DEFAULT_WALLET_APP_CHANGE
                     )
                 }
             }

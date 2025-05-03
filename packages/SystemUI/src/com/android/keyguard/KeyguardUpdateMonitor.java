@@ -30,6 +30,8 @@ import static android.hardware.biometrics.BiometricConstants.BIOMETRIC_LOCKOUT_N
 import static android.hardware.biometrics.BiometricConstants.BIOMETRIC_LOCKOUT_PERMANENT;
 import static android.hardware.biometrics.BiometricConstants.BIOMETRIC_LOCKOUT_TIMED;
 import static android.hardware.biometrics.BiometricConstants.LockoutMode;
+import static android.hardware.biometrics.BiometricFaceConstants.FACE_ERROR_HW_UNAVAILABLE;
+import static android.hardware.biometrics.BiometricFaceConstants.FACE_ERROR_LOCKOUT_PERMANENT;
 import static android.hardware.biometrics.BiometricSourceType.FACE;
 import static android.hardware.biometrics.BiometricSourceType.FINGERPRINT;
 import static android.os.BatteryManager.BATTERY_STATUS_UNKNOWN;
@@ -41,8 +43,9 @@ import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STR
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_DPM_LOCK_NOW;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_LOCKOUT;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN;
+import static com.android.systemui.Flags.simPinBouncerReset;
+import static com.android.systemui.Flags.simPinUseSlotId;
 import static com.android.systemui.statusbar.policy.DevicePostureController.DEVICE_POSTURE_OPENED;
-import static com.android.systemui.statusbar.policy.DevicePostureController.DEVICE_POSTURE_UNKNOWN;
 
 import android.annotation.AnyThread;
 import android.annotation.MainThread;
@@ -78,6 +81,7 @@ import android.hardware.fingerprint.FingerprintSensorPropertiesInternal;
 import android.hardware.fingerprint.IFingerprintAuthenticatorsRegisteredCallback;
 import android.hardware.usb.UsbManager;
 import android.nfc.NfcAdapter;
+import android.os.BatteryManager;
 import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.Looper;
@@ -97,12 +101,14 @@ import android.telephony.SubscriptionManager.OnSubscriptionsChangedListener;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.compose.animation.scene.ObservableTransitionState;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.foldables.FoldGracePeriodProvider;
 import com.android.internal.jank.InteractionJankMonitor;
@@ -111,13 +117,16 @@ import com.android.internal.logging.UiEventLogger;
 import com.android.internal.util.LatencyTracker;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.logging.KeyguardUpdateMonitorLogger;
+import com.android.keyguard.logging.SimLogger;
 import com.android.settingslib.Utils;
 import com.android.settingslib.WirelessUtils;
 import com.android.settingslib.fuelgauge.BatteryStatus;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.Dumpable;
+import com.android.systemui.Flags;
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProvider;
+import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
@@ -139,7 +148,11 @@ import com.android.systemui.log.SessionTracker;
 import com.android.systemui.plugins.clocks.WeatherData;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.res.R;
+import com.android.systemui.scene.domain.interactor.SceneInteractor;
+import com.android.systemui.scene.shared.flag.SceneContainerFlag;
+import com.android.systemui.scene.shared.model.Scenes;
 import com.android.systemui.settings.UserTracker;
+import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 import com.android.systemui.statusbar.StatusBarState;
@@ -149,6 +162,7 @@ import com.android.systemui.statusbar.policy.DevicePostureController.DevicePostu
 import com.android.systemui.telephony.TelephonyListenerManager;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.Assert;
+import com.android.systemui.util.kotlin.JavaAdapter;
 
 import dalvik.annotation.optimization.NeverCompile;
 
@@ -161,7 +175,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -180,7 +193,7 @@ import javax.inject.Provider;
  * to be updated.
  */
 @SysUISingleton
-public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpable, CoreStartable {
+public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreStartable {
 
     private static final String TAG = "KeyguardUpdateMonitor";
     private static final int BIOMETRIC_LOCKOUT_RESET_DELAY_MS = 600;
@@ -208,7 +221,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private static final int MSG_USER_UNLOCKED = 334;
     private static final int MSG_ASSISTANT_STACK_CHANGED = 335;
     private static final int MSG_BIOMETRIC_AUTHENTICATION_CONTINUE = 336;
-    private static final int MSG_DEVICE_POLICY_MANAGER_STATE_CHANGED = 337;
     private static final int MSG_TELEPHONY_CAPABLE = 338;
     private static final int MSG_TIMEZONE_UPDATE = 339;
     private static final int MSG_USER_STOPPED = 340;
@@ -277,7 +289,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private final Context mContext;
     private final UserTracker mUserTracker;
     private final KeyguardUpdateMonitorLogger mLogger;
+    private final SimLogger mSimLogger;
     private final boolean mIsSystemUser;
+    private final Provider<JavaAdapter> mJavaAdapter;
+    private final Provider<SceneInteractor> mSceneInteractor;
+    private final Provider<AlternateBouncerInteractor> mAlternateBouncerInteractor;
     private final AuthController mAuthController;
     private final UiEventLogger mUiEventLogger;
     private final Set<String> mAllowFingerprintOnOccludingActivitiesFromPackage;
@@ -302,7 +318,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     };
     private final FaceWakeUpTriggersConfig mFaceWakeUpTriggersConfig;
 
+    private final Object mSimDataLockObject = new Object();
     HashMap<Integer, SimData> mSimDatas = new HashMap<>();
+    HashMap<Integer, SimData> mSimDatasBySlotId = new HashMap<>();
     HashMap<Integer, ServiceState> mServiceStates = new HashMap<>();
 
     private int mPhoneState;
@@ -331,9 +349,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     // Device provisioning state
     private boolean mDeviceProvisioned;
 
-    // Battery status
+    // Battery status (null until first update is received)
     @VisibleForTesting
-    BatteryStatus mBatteryStatus;
+    BatteryStatus mBatteryStatus = null;
     @VisibleForTesting
     boolean mIncompatibleCharger;
 
@@ -386,7 +404,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     protected int mFingerprintRunningState = BIOMETRIC_STATE_STOPPED;
     private boolean mFingerprintDetectRunning;
     private boolean mIsDreaming;
-    private boolean mLogoutEnabled;
     private int mActiveMobileDataSubscription = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
     private final FingerprintInteractiveToAuthProvider mFingerprintInteractiveToAuthProvider;
 
@@ -458,6 +475,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         }
     }
 
+    @Deprecated
     private final SparseBooleanArray mUserIsUnlocked = new SparseBooleanArray();
     private final SparseBooleanArray mUserHasTrust = new SparseBooleanArray();
     private final SparseBooleanArray mUserTrustIsManaged = new SparseBooleanArray();
@@ -472,22 +490,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
 
     @VisibleForTesting
     SparseArray<BiometricAuthenticated> mUserFingerprintAuthenticated = new SparseArray<>();
-
-    private static int sCurrentUser;
-
-    @Deprecated
-    public synchronized static void setCurrentUser(int currentUser) {
-        sCurrentUser = currentUser;
-    }
-
-    /**
-     * @deprecated This can potentially return unexpected values in a multi user scenario
-     * as this state is managed by another component. Consider using {@link SelectedUserInteractor}.
-     */
-    @Deprecated
-    public synchronized static int getCurrentUser() {
-        return sCurrentUser;
-    }
 
     @Override
     public void onTrustChanged(boolean enabled, boolean newlyUnlocked, int userId, int flags,
@@ -562,7 +564,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     private boolean shouldDismissKeyguardOnTrustGrantedWithCurrentUser(TrustGrantFlags flags) {
         final boolean isBouncerShowing =
-                mPrimaryBouncerIsOrWillBeShowing || mAlternateBouncerShowing;
+                isPrimaryBouncerShowingOrWillBeShowing() || isAlternateBouncerShowing();
         return (flags.isInitiatedByUser() || flags.dismissKeyguardRequested())
                 && (mDeviceInteractive || flags.temporaryAndRenewable())
                 && (isBouncerShowing || flags.dismissKeyguardRequested());
@@ -586,60 +588,79 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     }
 
     private void handleSimSubscriptionInfoChanged() {
-        Assert.isMainThread();
-        mLogger.v("onSubscriptionInfoChanged()");
-        List<SubscriptionInfo> subscriptionInfos = getSubscriptionInfo(true /* forceReload */);
-        if (!subscriptionInfos.isEmpty()) {
-            for (SubscriptionInfo subInfo : subscriptionInfos) {
-                mLogger.logSubInfo(subInfo);
-            }
-        } else {
-            mLogger.v("onSubscriptionInfoChanged: list is null");
-        }
+        mSimLogger.v("onSubscriptionInfoChanged()");
+        mBackgroundExecutor.execute(() -> {
+            final List<SubscriptionInfo> subscriptionInfos =
+                    getSubscriptionInfo(true /* forceReload */);
+            mMainExecutor.execute(() -> {
+                if (!subscriptionInfos.isEmpty()) {
+                    for (SubscriptionInfo subInfo : subscriptionInfos) {
+                        mSimLogger.logSubInfo(subInfo);
+                    }
+                } else {
+                    mSimLogger.v("onSubscriptionInfoChanged: list is null");
+                }
 
-        // Hack level over 9000: Because the subscription id is not yet valid when we see the
-        // first update in handleSimStateChange, we need to force refresh all SIM states
-        // so the subscription id for them is consistent.
-        ArrayList<SubscriptionInfo> changedSubscriptions = new ArrayList<>();
-        Set<Integer> activeSubIds = new HashSet<>();
-        for (int i = 0; i < subscriptionInfos.size(); i++) {
-            SubscriptionInfo info = subscriptionInfos.get(i);
-            activeSubIds.add(info.getSubscriptionId());
-            boolean changed = refreshSimState(info.getSubscriptionId(), info.getSimSlotIndex());
-            if (changed) {
-                changedSubscriptions.add(info);
-            }
-        }
-
-        // It is possible for active subscriptions to become invalid (-1), and these will not be
-        // present in the subscriptionInfo list
-        Iterator<Map.Entry<Integer, SimData>> iter = mSimDatas.entrySet().iterator();
-        while (iter.hasNext()) {
-            Map.Entry<Integer, SimData> simData = iter.next();
-            if (!activeSubIds.contains(simData.getKey())) {
-                mLogger.logInvalidSubId(simData.getKey());
-                iter.remove();
-
-                SimData data = simData.getValue();
-                for (int j = 0; j < mCallbacks.size(); j++) {
-                    KeyguardUpdateMonitorCallback cb = mCallbacks.get(j).get();
-                    if (cb != null) {
-                        cb.onSimStateChanged(data.subId, data.slotId, data.simState);
+                // Hack level over 9000: Because the subscription id is not yet valid when we see
+                // the first update in handleSimStateChange, we need to force refresh all SIM states
+                // so the subscription id for them is consistent.
+                ArrayList<SubscriptionInfo> changedSubscriptions = new ArrayList<>();
+                Set<Integer> activeSubIds = new HashSet<>();
+                for (int i = 0; i < subscriptionInfos.size(); i++) {
+                    SubscriptionInfo info = subscriptionInfos.get(i);
+                    activeSubIds.add(info.getSubscriptionId());
+                    boolean changed = refreshSimState(info.getSubscriptionId(),
+                            info.getSimSlotIndex());
+                    if (changed) {
+                        changedSubscriptions.add(info);
                     }
                 }
-            }
-        }
 
-        for (int i = 0; i < changedSubscriptions.size(); i++) {
-            SimData data = mSimDatas.get(changedSubscriptions.get(i).getSubscriptionId());
-            for (int j = 0; j < mCallbacks.size(); j++) {
-                KeyguardUpdateMonitorCallback cb = mCallbacks.get(j).get();
-                if (cb != null) {
-                    cb.onSimStateChanged(data.subId, data.slotId, data.simState);
+                // It is possible for active subscriptions to become invalid (-1), and these will
+                // not be present in the subscriptionInfo list
+                synchronized (mSimDataLockObject) {
+                    var iter = simPinUseSlotId() ? mSimDatasBySlotId.entrySet().iterator()
+                            : mSimDatas.entrySet().iterator();
+
+                    while (iter.hasNext()) {
+                        SimData data = iter.next().getValue();
+                        if (!activeSubIds.contains(data.subId)) {
+                            mSimLogger.logInvalidSubId(data.subId, data.slotId);
+                            iter.remove();
+
+                            for (int j = 0; j < mCallbacks.size(); j++) {
+                                var cb = mCallbacks.get(j).get();
+                                if (cb != null) {
+                                    cb.onSimStateChanged(data.subId, data.slotId, data.simState);
+                                }
+                            }
+                        }
+                    }
+
+                    for (int i = 0; i < changedSubscriptions.size(); i++) {
+                        SimData data;
+                        if (simPinUseSlotId()) {
+                            data = mSimDatasBySlotId.get(changedSubscriptions.get(i)
+                                .getSimSlotIndex());
+                        } else {
+                            data = mSimDatas.get(changedSubscriptions.get(i).getSubscriptionId());
+                        }
+                        if (data == null) {
+                            Log.w(TAG, "Null SimData for subscription: "
+                                    + changedSubscriptions.get(i));
+                            continue;
+                        }
+                        for (int j = 0; j < mCallbacks.size(); j++) {
+                            var cb = mCallbacks.get(j).get();
+                            if (cb != null) {
+                                cb.onSimStateChanged(data.subId, data.slotId, data.simState);
+                            }
+                        }
+                    }
+                    callbacksRefreshCarrierInfo();
                 }
-            }
-        }
-        callbacksRefreshCarrierInfo();
+            });
+        });
     }
 
     private void handleAirplaneModeChanged() {
@@ -959,7 +980,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             mHandler.removeCallbacks(mFpCancelNotReceived);
         }
         try {
-            final int userId = mSelectedUserInteractor.getSelectedUserId(true);
+            final int userId = mSelectedUserInteractor.getSelectedUserId();
             if (userId != authUserId) {
                 mLogger.logFingerprintAuthForWrongUser(authUserId);
                 return;
@@ -1169,8 +1190,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         Assert.isMainThread();
         String reason =
                 mKeyguardBypassController.canBypass() ? "bypass"
-                        : mAlternateBouncerShowing ? "alternateBouncer"
-                                : mPrimaryBouncerFullyShown ? "bouncer"
+                        : isAlternateBouncerShowing() ? "alternateBouncer"
+                                : isPrimaryBouncerFullyShown() ? "bouncer"
                                         : "udfpsFpDown";
         requestActiveUnlock(
                 ActiveUnlockConfig.ActiveUnlockRequestOrigin.BIOMETRIC_FAIL,
@@ -1210,7 +1231,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             mLogger.d("Aborted successful auth because device is going to sleep.");
             return;
         }
-        final int userId = mSelectedUserInteractor.getSelectedUserId(true);
+        final int userId = mSelectedUserInteractor.getSelectedUserId();
         if (userId != authUserId) {
             mLogger.logFaceAuthForWrongUser(authUserId);
             return;
@@ -1239,9 +1260,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         boolean cameraPrivacyEnabled = mSensorPrivacyManager.isSensorPrivacyEnabled(
                 SensorPrivacyManager.TOGGLE_TYPE_SOFTWARE, SensorPrivacyManager.Sensors.CAMERA);
 
-        final boolean isHwUnavailable = msgId == FaceManager.FACE_ERROR_HW_UNAVAILABLE;
+        final boolean isHwUnavailable = msgId == FACE_ERROR_HW_UNAVAILABLE;
 
-        if (msgId == FaceManager.FACE_ERROR_LOCKOUT_PERMANENT) {
+        if (msgId == FACE_ERROR_LOCKOUT_PERMANENT) {
             if (getFaceAuthInteractor() != null && getFaceAuthInteractor().isFaceAuthStrong()) {
                 updateFingerprintListeningState(BIOMETRIC_ACTION_STOP);
             }
@@ -1383,7 +1404,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     @Deprecated
     public boolean getIsFaceAuthenticated() {
-        return getFaceAuthInteractor() != null && getFaceAuthInteractor().isAuthenticated();
+        return getFaceAuthInteractor() != null
+                && getFaceAuthInteractor().isAuthenticated().getValue();
     }
 
     public boolean getUserCanSkipBouncer(int userId) {
@@ -1425,7 +1447,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     @Deprecated
     public boolean isCurrentUserUnlockedWithFace() {
-        return getFaceAuthInteractor() != null && getFaceAuthInteractor().isAuthenticated();
+        return getFaceAuthInteractor() != null
+                && getFaceAuthInteractor().isAuthenticated().getValue();
     }
 
     /**
@@ -1515,7 +1538,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             return false;
         }
         boolean isFaceLockedOut =
-                getFaceAuthInteractor() != null && getFaceAuthInteractor().isLockedOut();
+                getFaceAuthInteractor() != null && getFaceAuthInteractor().isLockedOut().getValue();
         boolean isFaceAuthStrong =
                 getFaceAuthInteractor() != null && getFaceAuthInteractor().isFaceAuthStrong();
         boolean isFingerprintLockedOut = isFingerprintLockedOut();
@@ -1703,10 +1726,13 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                     }
                     return;
                 }
-                mLogger.logSimStateFromIntent(action,
+                mSimLogger.logSimStateFromIntent(action,
                         intent.getStringExtra(Intent.EXTRA_SIM_STATE),
                         args.slotId,
                         args.subId);
+                if (args.slotId == SubscriptionManager.INVALID_SIM_SLOT_INDEX) {
+                    return;
+                }
                 mHandler.obtainMessage(MSG_SIM_STATE_CHANGE, args.subId, args.slotId, args.simState)
                         .sendToTarget();
             } else if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)) {
@@ -1720,14 +1746,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                 ServiceState serviceState = ServiceState.newFromBundle(intent.getExtras());
                 int subId = intent.getIntExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX,
                         SubscriptionManager.INVALID_SUBSCRIPTION_ID);
-                mLogger.logServiceStateIntent(action, serviceState, subId);
+                mSimLogger.logServiceStateIntent(action, serviceState, subId);
                 mHandler.sendMessage(
                         mHandler.obtainMessage(MSG_SERVICE_STATE_CHANGE, subId, 0, serviceState));
             } else if (TelephonyManager.ACTION_DEFAULT_DATA_SUBSCRIPTION_CHANGED.equals(action)) {
                 mHandler.sendEmptyMessage(MSG_SIM_SUBSCRIPTION_INFO_CHANGED);
-            } else if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED.equals(
-                    action)) {
-                mHandler.sendEmptyMessage(MSG_DEVICE_POLICY_MANAGER_STATE_CHANGED);
             }
         }
     };
@@ -1868,7 +1891,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                 @Override
                 public void onPostureChanged(@DevicePostureInt int posture) {
                     if (posture == DEVICE_POSTURE_OPENED) {
-                        mLogger.d("Posture changed to open - attempting to request active unlock");
+                        mLogger.d("Posture changed to open - attempting to request active"
+                                + " unlock and run face auth");
+                        if (getFaceAuthInteractor() != null) {
+                            getFaceAuthInteractor().onDeviceUnfolded();
+                        }
                         requestActiveUnlockFromWakeReason(PowerManager.WAKE_REASON_UNFOLD_DEVICE,
                                 false);
                     }
@@ -1942,7 +1969,13 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             }
             int state = TelephonyManager.SIM_STATE_UNKNOWN;
             String stateExtra = intent.getStringExtra(Intent.EXTRA_SIM_STATE);
-            int slotId = intent.getIntExtra(SubscriptionManager.EXTRA_SLOT_INDEX, 0);
+
+            int defaultSlotId = 0;
+            if (simPinBouncerReset()) {
+                defaultSlotId = SubscriptionManager.INVALID_SIM_SLOT_INDEX;
+            }
+            int slotId = intent.getIntExtra(SubscriptionManager.EXTRA_SLOT_INDEX,
+                    defaultSlotId);
             int subId = intent.getIntExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX,
                     SubscriptionManager.INVALID_SUBSCRIPTION_ID);
             if (Intent.SIM_STATE_ABSENT.equals(stateExtra)) {
@@ -2081,6 +2114,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
 
     private void handleUserUnlocked(int userId) {
         Assert.isMainThread();
+        mLogger.logUserUnlocked(userId);
         mUserIsUnlocked.put(userId, true);
         mNeedsSlowUnlockTransition = resolveNeedsSlowUnlockTransition();
         for (int i = 0; i < mCallbacks.size(); i++) {
@@ -2093,12 +2127,15 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
 
     private void handleUserStopped(int userId) {
         Assert.isMainThread();
-        mUserIsUnlocked.put(userId, mUserManager.isUserUnlocked(userId));
+        boolean isUnlocked = mUserManager.isUserUnlocked(userId);
+        mLogger.logUserStopped(userId, isUnlocked);
+        mUserIsUnlocked.put(userId, isUnlocked);
     }
 
     @VisibleForTesting
     void handleUserRemoved(int userId) {
         Assert.isMainThread();
+        mLogger.logUserRemoved(userId);
         mUserIsUnlocked.delete(userId);
         mUserTrustIsUsuallyManaged.delete(userId);
     }
@@ -2127,7 +2164,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     @VisibleForTesting
     @Inject
     protected KeyguardUpdateMonitor(
-            Context context,
+            @ShadeDisplayAware Context context,
             UserTracker userTracker,
             @Main Looper mainLooper,
             BroadcastDispatcher broadcastDispatcher,
@@ -2142,6 +2179,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             LatencyTracker latencyTracker,
             ActiveUnlockConfig activeUnlockConfiguration,
             KeyguardUpdateMonitorLogger logger,
+            SimLogger simLogger,
             UiEventLogger uiEventLogger,
             // This has to be a provider because SessionTracker depends on KeyguardUpdateMonitor :(
             Provider<SessionTracker> sessionTrackerProvider,
@@ -2160,7 +2198,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             Optional<FingerprintInteractiveToAuthProvider> interactiveToAuthProvider,
             TaskStackChangeListeners taskStackChangeListeners,
             SelectedUserInteractor selectedUserInteractor,
-            IActivityTaskManager activityTaskManagerService) {
+            IActivityTaskManager activityTaskManagerService,
+            Provider<AlternateBouncerInteractor> alternateBouncerInteractor,
+            Provider<JavaAdapter> javaAdapter,
+            Provider<SceneInteractor> sceneInteractor) {
         mContext = context;
         mSubscriptionManager = subscriptionManager;
         mUserTracker = userTracker;
@@ -2181,6 +2222,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         mSensorPrivacyManager = sensorPrivacyManager;
         mActiveUnlockConfig = activeUnlockConfiguration;
         mLogger = logger;
+        mSimLogger = simLogger;
         mUiEventLogger = uiEventLogger;
         mSessionTrackerProvider = sessionTrackerProvider;
         mTrustManager = trustManager;
@@ -2205,6 +2247,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
 
         mFingerprintInteractiveToAuthProvider = interactiveToAuthProvider.orElse(null);
         mIsSystemUser = mUserManager.isSystemUser();
+        mAlternateBouncerInteractor = alternateBouncerInteractor;
+        mJavaAdapter = javaAdapter;
+        mSceneInteractor = sceneInteractor;
 
         mHandler = new Handler(mainLooper) {
             @Override
@@ -2292,9 +2337,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                     case MSG_BIOMETRIC_AUTHENTICATION_CONTINUE:
                         updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
                         break;
-                    case MSG_DEVICE_POLICY_MANAGER_STATE_CHANGED:
-                        updateLogoutEnabled();
-                        break;
                     case MSG_TELEPHONY_CAPABLE:
                         updateTelephonyCapable((boolean) msg.obj);
                         break;
@@ -2340,9 +2382,27 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             watchForDeviceProvisioning();
         }
 
-        // Take a guess at initial SIM state, battery status and PLMN until we get an update
-        mBatteryStatus = new BatteryStatus(BATTERY_STATUS_UNKNOWN, /* level= */ 100, /* plugged= */
-                0, CHARGING_POLICY_DEFAULT, /* maxChargingWattage= */0, /* present= */true);
+        // Request the initial battery level
+        mBackgroundExecutor.execute(() -> {
+            BatteryManager batteryManager = mContext.getSystemService(BatteryManager.class);
+            int level = -1;
+            if (batteryManager != null) {
+                int capacity = batteryManager.getIntProperty(
+                        BatteryManager.BATTERY_PROPERTY_CAPACITY);
+                if (capacity >= 0 && capacity <= 100) {
+                    level = capacity;
+                }
+            }
+            // Don't override if a valid battery status update has come in
+            final BatteryStatus status = new BatteryStatus(BATTERY_STATUS_UNKNOWN,
+                    /* level= */ level, /* plugged= */ 0, CHARGING_POLICY_DEFAULT,
+                    /* maxChargingWattage= */0, /* present= */true);
+            mMainExecutor.execute(() -> {
+                if (mBatteryStatus == null) {
+                    handleBatteryUpdate(status);
+                }
+            });
+        });
 
         // Watch for interesting updates
         final IntentFilter filter = new IntentFilter();
@@ -2434,15 +2494,14 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                 updateFingerprintListeningState(BIOMETRIC_ACTION_START);
             }
         });
-        if (mConfigFaceAuthSupportedPosture != DEVICE_POSTURE_UNKNOWN) {
-            mDevicePostureController.addCallback(mPostureCallback);
-        }
+        mDevicePostureController.addCallback(mPostureCallback);
         updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
 
         mTaskStackChangeListeners.registerTaskStackListener(mTaskStackListener);
-        int user = mSelectedUserInteractor.getSelectedUserId(true);
-        mUserIsUnlocked.put(user, mUserManager.isUserUnlocked(user));
-        mLogoutEnabled = mDevicePolicyManager.isLogoutEnabled();
+        int user = mSelectedUserInteractor.getSelectedUserId();
+        boolean isUserUnlocked = mUserManager.isUserUnlocked(user);
+        mLogger.logUserUnlockedInitialState(user, isUserUnlocked);
+        mUserIsUnlocked.put(user, isUserUnlocked);
         updateSecondaryLockscreenRequirement(user);
         List<UserInfo> allUsers = mUserManager.getUsers();
         for (UserInfo userInfo : allUsers) {
@@ -2461,6 +2520,41 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         mContext.getContentResolver().registerContentObserver(
                 Settings.System.getUriFor(Settings.System.TIME_12_24),
                 false, mTimeFormatChangeObserver, UserHandle.USER_ALL);
+
+        if (SceneContainerFlag.isEnabled()) {
+            mJavaAdapter.get().alwaysCollectFlow(
+                    mAlternateBouncerInteractor.get().isVisible(),
+                    this::onAlternateBouncerVisibilityChange);
+            mJavaAdapter.get().alwaysCollectFlow(
+                    mSceneInteractor.get().getTransitionState(),
+                    this::onTransitionStateChanged
+            );
+        }
+
+        // start() can be invoked in the middle of user switching, so check for this state and issue
+        // the call manually as that important event was missed.
+        if (mUserTracker.isUserSwitching()) {
+            handleUserSwitching(mUserTracker.getUserId(), () -> {});
+        }
+
+        // Force the cache to be initialized
+        mBackgroundExecutor.execute(() -> {
+            getSubscriptionInfo(/* forceReload= */ true);
+        });
+    }
+
+    @VisibleForTesting
+    void onAlternateBouncerVisibilityChange(boolean isAlternateBouncerVisible) {
+        setAlternateBouncerShowing(isAlternateBouncerVisible);
+    }
+
+
+    @VisibleForTesting
+    void onTransitionStateChanged(ObservableTransitionState transitionState) {
+        int primaryBouncerFullyShown = isPrimaryBouncerFullyShown(transitionState) ? 1 : 0;
+        int primaryBouncerIsOrWillBeShowing =
+                  isPrimaryBouncerShowingOrWillBeShowing(transitionState) ? 1 : 0;
+        handlePrimaryBouncerChanged(primaryBouncerIsOrWillBeShowing, primaryBouncerFullyShown);
     }
 
     private void initializeSimState() {
@@ -2601,7 +2695,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      * @see Intent#ACTION_USER_UNLOCKED
      */
     public boolean isUserUnlocked(int userId) {
-        return mUserIsUnlocked.get(userId);
+        if (Flags.userEncryptedSource()) {
+            return mUserManager.isUserUnlocked(userId);
+        } else {
+            return mUserIsUnlocked.get(userId);
+        }
     }
 
     /**
@@ -2708,8 +2806,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         requestActiveUnlock(
                 requestOrigin,
                 extraReason, canFaceBypass
-                        || mAlternateBouncerShowing
-                        || mPrimaryBouncerFullyShown
+                        || isAlternateBouncerShowing()
+                        || isPrimaryBouncerFullyShown()
                         || mAuthController.isUdfpsFingerDown());
     }
 
@@ -2730,12 +2828,51 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     public void setAlternateBouncerShowing(boolean showing) {
         mAlternateBouncerShowing = showing;
-        if (mAlternateBouncerShowing) {
+        if (isAlternateBouncerShowing()) {
             requestActiveUnlock(
                     ActiveUnlockConfig.ActiveUnlockRequestOrigin.UNLOCK_INTENT,
                     "alternateBouncer");
         }
         updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
+    }
+
+    private boolean isAlternateBouncerShowing() {
+        if (SceneContainerFlag.isEnabled()) {
+            return mAlternateBouncerInteractor.get().isVisibleState();
+        } else {
+            return mAlternateBouncerShowing;
+        }
+    }
+
+    private boolean isPrimaryBouncerShowingOrWillBeShowing() {
+        if (SceneContainerFlag.isEnabled()) {
+            return isPrimaryBouncerShowingOrWillBeShowing(
+                    mSceneInteractor.get().getTransitionState().getValue());
+        } else {
+            return mPrimaryBouncerIsOrWillBeShowing;
+        }
+    }
+
+    private boolean isPrimaryBouncerFullyShown() {
+        if (SceneContainerFlag.isEnabled()) {
+            return isPrimaryBouncerFullyShown(
+                    mSceneInteractor.get().getTransitionState().getValue());
+        } else {
+            return mPrimaryBouncerFullyShown;
+        }
+    }
+
+    private boolean isPrimaryBouncerShowingOrWillBeShowing(
+            ObservableTransitionState transitionState
+    ) {
+        SceneContainerFlag.assertInNewMode();
+        return isPrimaryBouncerFullyShown(transitionState)
+                || transitionState.isTransitioning(null, Scenes.Bouncer);
+    }
+
+    private boolean isPrimaryBouncerFullyShown(ObservableTransitionState transitionState) {
+        SceneContainerFlag.assertInNewMode();
+        return transitionState.isIdle(Scenes.Bouncer);
     }
 
     /**
@@ -2753,7 +2890,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private boolean shouldTriggerActiveUnlock(boolean shouldLog) {
         // Triggers:
         final boolean triggerActiveUnlockForAssistant = shouldTriggerActiveUnlockForAssistant();
-        final boolean awakeKeyguard = mPrimaryBouncerFullyShown || mAlternateBouncerShowing
+        final boolean awakeKeyguard = isPrimaryBouncerFullyShown() || isAlternateBouncerShowing()
                 || (isKeyguardVisible() && !mGoingToSleep
                 && mStatusBarState != StatusBarState.SHADE_LOCKED);
 
@@ -2821,14 +2958,14 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         final boolean shouldListenKeyguardState =
                 isKeyguardVisible()
                         || !mDeviceInteractive
-                        || (mPrimaryBouncerIsOrWillBeShowing && !mKeyguardGoingAway)
+                        || (isPrimaryBouncerShowingOrWillBeShowing() && !mKeyguardGoingAway)
                         || mGoingToSleep
                         || shouldListenForFingerprintAssistant
                         || (mKeyguardOccluded && mIsDreaming)
                         || (mKeyguardOccluded && userDoesNotHaveTrust && mKeyguardShowing
                         && (mOccludingAppRequestingFp
                         || isUdfps
-                        || mAlternateBouncerShowing
+                        || isAlternateBouncerShowing()
                         || mAllowFingerprintOnCurrentOccludingActivity
                 )
             );
@@ -2847,7 +2984,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                         && !isUserInLockdown(user);
         final boolean strongerAuthRequired = !isUnlockingWithFingerprintAllowed();
         final boolean shouldListenBouncerState =
-                !strongerAuthRequired || !mPrimaryBouncerIsOrWillBeShowing;
+                !strongerAuthRequired || !isPrimaryBouncerShowingOrWillBeShowing();
 
         final boolean shouldListenUdfpsState = !isUdfps
                 || (!userCanSkipBouncer
@@ -2863,10 +3000,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                     user,
                     shouldListen,
                     mAllowFingerprintOnCurrentOccludingActivity,
-                    mAlternateBouncerShowing,
+                    isAlternateBouncerShowing(),
                     biometricEnabledForUser,
                     mBiometricPromptShowing,
-                    mPrimaryBouncerIsOrWillBeShowing,
+                    isPrimaryBouncerShowingOrWillBeShowing(),
                     userCanSkipBouncer,
                     mCredentialAttempted,
                     mDeviceInteractive,
@@ -2966,7 +3103,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     @Deprecated
     public boolean isFaceLockedOut() {
-        return getFaceAuthInteractor() != null && getFaceAuthInteractor().isLockedOut();
+        return getFaceAuthInteractor() != null && getFaceAuthInteractor().isLockedOut().getValue();
     }
 
     /**
@@ -3282,55 +3419,70 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     }
 
     /**
+     * Removes all valid subscription info from the map for the given slotId.
+     */
+    private void invalidateSlot(int slotId) {
+        if (simPinUseSlotId()) {
+            return;
+        }
+        synchronized (mSimDataLockObject) {
+            var iter = simPinUseSlotId() ? mSimDatasBySlotId.entrySet().iterator()
+                    : mSimDatas.entrySet().iterator();
+            while (iter.hasNext()) {
+                SimData data = iter.next().getValue();
+                if (data.slotId == slotId
+                        && SubscriptionManager.isValidSubscriptionId(data.subId)) {
+                    mSimLogger.logInvalidSubId(data.subId, data.slotId);
+                    iter.remove();
+                }
+            }
+        }
+    }
+
+    /**
      * Handle {@link #MSG_SIM_STATE_CHANGE}
      */
     @VisibleForTesting
     void handleSimStateChange(int subId, int slotId, int state) {
         Assert.isMainThread();
-        mLogger.logSimState(subId, slotId, state);
+        mSimLogger.logSimState(subId, slotId, TelephonyManager.simStateToString(state));
 
-        boolean becameAbsent = false;
+        boolean becameAbsent = ABSENT_SIM_STATE_LIST.contains(state);
         if (!SubscriptionManager.isValidSubscriptionId(subId)) {
-            mLogger.w("invalid subId in handleSimStateChange()");
+            mSimLogger.w("invalid subId in handleSimStateChange()");
             /* Only handle No SIM(ABSENT) and Card Error(CARD_IO_ERROR) due to
              * handleServiceStateChange() handle other case */
-            if (state == TelephonyManager.SIM_STATE_ABSENT) {
-                updateTelephonyCapable(true);
-                // Even though the subscription is not valid anymore, we need to notify that the
-                // SIM card was removed so we can update the UI.
-                becameAbsent = true;
-                for (SimData data : mSimDatas.values()) {
-                    // Set the SIM state of all SimData associated with that slot to ABSENT se we
-                    // do not move back into PIN/PUK locked and not detect the change below.
-                    if (data.slotId == slotId) {
-                        data.simState = TelephonyManager.SIM_STATE_ABSENT;
-                    }
-                }
-            } else if (state == TelephonyManager.SIM_STATE_CARD_IO_ERROR) {
+            if (state == TelephonyManager.SIM_STATE_ABSENT
+                    || state == TelephonyManager.SIM_STATE_CARD_IO_ERROR) {
                 updateTelephonyCapable(true);
             }
+            invalidateSlot(slotId);
         }
-
-        becameAbsent |= ABSENT_SIM_STATE_LIST.contains(state);
 
         // TODO(b/327476182): Preserve SIM_STATE_CARD_IO_ERROR sims in a separate data source.
-        SimData data = mSimDatas.get(subId);
-        final boolean changed;
-        if (data == null) {
-            data = new SimData(state, slotId, subId);
-            mSimDatas.put(subId, data);
-            changed = true; // no data yet; force update
-        } else {
-            changed = (data.simState != state || data.subId != subId || data.slotId != slotId);
-            data.simState = state;
-            data.subId = subId;
-            data.slotId = slotId;
-        }
-        if ((changed || becameAbsent)) {
-            for (int i = 0; i < mCallbacks.size(); i++) {
-                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
-                if (cb != null) {
-                    cb.onSimStateChanged(subId, slotId, state);
+        synchronized (mSimDataLockObject) {
+            SimData data = simPinUseSlotId() ? mSimDatasBySlotId.get(slotId) : mSimDatas.get(subId);
+            final boolean changed;
+            if (data == null) {
+                data = new SimData(state, slotId, subId);
+                if (simPinUseSlotId()) {
+                    mSimDatasBySlotId.put(slotId, data);
+                } else {
+                    mSimDatas.put(subId, data);
+                }
+                changed = true; // no data yet; force update
+            } else {
+                changed = (data.simState != state || data.subId != subId || data.slotId != slotId);
+                data.simState = state;
+                data.subId = subId;
+                data.slotId = slotId;
+            }
+            if ((changed || becameAbsent)) {
+                for (int i = 0; i < mCallbacks.size(); i++) {
+                    KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                    if (cb != null) {
+                        cb.onSimStateChanged(subId, slotId, state);
+                    }
                 }
             }
         }
@@ -3341,10 +3493,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     @VisibleForTesting
     void handleServiceStateChange(int subId, ServiceState serviceState) {
-        mLogger.logServiceStateChange(subId, serviceState);
+        mSimLogger.logServiceStateChange(subId, serviceState);
 
         if (!SubscriptionManager.isValidSubscriptionId(subId)) {
-            mLogger.w("invalid subId in handleServiceStateChange()");
+            mSimLogger.w("invalid subId in handleServiceStateChange()");
             return;
         } else {
             updateTelephonyCapable(true);
@@ -3487,6 +3639,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     }
 
     private boolean isBatteryUpdateInteresting(BatteryStatus old, BatteryStatus current) {
+        if (old == null) {
+            return true;
+        }
         final boolean nowPluggedIn = current.isPluggedIn();
         final boolean wasPluggedIn = old.isPluggedIn();
         final boolean stateChangedWhilePluggedIn = wasPluggedIn && nowPluggedIn
@@ -3583,16 +3738,21 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
 
     private void sendUpdates(KeyguardUpdateMonitorCallback callback) {
         // Notify listener of the current state
-        callback.onRefreshBatteryInfo(mBatteryStatus);
+        if (mBatteryStatus != null) {
+            callback.onRefreshBatteryInfo(mBatteryStatus);
+        }
         callback.onTimeChanged();
         callback.onPhoneStateChanged(mPhoneState);
         callback.onRefreshCarrierInfo();
         callback.onKeyguardVisibilityChanged(isKeyguardVisible());
         callback.onTelephonyCapable(mTelephonyCapable);
 
-        for (Entry<Integer, SimData> data : mSimDatas.entrySet()) {
-            final SimData state = data.getValue();
-            callback.onSimStateChanged(state.subId, state.slotId, state.simState);
+        synchronized (mSimDataLockObject) {
+            var simDatas = simPinUseSlotId() ? mSimDatasBySlotId : mSimDatas;
+            for (Entry<Integer, SimData> data : simDatas.entrySet()) {
+                final SimData state = data.getValue();
+                callback.onSimStateChanged(state.subId, state.slotId, state.simState);
+            }
         }
     }
 
@@ -3605,6 +3765,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     public void sendPrimaryBouncerChanged(boolean primaryBouncerIsOrWillBeShowing,
             boolean primaryBouncerFullyShown) {
+        SceneContainerFlag.assertInLegacyMode();
         mLogger.logSendPrimaryBouncerChanged(primaryBouncerIsOrWillBeShowing,
                 primaryBouncerFullyShown);
         Message message = mHandler.obtainMessage(MSG_KEYGUARD_BOUNCER_CHANGED);
@@ -3623,7 +3784,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     @MainThread
     public void reportSimUnlocked(int subId) {
-        mLogger.logSimUnlocked(subId);
+        mSimLogger.logSimUnlocked(subId);
         handleSimStateChange(subId, getSlotId(subId), TelephonyManager.SIM_STATE_READY);
     }
 
@@ -3720,26 +3881,59 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      * @see #isSimPinSecure(int)
      */
     public boolean isSimPinSecure() {
-        // True if any SIM is pin secure
-        for (SubscriptionInfo info : getSubscriptionInfo(false /* forceReload */)) {
-            if (isSimPinSecure(getSimState(info.getSubscriptionId()))) return true;
+        synchronized (mSimDataLockObject) {
+            var simDatas = simPinUseSlotId() ? mSimDatasBySlotId : mSimDatas;
+            for (SimData data : simDatas.values()) {
+                if (isSimPinSecure(data.simState)) {
+                    return true;
+                }
+            }
+            return false;
         }
-        return false;
     }
 
     public int getSimState(int subId) {
-        if (mSimDatas.containsKey(subId)) {
-            return mSimDatas.get(subId).simState;
-        } else {
-            return TelephonyManager.SIM_STATE_UNKNOWN;
+        if (simPinUseSlotId()) {
+            throw new UnsupportedOperationException("Method not supported with flag "
+                    + "simPinUseSlotId");
+        }
+        synchronized (mSimDataLockObject) {
+            if (mSimDatas.containsKey(subId)) {
+                return mSimDatas.get(subId).simState;
+            } else {
+                return TelephonyManager.SIM_STATE_UNKNOWN;
+            }
+        }
+    }
+
+    /**
+     * Find the sim state for a slot id, or SIM_STATE_UNKNOWN if not found.
+     */
+    public int getSimStateForSlotId(int slotId) {
+        if (!simPinUseSlotId()) {
+            throw new UnsupportedOperationException("Method not supported without flag "
+                    + "simPinUseSlotId");
+        }
+        synchronized (mSimDataLockObject) {
+            if (mSimDatasBySlotId.containsKey(slotId)) {
+                return mSimDatasBySlotId.get(slotId).simState;
+            } else {
+                return TelephonyManager.SIM_STATE_UNKNOWN;
+            }
         }
     }
 
     private int getSlotId(int subId) {
-        if (!mSimDatas.containsKey(subId)) {
-            refreshSimState(subId, SubscriptionManager.getSlotIndex(subId));
+        synchronized (mSimDataLockObject) {
+            var simDatas = simPinUseSlotId() ? mSimDatasBySlotId : mSimDatas;
+            int slotId = SubscriptionManager.getSlotIndex(subId);
+            int index = simPinUseSlotId() ? slotId : subId;
+            if (!simDatas.containsKey(index)) {
+                refreshSimState(subId, slotId);
+            }
+            SimData simData = simDatas.get(index);
+            return simData != null ? simData.slotId : SubscriptionManager.INVALID_SUBSCRIPTION_ID;
         }
-        return mSimDatas.get(subId).slotId;
     }
 
     private final TaskStackChangeListener mTaskStackListener = new TaskStackChangeListener() {
@@ -3780,17 +3974,27 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     private boolean refreshSimState(int subId, int slotId) {
         int state = mTelephonyManager.getSimState(slotId);
-        SimData data = mSimDatas.get(subId);
-        final boolean changed;
-        if (data == null) {
-            data = new SimData(state, slotId, subId);
-            mSimDatas.put(subId, data);
-            changed = true; // no data yet; force update
-        } else {
-            changed = data.simState != state;
-            data.simState = state;
+        synchronized (mSimDataLockObject) {
+            if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+                invalidateSlot(slotId);
+            }
+            SimData data = simPinUseSlotId() ? mSimDatasBySlotId.get(slotId) : mSimDatas.get(subId);
+
+            final boolean changed;
+            if (data == null) {
+                data = new SimData(state, slotId, subId);
+                if (simPinUseSlotId()) {
+                    mSimDatasBySlotId.put(slotId, data);
+                } else {
+                    mSimDatas.put(subId, data);
+                }
+                changed = true; // no data yet; force update
+            } else {
+                changed = data.simState != state;
+                data.simState = state;
+            }
+            return changed;
         }
-        return changed;
     }
 
     /**
@@ -3879,10 +4083,17 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         for (int i = 0; i < list.size(); i++) {
             final SubscriptionInfo info = list.get(i);
             final int id = info.getSubscriptionId();
-            int slotId = getSlotId(id);
-            if (state == getSimState(id) && bestSlotId > slotId) {
-                resultId = id;
-                bestSlotId = slotId;
+            final int slotId = info.getSimSlotIndex();
+            if (simPinUseSlotId()) {
+                if (state == getSimStateForSlotId(slotId) && bestSlotId > slotId) {
+                    resultId = id;
+                    bestSlotId = slotId;
+                }
+            } else {
+                if (state == getSimState(id) && bestSlotId > slotId) {
+                    resultId = id;
+                    bestSlotId = slotId;
+                }
             }
         }
         return resultId;
@@ -3895,28 +4106,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             if (subId == info.getSubscriptionId()) return info;
         }
         return null; // not found
-    }
-
-    /**
-     * @return a cached version of DevicePolicyManager.isLogoutEnabled()
-     */
-    public boolean isLogoutEnabled() {
-        return mLogoutEnabled;
-    }
-
-    private void updateLogoutEnabled() {
-        Assert.isMainThread();
-        boolean logoutEnabled = mDevicePolicyManager.isLogoutEnabled();
-        if (mLogoutEnabled != logoutEnabled) {
-            mLogoutEnabled = logoutEnabled;
-
-            for (int i = 0; i < mCallbacks.size(); i++) {
-                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
-                if (cb != null) {
-                    cb.onLogoutEnabledChanged();
-                }
-            }
-        }
     }
 
     protected int getBiometricLockoutDelay() {
@@ -3993,7 +4182,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             pw.println("    " + subId + "=" + mServiceStates.get(subId));
         }
         if (isFingerprintSupported()) {
-            final int userId = mSelectedUserInteractor.getSelectedUserId(true);
+            final int userId = mSelectedUserInteractor.getSelectedUserId();
             final int strongAuthFlags = mStrongAuthTracker.getStrongAuthForUser(userId);
             BiometricAuthenticated fingerprint = mUserFingerprintAuthenticated.get(userId);
             pw.println("  Fingerprint state (user=" + userId + ")");
@@ -4022,10 +4211,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             if (isUdfpsSupported()) {
                 pw.println("        udfpsEnrolled=" + isUdfpsEnrolled());
                 pw.println("        shouldListenForUdfps=" + shouldListenForFingerprint(true));
-                pw.println("        mPrimaryBouncerIsOrWillBeShowing="
-                        + mPrimaryBouncerIsOrWillBeShowing);
+                pw.println("        isPrimaryBouncerShowingOrWillBeShowing="
+                        + isPrimaryBouncerShowingOrWillBeShowing());
                 pw.println("        mStatusBarState=" + StatusBarState.toString(mStatusBarState));
-                pw.println("        mAlternateBouncerShowing=" + mAlternateBouncerShowing);
+                pw.println("        isAlternateBouncerShowing=" + isAlternateBouncerShowing());
             } else if (isSfpsSupported()) {
                 pw.println("        sfpsEnrolled=" + isSfpsEnrolled());
                 pw.println("        shouldListenForSfps=" + shouldListenForFingerprint(false));
@@ -4036,7 +4225,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                     mFingerprintListenBuffer.toList()
             ).printTableData(pw);
         } else if (mFpm != null && mFingerprintSensorProperties.isEmpty()) {
-            final int userId = mSelectedUserInteractor.getSelectedUserId(true);
+            final int userId = mSelectedUserInteractor.getSelectedUserId();
             pw.println("  Fingerprint state (user=" + userId + ")");
             pw.println("    mFingerprintSensorProperties.isEmpty="
                     + mFingerprintSensorProperties.isEmpty());
@@ -4049,13 +4238,16 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                     mFingerprintListenBuffer.toList()
             ).printTableData(pw);
         }
-        final int userId = mSelectedUserInteractor.getSelectedUserId(true);
+        final int userId = mSelectedUserInteractor.getSelectedUserId();
         final int strongAuthFlags = mStrongAuthTracker.getStrongAuthForUser(userId);
         pw.println("    authSinceBoot="
                 + getStrongAuthTracker().hasUserAuthenticatedSinceBoot());
         pw.println("    strongAuthFlags=" + Integer.toHexString(strongAuthFlags));
         pw.println("ActiveUnlockRunning="
                 + mTrustManager.isActiveUnlockRunning(mSelectedUserInteractor.getSelectedUserId()));
+        pw.println("userUnlockedCache[userid=" + userId + "]=" + mUserIsUnlocked.get(userId));
+        pw.println("actualUserUnlocked[userid=" + userId + "]="
+                + mUserManager.isUserUnlocked(userId));
         new DumpsysTableLogger(
                 "KeyguardActiveUnlockTriggers",
                 KeyguardActiveUnlockModel.TABLE_HEADERS,

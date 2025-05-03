@@ -16,27 +16,36 @@
 
 package com.android.server.autofill;
 
+import static android.Manifest.permission.INTERACT_ACROSS_USERS;
+
 import static com.android.server.autofill.Helper.sDebug;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresPermission;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.assist.AssistStructure.WindowNode;
+import android.app.slice.Slice;
+import android.app.slice.SliceItem;
 import android.content.ComponentName;
 import android.content.Context;
+import android.graphics.drawable.Icon;
 import android.hardware.display.DisplayManager;
 import android.metrics.LogMaker;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.service.autofill.Dataset;
+import android.service.autofill.FillResponse;
 import android.service.autofill.InternalSanitizer;
 import android.service.autofill.SaveInfo;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Slog;
+import android.util.SparseArray;
 import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
@@ -55,7 +64,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
 public final class Helper {
 
     private static final String TAG = "AutofillHelper";
@@ -67,7 +75,7 @@ public final class Helper {
      * {@code cmd autofill set log_level debug} or through
      * {@link android.provider.Settings.Global#AUTOFILL_LOGGING_LEVEL}.
      */
-    public static boolean sDebug = false;
+    public static boolean sDebug = true;
 
     /**
      * Defines a logging flag that can be dynamically changed at runtime using
@@ -92,13 +100,34 @@ public final class Helper {
             @UserIdInt int userId, @NonNull RemoteViews rView) {
         final AtomicBoolean permissionsOk = new AtomicBoolean(true);
 
-        rView.visitUris(uri -> {
-            int uriOwnerId = android.content.ContentProvider.getUserIdFromUri(uri);
-            boolean allowed = uriOwnerId == userId;
-            permissionsOk.set(allowed & permissionsOk.get());
-        });
+        rView.visitUris(
+                uri -> {
+                    int uriOwnerId = android.content.ContentProvider.getUserIdFromUri(uri, userId);
+                    boolean allowed = uriOwnerId == userId;
+                    permissionsOk.set(allowed & permissionsOk.get());
+                });
 
         return permissionsOk.get();
+    }
+
+    /**
+     * Creates the context as the foreground user
+     *
+     * <p>Returns the current context as the current foreground user
+     */
+    @RequiresPermission(INTERACT_ACROSS_USERS)
+    public static Context getUserContext(Context context) {
+        int userId = ActivityManager.getCurrentUser();
+        Context c = context.createContextAsUser(UserHandle.of(userId), /* flags= */ 0);
+        if (sDebug) {
+            Slog.d(
+                    TAG,
+                    "Current User: "
+                            + userId
+                            + ", context created as: "
+                            + c.getContentResolver().getUserId());
+        }
+        return c;
     }
 
     /**
@@ -125,6 +154,47 @@ public final class Helper {
         return (ok ? rView : null);
     }
 
+    /**
+     * Checks the URI permissions of the icon in the slice, to see if the current userId is able to
+     * access it.
+     *
+     * <p>Returns null if slice contains user inaccessible icons
+     *
+     * <p>TODO: instead of returning a null Slice when the current userId cannot access an icon,
+     * return a reconstructed Slice without the icons. This is currently non-trivial since there are
+     * no public methods to generically add SliceItems to Slices
+     */
+    public static @Nullable Slice sanitizeSlice(Slice slice) {
+        if (slice == null) {
+            return null;
+        }
+
+        int userId = ActivityManager.getCurrentUser();
+
+        // Recontruct the Slice, filtering out bad icons
+        for (SliceItem sliceItem : slice.getItems()) {
+            if (!sliceItem.getFormat().equals(SliceItem.FORMAT_IMAGE)) {
+                // Not an image slice
+                continue;
+            }
+
+            Icon icon = sliceItem.getIcon();
+            if (icon.getType() != Icon.TYPE_URI
+                    && icon.getType() != Icon.TYPE_URI_ADAPTIVE_BITMAP) {
+                // No URIs to sanitize
+                continue;
+            }
+
+            int iconUriId = android.content.ContentProvider.getUserIdFromUri(icon.getUri(), userId);
+
+            if (iconUriId != userId) {
+                Slog.w(TAG, "sanitizeSlice() user: " + userId + " cannot access icons in Slice");
+                return null;
+            }
+        }
+
+        return slice;
+    }
 
     @Nullable
     static AutofillId[] toArray(@Nullable ArraySet<AutofillId> set) {
@@ -283,7 +353,10 @@ public final class Helper {
     private static void addAutofillableIds(@NonNull ViewNode node,
             @NonNull ArrayList<AutofillId> ids, boolean autofillableOnly) {
         if (!autofillableOnly || node.getAutofillType() != View.AUTOFILL_TYPE_NONE) {
-            ids.add(node.getAutofillId());
+            AutofillId id = node.getAutofillId();
+            if (id != null) {
+                ids.add(id);
+            }
         }
         final int size = node.getChildCount();
         for (int i = 0; i < size; i++) {
@@ -373,5 +446,51 @@ public final class Helper {
 
     private interface ViewNodeFilter {
         boolean matches(ViewNode node);
+    }
+
+    public static class SaveInfoStats {
+        public int saveInfoCount;
+        public int saveDataTypeCount;
+
+        public SaveInfoStats(int saveInfoCount, int saveDataTypeCount) {
+            this.saveInfoCount = saveInfoCount;
+            this.saveDataTypeCount = saveDataTypeCount;
+        }
+    }
+
+    /**
+     * Get statistic information of save info given a sparse array of fill responses.
+     *
+     * Specifically the statistic includes
+     *   1. how many save info the current session has.
+     *   2. How many distinct save data types current session has.
+     *
+     * @return SaveInfoStats returns the above two number in a SaveInfoStats object
+     */
+    public static SaveInfoStats getSaveInfoStatsFromFillResponses(
+            SparseArray<FillResponse> fillResponses) {
+        if (fillResponses == null) {
+            if (sVerbose) {
+                Slog.v(TAG, "getSaveInfoStatsFromFillResponses(): fillResponse sparse array is "
+                        + "null");
+            }
+            return new SaveInfoStats(-1, -1);
+        }
+        int numSaveInfos = 0;
+        int numSaveDataTypes = 0;
+        ArraySet<Integer> saveDataTypeSeen = new ArraySet<>();
+        final int numResponses = fillResponses.size();
+        for (int responseNum = 0; responseNum < numResponses; responseNum++) {
+            final FillResponse response = fillResponses.valueAt(responseNum);
+            if (response != null && response.getSaveInfo() != null) {
+                numSaveInfos += 1;
+                int saveDataType = response.getSaveInfo().getType();
+                if (!saveDataTypeSeen.contains(saveDataType)) {
+                    saveDataTypeSeen.add(saveDataType);
+                    numSaveDataTypes += 1;
+                }
+            }
+        }
+        return new SaveInfoStats(numSaveInfos, numSaveDataTypes);
     }
 }

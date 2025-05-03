@@ -19,6 +19,10 @@ package com.android.server.notification;
 import static android.app.UiModeManager.MODE_ATTENTION_THEME_OVERLAY_NIGHT;
 import static android.app.UiModeManager.MODE_ATTENTION_THEME_OVERLAY_OFF;
 
+import static com.android.server.notification.ZenLog.traceApplyDeviceEffect;
+import static com.android.server.notification.ZenLog.traceScheduleApplyDeviceEffect;
+
+import android.app.KeyguardManager;
 import android.app.UiModeManager;
 import android.app.WallpaperManager;
 import android.content.BroadcastReceiver;
@@ -31,13 +35,16 @@ import android.os.PowerManager;
 import android.service.notification.DeviceEffectsApplier;
 import android.service.notification.ZenDeviceEffects;
 import android.service.notification.ZenModeConfig;
-import android.service.notification.ZenModeConfig.ConfigChangeOrigin;
+import android.service.notification.ZenModeConfig.ConfigOrigin;
+import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.Keep;
 
 /** Default implementation for {@link DeviceEffectsApplier}. */
-class DefaultDeviceEffectsApplier implements DeviceEffectsApplier {
-
+@Keep
+public class DefaultDeviceEffectsApplier implements DeviceEffectsApplier {
+    private static final String TAG = "DeviceEffectsApplier";
     private static final String SUPPRESS_AMBIENT_DISPLAY_TOKEN =
             "DefaultDeviceEffectsApplier:SuppressAmbientDisplay";
     private static final int SATURATION_LEVEL_GRAYSCALE = 0;
@@ -49,6 +56,7 @@ class DefaultDeviceEffectsApplier implements DeviceEffectsApplier {
 
     private final Context mContext;
     private final ColorDisplayManager mColorDisplayManager;
+    private final KeyguardManager mKeyguardManager;
     private final PowerManager mPowerManager;
     private final UiModeManager mUiModeManager;
     private final WallpaperManager mWallpaperManager;
@@ -57,12 +65,13 @@ class DefaultDeviceEffectsApplier implements DeviceEffectsApplier {
     @GuardedBy("mRegisterReceiverLock")
     private boolean mIsScreenOffReceiverRegistered;
 
-    private ZenDeviceEffects mLastAppliedEffects = new ZenDeviceEffects.Builder().build();
+    protected ZenDeviceEffects mLastAppliedEffects = new ZenDeviceEffects.Builder().build();
     private boolean mPendingNightMode;
 
-    DefaultDeviceEffectsApplier(Context context) {
+    public DefaultDeviceEffectsApplier(Context context) {
         mContext = context;
         mColorDisplayManager = context.getSystemService(ColorDisplayManager.class);
+        mKeyguardManager = context.getSystemService(KeyguardManager.class);
         mPowerManager = context.getSystemService(PowerManager.class);
         mUiModeManager = context.getSystemService(UiModeManager.class);
         WallpaperManager wallpaperManager = context.getSystemService(WallpaperManager.class);
@@ -71,51 +80,89 @@ class DefaultDeviceEffectsApplier implements DeviceEffectsApplier {
     }
 
     @Override
-    public void apply(ZenDeviceEffects effects, @ConfigChangeOrigin int origin) {
-        Binder.withCleanCallingIdentity(() -> {
-            if (mLastAppliedEffects.shouldSuppressAmbientDisplay()
-                    != effects.shouldSuppressAmbientDisplay()) {
-                mPowerManager.suppressAmbientDisplay(SUPPRESS_AMBIENT_DISPLAY_TOKEN,
-                        effects.shouldSuppressAmbientDisplay());
-            }
-
-            if (mLastAppliedEffects.shouldDisplayGrayscale() != effects.shouldDisplayGrayscale()) {
-                if (mColorDisplayManager != null) {
-                    mColorDisplayManager.setSaturationLevel(
-                            effects.shouldDisplayGrayscale() ? SATURATION_LEVEL_GRAYSCALE
-                                    : SATURATION_LEVEL_FULL_COLOR);
-                }
-            }
-
-            if (mLastAppliedEffects.shouldDimWallpaper() != effects.shouldDimWallpaper()) {
-                if (mWallpaperManager != null) {
-                    mWallpaperManager.setWallpaperDimAmount(
-                            effects.shouldDimWallpaper() ? WALLPAPER_DIM_AMOUNT_DIMMED
-                                    : WALLPAPER_DIM_AMOUNT_NORMAL);
-                }
-            }
-
-            if (mLastAppliedEffects.shouldUseNightMode() != effects.shouldUseNightMode()) {
-                updateOrScheduleNightMode(effects.shouldUseNightMode(), origin);
-            }
-        });
+    public void apply(ZenDeviceEffects effects, @ConfigOrigin int origin) {
+        Binder.withCleanCallingIdentity(
+                () -> {
+                    maybeSuppressAmbientDisplay(effects.shouldSuppressAmbientDisplay());
+                    maybeDisplayGrayscale(effects.shouldDisplayGrayscale());
+                    maybeDimWallpaper(effects.shouldDimWallpaper());
+                    maybeUseNightMode(effects.shouldUseNightMode(), origin);
+                });
 
         mLastAppliedEffects = effects;
     }
 
-    private void updateOrScheduleNightMode(boolean useNightMode, @ConfigChangeOrigin int origin) {
+    protected void maybeSuppressAmbientDisplay(boolean shouldSuppressAmbientDisplay) {
+        if (mLastAppliedEffects.shouldSuppressAmbientDisplay() != shouldSuppressAmbientDisplay) {
+            try {
+                traceApplyDeviceEffect("suppressAmbientDisplay", shouldSuppressAmbientDisplay);
+                mPowerManager.suppressAmbientDisplay(
+                        SUPPRESS_AMBIENT_DISPLAY_TOKEN, shouldSuppressAmbientDisplay);
+            } catch (Exception e) {
+                Slog.e(TAG, "Could not change AOD override", e);
+            }
+        }
+    }
+
+    protected void maybeDisplayGrayscale(boolean shouldDisplayGrayscale) {
+        if (mLastAppliedEffects.shouldDisplayGrayscale() != shouldDisplayGrayscale) {
+            if (mColorDisplayManager != null) {
+                try {
+                    traceApplyDeviceEffect("displayGrayscale", shouldDisplayGrayscale);
+                    mColorDisplayManager.setSaturationLevel(
+                            shouldDisplayGrayscale
+                                    ? SATURATION_LEVEL_GRAYSCALE
+                                    : SATURATION_LEVEL_FULL_COLOR);
+                } catch (Exception e) {
+                    Slog.e(TAG, "Could not change grayscale override", e);
+                }
+            }
+        }
+    }
+
+    protected void maybeDimWallpaper(boolean shouldDimWallpaper) {
+        if (mLastAppliedEffects.shouldDimWallpaper() != shouldDimWallpaper) {
+            if (mWallpaperManager != null) {
+                try {
+                    traceApplyDeviceEffect("dimWallpaper", shouldDimWallpaper);
+                    mWallpaperManager.setWallpaperDimAmount(
+                            shouldDimWallpaper
+                                    ? WALLPAPER_DIM_AMOUNT_DIMMED
+                                    : WALLPAPER_DIM_AMOUNT_NORMAL);
+                } catch (Exception e) {
+                    Slog.e(TAG, "Could not change wallpaper override", e);
+                }
+            }
+        }
+    }
+
+    protected void maybeUseNightMode(boolean shouldUseNightMode, @ConfigOrigin int origin) {
+        if (mLastAppliedEffects.shouldUseNightMode() != shouldUseNightMode) {
+            try {
+                updateOrScheduleNightMode(shouldUseNightMode, origin);
+            } catch (Exception e) {
+                Slog.e(TAG, "Could not change dark theme override", e);
+            }
+        }
+    }
+
+    private void updateOrScheduleNightMode(boolean useNightMode, @ConfigOrigin int origin) {
         mPendingNightMode = useNightMode;
 
         // Changing the theme can be disruptive for the user (Activities are likely recreated, may
         // lose some state). Therefore we only apply the change immediately if the rule was
-        // activated manually, or we are initializing, or the screen is currently off/dreaming.
-        if (origin == ZenModeConfig.UPDATE_ORIGIN_INIT
-                || origin == ZenModeConfig.UPDATE_ORIGIN_INIT_USER
-                || origin == ZenModeConfig.UPDATE_ORIGIN_USER
-                || !mPowerManager.isInteractive()) {
+        // activated manually, or we are initializing, or the screen is currently off/dreaming,
+        // or if the device is locked.
+        if (origin == ZenModeConfig.ORIGIN_INIT
+                || origin == ZenModeConfig.ORIGIN_INIT_USER
+                || origin == ZenModeConfig.ORIGIN_USER_IN_SYSTEMUI
+                || origin == ZenModeConfig.ORIGIN_USER_IN_APP
+                || !mPowerManager.isInteractive()
+                || (android.app.Flags.modesUi() && mKeyguardManager.isKeyguardLocked())) {
             unregisterScreenOffReceiver();
             updateNightModeImmediately(useNightMode);
         } else {
+            traceScheduleApplyDeviceEffect("nightMode", useNightMode);
             registerScreenOffReceiver();
         }
     }
@@ -131,9 +178,14 @@ class DefaultDeviceEffectsApplier implements DeviceEffectsApplier {
 
     private void updateNightModeImmediately(boolean useNightMode) {
         Binder.withCleanCallingIdentity(() -> {
-            mUiModeManager.setAttentionModeThemeOverlay(
-                    useNightMode ? MODE_ATTENTION_THEME_OVERLAY_NIGHT
-                            : MODE_ATTENTION_THEME_OVERLAY_OFF);
+            try {
+                traceApplyDeviceEffect("nightMode", useNightMode);
+                mUiModeManager.setAttentionModeThemeOverlay(
+                        useNightMode ? MODE_ATTENTION_THEME_OVERLAY_NIGHT
+                                : MODE_ATTENTION_THEME_OVERLAY_OFF);
+            } catch (Exception e) {
+                Slog.e(TAG, "Could not change wallpaper override", e);
+            }
         });
     }
 

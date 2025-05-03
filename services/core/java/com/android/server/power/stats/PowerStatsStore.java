@@ -42,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -66,25 +67,28 @@ public class PowerStatsStore {
     private FileLock mJvmLock;
     private final long mMaxStorageBytes;
     private final Handler mHandler;
-    private final PowerStatsSpan.SectionReader mSectionReader;
+    private final Map<String, PowerStatsSpan.SectionReader> mSectionReaders = new HashMap<>();
     private volatile List<PowerStatsSpan.Metadata> mTableOfContents;
 
-    public PowerStatsStore(@NonNull File systemDir, Handler handler,
-            AggregatedPowerStatsConfig aggregatedPowerStatsConfig) {
-        this(systemDir, MAX_POWER_STATS_SPAN_STORAGE_BYTES, handler,
-                new DefaultSectionReader(aggregatedPowerStatsConfig));
+    public PowerStatsStore(@NonNull File systemDir, Handler handler) {
+        this(systemDir, MAX_POWER_STATS_SPAN_STORAGE_BYTES, handler);
     }
 
     @VisibleForTesting
-    public PowerStatsStore(@NonNull File systemDir, long maxStorageBytes, Handler handler,
-            @NonNull PowerStatsSpan.SectionReader sectionReader) {
+    public PowerStatsStore(@NonNull File systemDir, long maxStorageBytes, Handler handler) {
         mSystemDir = systemDir;
         mStoreDir = new File(systemDir, POWER_STATS_DIR);
         mLockFile = new File(mStoreDir, DIR_LOCK_FILENAME);
         mHandler = handler;
         mMaxStorageBytes = maxStorageBytes;
-        mSectionReader = sectionReader;
         mHandler.post(this::maybeClearLegacyStore);
+    }
+
+    /**
+     * Registers a Reader for a section type, which is determined by `sectionReader.getType()`
+     */
+    public void addSectionReader(PowerStatsSpan.SectionReader sectionReader) {
+        mSectionReaders.put(sectionReader.getType(), sectionReader);
     }
 
     /**
@@ -129,10 +133,22 @@ public class PowerStatsStore {
     }
 
     /**
+     * Schedules saving the specified span on the background thread.
+     */
+    public void storePowerStatsSpanAsync(PowerStatsSpan span, Runnable onComplete) {
+        mHandler.post(() -> {
+            try {
+                storePowerStatsSpan(span);
+            } finally {
+                onComplete.run();
+            }
+        });
+    }
+
+    /**
      * Saves the specified span in the store.
      */
     public void storePowerStatsSpan(PowerStatsSpan span) {
-        maybeClearLegacyStore();
         lockStoreDirectory();
         try {
             if (!mStoreDir.exists()) {
@@ -168,8 +184,11 @@ public class PowerStatsStore {
         lockStoreDirectory();
         try {
             File file = makePowerStatsSpanFilename(id);
+            if (!file.exists()) {
+                return null;
+            }
             try (InputStream inputStream = new BufferedInputStream(new FileInputStream(file))) {
-                return PowerStatsSpan.read(inputStream, parser, mSectionReader, sectionTypes);
+                return PowerStatsSpan.read(inputStream, parser, mSectionReaders, sectionTypes);
             } catch (IOException | XmlPullParserException e) {
                 Slog.wtf(TAG, "Cannot read PowerStatsSpan file: " + file, e);
             }
@@ -179,52 +198,27 @@ public class PowerStatsStore {
         return null;
     }
 
-    void storeAggregatedPowerStats(AggregatedPowerStats stats) {
-        PowerStatsSpan span = createPowerStatsSpan(stats);
-        if (span == null) {
-            return;
-        }
-        storePowerStatsSpan(span);
-    }
-
-    static PowerStatsSpan createPowerStatsSpan(AggregatedPowerStats stats) {
-        List<AggregatedPowerStats.ClockUpdate> clockUpdates = stats.getClockUpdates();
-        if (clockUpdates.isEmpty()) {
-            Slog.w(TAG, "No clock updates in aggregated power stats " + stats);
-            return null;
-        }
-
-        long monotonicTime = clockUpdates.get(0).monotonicTime;
-        long durationSum = 0;
-        PowerStatsSpan span = new PowerStatsSpan(monotonicTime);
-        for (int i = 0; i < clockUpdates.size(); i++) {
-            AggregatedPowerStats.ClockUpdate clockUpdate = clockUpdates.get(i);
-            long duration;
-            if (i == clockUpdates.size() - 1) {
-                duration = stats.getDuration() - durationSum;
-            } else {
-                duration = clockUpdate.monotonicTime - monotonicTime;
-            }
-            span.addTimeFrame(clockUpdate.monotonicTime, clockUpdate.currentTime, duration);
-            monotonicTime = clockUpdate.monotonicTime;
-            durationSum += duration;
-        }
-
-        span.addSection(new AggregatedPowerStatsSection(stats));
-        return span;
-    }
-
     /**
      * Stores a {@link PowerStatsSpan} containing a single section for the supplied
      * battery usage stats.
      */
-    public void storeBatteryUsageStats(long monotonicStartTime,
+    public void storeBatteryUsageStatsAsync(long monotonicStartTime,
             BatteryUsageStats batteryUsageStats) {
-        PowerStatsSpan span = new PowerStatsSpan(monotonicStartTime);
-        span.addTimeFrame(monotonicStartTime, batteryUsageStats.getStatsStartTimestamp(),
-                batteryUsageStats.getStatsDuration());
-        span.addSection(new BatteryUsageStatsSection(batteryUsageStats));
-        storePowerStatsSpan(span);
+        mHandler.post(() -> {
+            try {
+                PowerStatsSpan span = new PowerStatsSpan(monotonicStartTime);
+                span.addTimeFrame(monotonicStartTime, batteryUsageStats.getStatsStartTimestamp(),
+                        batteryUsageStats.getStatsDuration());
+                span.addSection(new BatteryUsageStatsSection(batteryUsageStats));
+                storePowerStatsSpan(span);
+            } finally {
+                try {
+                    batteryUsageStats.close();
+                } catch (IOException e) {
+                    Slog.e(TAG, "Cannot close BatteryUsageStats", e);
+                }
+            }
+        });
     }
 
     /**
@@ -337,35 +331,12 @@ public class PowerStatsStore {
         ipw.increaseIndent();
         List<PowerStatsSpan.Metadata> contents = getTableOfContents();
         for (PowerStatsSpan.Metadata metadata : contents) {
-            PowerStatsSpan span = loadPowerStatsSpan(metadata.getId());
-            if (span != null) {
-                span.dump(ipw);
+            try (PowerStatsSpan span = loadPowerStatsSpan(metadata.getId())) {
+                if (span != null) {
+                    span.dump(ipw);
+                }
             }
         }
         ipw.decreaseIndent();
-    }
-
-    private static class DefaultSectionReader implements PowerStatsSpan.SectionReader {
-        private final AggregatedPowerStatsConfig mAggregatedPowerStatsConfig;
-
-        DefaultSectionReader(AggregatedPowerStatsConfig aggregatedPowerStatsConfig) {
-            mAggregatedPowerStatsConfig = aggregatedPowerStatsConfig;
-        }
-
-        @Override
-        public PowerStatsSpan.Section read(String sectionType, TypedXmlPullParser parser)
-                throws IOException, XmlPullParserException {
-            switch (sectionType) {
-                case AggregatedPowerStatsSection.TYPE:
-                    return new AggregatedPowerStatsSection(
-                            AggregatedPowerStats.createFromXml(parser,
-                                    mAggregatedPowerStatsConfig));
-                case BatteryUsageStatsSection.TYPE:
-                    return new BatteryUsageStatsSection(
-                            BatteryUsageStats.createFromXml(parser));
-                default:
-                    return null;
-            }
-        }
     }
 }

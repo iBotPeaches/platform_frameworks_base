@@ -30,38 +30,49 @@ import com.android.systemui.qs.tiles.base.interactor.QSTileDataToStateMapper
 import com.android.systemui.qs.tiles.impl.custom.domain.entity.CustomTileDataModel
 import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
 import com.android.systemui.qs.tiles.viewmodel.QSTileState
+import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
 
 @SysUISingleton
 class CustomTileMapper
 @Inject
 constructor(
-    private val context: Context,
-    private val uriGrantsManager: IUriGrantsManager,
-) : QSTileDataToStateMapper<CustomTileDataModel> {
+    @ShadeDisplayAware private val context: Context,
+    private val uriGrantsManager: IUriGrantsManager
+) :
+    QSTileDataToStateMapper<CustomTileDataModel> {
 
     override fun map(config: QSTileConfig, data: CustomTileDataModel): QSTileState {
-        val userContext = context.createContextAsUser(UserHandle(data.user.identifier), 0)
+        val userContext =
+            try {
+                context.createContextAsUser(UserHandle(data.user.identifier), 0)
+            } catch (exception: IllegalStateException) {
+                null
+            }
 
         val iconResult =
-            getIconProvider(
-                userContext = userContext,
-                icon = data.tile.icon,
-                callingAppUid = data.callingAppUid,
-                packageName = data.componentName.packageName,
-                defaultIcon = data.defaultTileIcon,
-            )
+            if (userContext != null) {
+                getIcon(
+                    userContext = userContext,
+                    icon = data.tile.icon,
+                    callingAppUid = data.callingAppUid,
+                    packageName = data.componentName.packageName,
+                    defaultIcon = data.defaultTileIcon,
+                )
+            } else {
+                IconResult(null, true)
+            }
 
-        return QSTileState.build(iconResult.iconProvider, data.tile.label) {
+        return QSTileState.build(iconResult.icon, data.tile.label) {
             var tileState: Int = data.tile.state
             if (data.hasPendingBind) {
                 tileState = Tile.STATE_UNAVAILABLE
             }
 
-            icon = iconResult.iconProvider
+            icon = iconResult.icon
             activationState =
                 if (iconResult.failedToLoad) {
-                    QSTileState.ActivationState.INACTIVE
+                    QSTileState.ActivationState.UNAVAILABLE
                 } else {
                     QSTileState.ActivationState.valueOf(tileState)
                 }
@@ -93,7 +104,7 @@ constructor(
     }
 
     @SuppressLint("MissingPermission") // android.permission.INTERACT_ACROSS_USERS_FULL
-    private fun getIconProvider(
+    private fun getIcon(
         userContext: Context,
         icon: android.graphics.drawable.Icon?,
         callingAppUid: Int,
@@ -114,17 +125,12 @@ constructor(
                 null
             } ?: defaultIcon?.loadDrawable(userContext)
         return IconResult(
-            {
-                drawable?.constantState?.newDrawable()?.let {
-                    Icon.Loaded(it, contentDescription = null)
-                }
+            drawable?.constantState?.newDrawable()?.let {
+                Icon.Loaded(it, contentDescription = null)
             },
             failedToLoad,
         )
     }
 
-    class IconResult(
-        val iconProvider: () -> Icon?,
-        val failedToLoad: Boolean,
-    )
+    class IconResult(val icon: Icon?, val failedToLoad: Boolean)
 }

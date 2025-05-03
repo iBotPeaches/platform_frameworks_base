@@ -22,6 +22,7 @@ import android.os.UserManager;
 
 import androidx.annotation.NonNull;
 
+import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.settings.UserTracker;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 import javax.inject.Inject;
 
@@ -43,33 +45,40 @@ public class ManagedProfileControllerImpl implements ManagedProfileController {
     private final UserManager mUserManager;
     private final UserTracker mUserTracker;
     private final LinkedList<UserInfo> mProfiles;
+    private final KeyguardUpdateMonitor mKeyguardUpdateMonitor;
 
     private boolean mListening;
     private int mCurrentUser;
 
     @Inject
     public ManagedProfileControllerImpl(Context context, @Main Executor mainExecutor,
-            UserTracker userTracker, UserManager userManager) {
+            UserTracker userTracker, UserManager userManager,
+            KeyguardUpdateMonitor keyguardUpdateMonitor) {
         mContext = context;
         mMainExecutor = mainExecutor;
         mUserManager = userManager;
         mUserTracker = userTracker;
+        mKeyguardUpdateMonitor = keyguardUpdateMonitor;
         mProfiles = new LinkedList<>();
     }
 
     @Override
     public void addCallback(@NonNull Callback callback) {
-        mCallbacks.add(callback);
-        if (mCallbacks.size() == 1) {
-            setListening(true);
+        synchronized (mCallbacks) {
+            mCallbacks.add(callback);
+            if (mCallbacks.size() == 1) {
+                setListening(true);
+            }
+            callback.onManagedProfileChanged();
         }
-        callback.onManagedProfileChanged();
     }
 
     @Override
     public void removeCallback(@NonNull Callback callback) {
-        if (mCallbacks.remove(callback) && mCallbacks.size() == 0) {
-            setListening(false);
+        synchronized (mCallbacks) {
+            if (mCallbacks.remove(callback) && mCallbacks.size() == 0) {
+                setListening(false);
+            }
         }
     }
 
@@ -80,6 +89,7 @@ public class ManagedProfileControllerImpl implements ManagedProfileController {
                     StatusBarManager statusBarManager = (StatusBarManager) mContext
                             .getSystemService(android.app.Service.STATUS_BAR_SERVICE);
                     statusBarManager.collapsePanels();
+                    mKeyguardUpdateMonitor.awakenFromDream();
                 }
             }
         }
@@ -104,10 +114,7 @@ public class ManagedProfileControllerImpl implements ManagedProfileController {
     }
 
     private void notifyManagedProfileRemoved() {
-        ArrayList<Callback> copy = new ArrayList<>(mCallbacks);
-        for (Callback callback : copy) {
-            callback.onManagedProfileRemoved();
-        }
+        notifyCallbacks(Callback::onManagedProfileRemoved);
     }
 
     public boolean hasActiveProfile() {
@@ -131,6 +138,16 @@ public class ManagedProfileControllerImpl implements ManagedProfileController {
         }
     }
 
+    private void notifyCallbacks(Consumer<Callback> method) {
+        ArrayList<Callback> copy;
+        synchronized (mCallbacks) {
+            copy = new ArrayList<>(mCallbacks);
+        }
+        for (Callback callback : copy) {
+            method.accept(callback);
+        }
+    }
+
     private void setListening(boolean listening) {
         if (mListening == listening) {
             return;
@@ -149,19 +166,13 @@ public class ManagedProfileControllerImpl implements ManagedProfileController {
         @Override
         public void onUserChanged(int newUser, @NonNull Context userContext) {
             reloadManagedProfiles();
-            ArrayList<Callback> copy = new ArrayList<>(mCallbacks);
-            for (Callback callback : copy) {
-                callback.onManagedProfileChanged();
-            }
+            notifyCallbacks(Callback::onManagedProfileChanged);
         }
 
         @Override
         public void onProfilesChanged(@NonNull List<UserInfo> profiles) {
             reloadManagedProfiles();
-            ArrayList<Callback> copy = new ArrayList<>(mCallbacks);
-            for (Callback callback : copy) {
-                callback.onManagedProfileChanged();
-            }
+            notifyCallbacks(Callback::onManagedProfileChanged);
         }
     }
 }

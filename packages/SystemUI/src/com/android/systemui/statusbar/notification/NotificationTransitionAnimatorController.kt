@@ -22,10 +22,10 @@ import com.android.internal.jank.InteractionJankMonitor
 import com.android.systemui.animation.ActivityTransitionAnimator
 import com.android.systemui.animation.TransitionAnimator
 import com.android.systemui.statusbar.notification.domain.interactor.NotificationLaunchAnimationInteractor
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
+import com.android.systemui.statusbar.notification.headsup.HeadsUpUtil
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.stack.NotificationListContainer
-import com.android.systemui.statusbar.policy.HeadsUpManager
-import com.android.systemui.statusbar.policy.HeadsUpUtil
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -36,12 +36,12 @@ class NotificationLaunchAnimatorControllerProvider(
     private val notificationLaunchAnimationInteractor: NotificationLaunchAnimationInteractor,
     private val notificationListContainer: NotificationListContainer,
     private val headsUpManager: HeadsUpManager,
-    private val jankMonitor: InteractionJankMonitor
+    private val jankMonitor: InteractionJankMonitor,
 ) {
     @JvmOverloads
     fun getAnimatorController(
         notification: ExpandableNotificationRow,
-        onFinishAnimationCallback: Runnable? = null
+        onFinishAnimationCallback: Runnable? = null,
     ): NotificationTransitionAnimatorController {
         return NotificationTransitionAnimatorController(
             notificationLaunchAnimationInteractor,
@@ -49,7 +49,7 @@ class NotificationLaunchAnimatorControllerProvider(
             headsUpManager,
             notification,
             jankMonitor,
-            onFinishAnimationCallback
+            onFinishAnimationCallback,
         )
     }
 }
@@ -65,7 +65,7 @@ class NotificationTransitionAnimatorController(
     private val headsUpManager: HeadsUpManager,
     private val notification: ExpandableNotificationRow,
     private val jankMonitor: InteractionJankMonitor,
-    private val onFinishAnimationCallback: Runnable?
+    private val onFinishAnimationCallback: Runnable?,
 ) : ActivityTransitionAnimator.Controller {
 
     companion object {
@@ -74,6 +74,8 @@ class NotificationTransitionAnimatorController(
 
     private val notificationEntry = notification.entry
     private val notificationKey = notificationEntry.sbn.key
+
+    override val isLaunching: Boolean = true
 
     override var transitionContainer: ViewGroup
         get() = notification.rootView as ViewGroup
@@ -107,7 +109,7 @@ class NotificationTransitionAnimatorController(
                 left = location[0],
                 right = location[0] + notification.width,
                 topCornerRadius = topCornerRadius,
-                bottomCornerRadius = notification.bottomCornerRadius
+                bottomCornerRadius = notification.bottomCornerRadius,
             )
 
         params.startTranslationZ = notification.translationZ
@@ -140,14 +142,15 @@ class NotificationTransitionAnimatorController(
     }
 
     override fun onIntentStarted(willAnimate: Boolean) {
+        val reason = "onIntentStarted(willAnimate=$willAnimate)"
         if (ActivityTransitionAnimator.DEBUG_TRANSITION_ANIMATION) {
-            Log.d(TAG, "onIntentStarted(willAnimate=$willAnimate)")
+            Log.d(TAG, reason)
         }
         notificationLaunchAnimationInteractor.setIsLaunchAnimationRunning(willAnimate)
         notificationEntry.isExpandAnimationRunning = willAnimate
 
         if (!willAnimate) {
-            removeHun(animate = true)
+            removeHun(animate = true, reason)
             onFinishAnimationCallback?.run()
         }
     }
@@ -164,13 +167,18 @@ class NotificationTransitionAnimatorController(
             }
         }
 
-    private fun removeHun(animate: Boolean) {
+    private fun removeHun(animate: Boolean, reason: String) {
         val row = headsUpNotificationRow ?: return
 
         // TODO: b/297247841 - Call on the row we're removing, which may differ from notification.
         HeadsUpUtil.setNeedsHeadsUpDisappearAnimationAfterClick(notification, animate)
 
-        headsUpManager.removeNotification(row.entry.key, true /* releaseImmediately */, animate)
+        headsUpManager.removeNotification(
+            row.entry.key,
+            true /* releaseImmediately */,
+            animate,
+            reason,
+        )
     }
 
     override fun onTransitionAnimationCancelled(newKeyguardOccludedState: Boolean?) {
@@ -182,7 +190,7 @@ class NotificationTransitionAnimatorController(
         // here?
         notificationLaunchAnimationInteractor.setIsLaunchAnimationRunning(false)
         notificationEntry.isExpandAnimationRunning = false
-        removeHun(animate = true)
+        removeHun(animate = true, "onLaunchAnimationCancelled()")
         onFinishAnimationCallback?.run()
     }
 
@@ -204,7 +212,7 @@ class NotificationTransitionAnimatorController(
         notificationEntry.isExpandAnimationRunning = false
         notificationListContainer.setExpandingNotification(null)
         applyParams(null)
-        removeHun(animate = false)
+        removeHun(animate = false, "onLaunchAnimationEnd()")
         onFinishAnimationCallback?.run()
     }
 
@@ -216,7 +224,7 @@ class NotificationTransitionAnimatorController(
     override fun onTransitionAnimationProgress(
         state: TransitionAnimator.State,
         progress: Float,
-        linearProgress: Float
+        linearProgress: Float,
     ) {
         val params = state as LaunchAnimationParameters
         params.progress = progress

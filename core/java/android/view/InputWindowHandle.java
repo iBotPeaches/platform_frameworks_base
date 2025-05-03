@@ -67,6 +67,7 @@ public final class InputWindowHandle {
             InputConfig.SPY,
             InputConfig.INTERCEPTS_STYLUS,
             InputConfig.CLONE,
+            InputConfig.SENSITIVE_FOR_PRIVACY,
     })
     public @interface InputConfigFlags {}
 
@@ -258,6 +259,15 @@ public final class InputWindowHandle {
     public void setTouchableRegionCrop(@Nullable SurfaceControl bounds) {
         touchableRegionSurfaceControl = new WeakReference<>(bounds);
     }
+
+    /**
+     * Resize the window touchable region.
+     * @param rect new touchable region rectangle.
+     */
+    public void setTouchableRegion(Rect rect) {
+        touchableRegion.set(rect);
+    }
+
 
     public void setWindowToken(IBinder iwindow) {
         windowToken = iwindow;

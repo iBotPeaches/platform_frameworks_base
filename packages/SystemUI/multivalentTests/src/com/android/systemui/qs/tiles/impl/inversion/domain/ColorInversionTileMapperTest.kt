@@ -39,9 +39,7 @@ class ColorInversionTileMapperTest : SysuiTestCase() {
     private val colorInversionTileConfig = kosmos.qsColorInversionTileConfig
     private val subtitleArrayId =
         SubtitleArrayMapping.getSubtitleId(colorInversionTileConfig.tileSpec.spec)
-    private val subtitleArray by lazy {
-        context.resources.getStringArray(subtitleArrayId)
-    }
+    private val subtitleArray by lazy { context.resources.getStringArray(subtitleArrayId) }
     // Using lazy (versus =) to make sure we override the right context -- see b/311612168
     private val mapper by lazy {
         ColorInversionTileMapper(
@@ -51,7 +49,7 @@ class ColorInversionTileMapperTest : SysuiTestCase() {
                     addOverride(R.drawable.qs_invert_colors_icon_on, TestStubDrawable())
                 }
                 .resources,
-            context.theme
+            context.theme,
         )
     }
 
@@ -65,7 +63,7 @@ class ColorInversionTileMapperTest : SysuiTestCase() {
             createColorInversionTileState(
                 QSTileState.ActivationState.INACTIVE,
                 subtitleArray[1],
-                R.drawable.qs_invert_colors_icon_off
+                R.drawable.qs_invert_colors_icon_off,
             )
         QSTileStateSubject.assertThat(outputState).isEqualTo(expectedState)
     }
@@ -80,7 +78,7 @@ class ColorInversionTileMapperTest : SysuiTestCase() {
             createColorInversionTileState(
                 QSTileState.ActivationState.ACTIVE,
                 subtitleArray[2],
-                R.drawable.qs_invert_colors_icon_on
+                R.drawable.qs_invert_colors_icon_on,
             )
         QSTileStateSubject.assertThat(outputState).isEqualTo(expectedState)
     }
@@ -92,7 +90,8 @@ class ColorInversionTileMapperTest : SysuiTestCase() {
     ): QSTileState {
         val label = context.getString(R.string.quick_settings_inversion_label)
         return QSTileState(
-            { Icon.Loaded(context.getDrawable(iconRes)!!, null) },
+            Icon.Loaded(context.getDrawable(iconRes)!!, null),
+            iconRes,
             label,
             activationState,
             secondaryLabel,
@@ -101,7 +100,7 @@ class ColorInversionTileMapperTest : SysuiTestCase() {
             null,
             QSTileState.SideViewIcon.None,
             QSTileState.EnabledState.ENABLED,
-            Switch::class.qualifiedName
+            Switch::class.qualifiedName,
         )
     }
 }

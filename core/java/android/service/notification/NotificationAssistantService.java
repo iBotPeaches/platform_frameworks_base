@@ -18,10 +18,12 @@ package android.service.notification;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SdkConstant;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -37,9 +39,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
-
 import com.android.internal.os.SomeArgs;
-
 import java.lang.annotation.Retention;
 import java.util.List;
 
@@ -91,10 +91,11 @@ public abstract class NotificationAssistantService extends NotificationListenerS
             = "android.service.notification.NotificationAssistantService";
 
     /**
-     * Activity Action: Show notification assistant detail setting page in NAS app.
+     * Activity Action: Show notification assistant detail setting page in the NAS app.
      * <p>
-     * In some cases, a matching Activity may not exist, so ensure you
-     * safeguard against this.
+     * To be implemented by the NAS to offer users additional customization of intelligence
+     * features. If the action is not implemented, the OS will not provide a link to it in the
+     * Settings UI.
      * <p>
      * Input: Nothing.
      * <p>
@@ -104,6 +105,30 @@ public abstract class NotificationAssistantService extends NotificationListenerS
     public static final String ACTION_NOTIFICATION_ASSISTANT_DETAIL_SETTINGS =
             "android.service.notification.action.NOTIFICATION_ASSISTANT_DETAIL_SETTINGS";
 
+    /**
+     * Activity Action: Open notification assistant feedback page in the NAS app.
+     * <p>
+     * If the NAS does not implement this page, the OS will not show any feedback calls to action in
+     * the UI.
+     * <p>
+     * Input: {@link #EXTRA_NOTIFICATION_KEY}, the {@link StatusBarNotification#getKey()} of the
+     * notification the user wants to file feedback for.
+     * <p>
+     * Output: Nothing.
+     */
+    @FlaggedApi(Flags.FLAG_NOTIFICATION_CLASSIFICATION)
+    @SdkConstant(SdkConstant.SdkConstantType.ACTIVITY_INTENT_ACTION)
+    public static final String ACTION_NOTIFICATION_ASSISTANT_FEEDBACK_SETTINGS =
+            "android.service.notification.action.NOTIFICATION_ASSISTANT_FEEDBACK_SETTINGS";
+
+    /**
+     * A string extra containing the key of the notification that the user triggered feedback for.
+     *
+     * Extra for {@link #ACTION_NOTIFICATION_ASSISTANT_FEEDBACK_SETTINGS}.
+     */
+    @FlaggedApi(Flags.FLAG_NOTIFICATION_CLASSIFICATION)
+    public static final String EXTRA_NOTIFICATION_KEY
+            = "android.service.notification.extra.NOTIFICATION_KEY";
 
     /**
      * Data type: int, the feedback rating score provided by user. The score can be any integer
@@ -116,6 +141,7 @@ public abstract class NotificationAssistantService extends NotificationListenerS
      */
     protected Handler mHandler;
 
+    @SuppressLint("OnNameExpected")
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
@@ -293,10 +319,7 @@ public abstract class NotificationAssistantService extends NotificationListenerS
      * their notifications the assistant can modify.
      * <p> Query {@link NotificationManager#getAllowedAssistantAdjustments()} to see what
      * {@link Adjustment adjustments} you are currently allowed to make.</p>
-     *
-     * @deprecated changing allowed adjustments is no longer supported.
      */
-    @Deprecated
     public void onAllowedAdjustmentsChanged() {
     }
 
@@ -367,6 +390,23 @@ public abstract class NotificationAssistantService extends NotificationListenerS
         }
     }
 
+    /**
+     * Informs the notification manager about what {@link Adjustment Adjustments} are supported by
+     * this NAS.
+     *
+     * For backwards compatibility, we assume all Adjustment types are supported by the NAS.
+     */
+    @FlaggedApi(Flags.FLAG_NOTIFICATION_CLASSIFICATION)
+    public final void setAdjustmentTypeSupportedState(@NonNull @Adjustment.Keys String key,
+            boolean supported) {
+        if (!isBound()) return;
+        try {
+            getNotificationInterface().setAdjustmentTypeSupportedState(mWrapper, key, supported);
+        } catch (android.os.RemoteException ex) {
+            Log.v(TAG, "Unable to contact notification manager", ex);
+        }
+    }
+
     private class NotificationAssistantServiceWrapper extends NotificationListenerWrapper {
         @Override
         public void onNotificationEnqueuedWithChannel(IStatusBarNotificationHolder sbnHolder,
@@ -383,7 +423,12 @@ public abstract class NotificationAssistantService extends NotificationListenerS
                         + "Error receiving StatusBarNotification");
                 return;
             }
+            onNotificationEnqueuedWithChannelFull(sbn, channel, update);
+        }
 
+        @Override
+        public void onNotificationEnqueuedWithChannelFull(StatusBarNotification sbn,
+                NotificationChannel channel, NotificationRankingUpdate update) {
             applyUpdateLocked(update);
             SomeArgs args = SomeArgs.obtain();
             args.arg1 = sbn;
@@ -407,7 +452,12 @@ public abstract class NotificationAssistantService extends NotificationListenerS
                 Log.w(TAG, "onNotificationSnoozed: Error receiving StatusBarNotification");
                 return;
             }
+            onNotificationSnoozedUntilContextFull(sbn, snoozeCriterionId);
+        }
 
+        @Override
+        public void onNotificationSnoozedUntilContextFull(
+                StatusBarNotification sbn, String snoozeCriterionId) {
             SomeArgs args = SomeArgs.obtain();
             args.arg1 = sbn;
             args.arg2 = snoozeCriterionId;

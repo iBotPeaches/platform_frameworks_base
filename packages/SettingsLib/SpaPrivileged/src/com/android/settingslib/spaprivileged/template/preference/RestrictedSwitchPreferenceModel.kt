@@ -42,36 +42,32 @@ internal class RestrictedSwitchPreferenceModel(
     context: Context,
     model: SwitchPreferenceModel,
     private val restrictedMode: RestrictedMode?,
+    private val ifBlockedByAdminOverrideCheckedValueTo: Boolean?,
 ) : SwitchPreferenceModel {
     override val title = model.title
 
-    override val summary = getSummary(
-        context = context,
-        restrictedModeSupplier = { restrictedMode },
-        summaryIfNoRestricted = model.summary,
-        checked = model.checked,
-    )
+    override val checked =
+        when (restrictedMode) {
+            null -> ({ null })
+            is NoRestricted -> model.checked
+            is BaseUserRestricted -> ({ false })
+            is BlockedByAdmin -> ({ ifBlockedByAdminOverrideCheckedValueTo ?: model.checked() })
+            is BlockedByEcm -> model.checked
+        }
 
-    override val checked = when (restrictedMode) {
-        null -> ({ null })
-        is NoRestricted -> model.checked
-        is BaseUserRestricted -> ({ false })
-        is BlockedByAdmin -> model.checked
-        is BlockedByEcm -> model.checked
-    }
+    override val summary =
+        getSummary(
+            context = context,
+            restrictedModeSupplier = { restrictedMode },
+            summaryIfNoRestricted = model.summary,
+            checkedIfNoRestricted = checked,
+        )
 
-    override val changeable = if (restrictedMode is NoRestricted) model.changeable else ({ false })
+    override val icon = model.icon
 
-    override val onCheckedChange = when (restrictedMode) {
-        null -> null
-        is NoRestricted -> model.onCheckedChange
-        // Need to passthrough onCheckedChange for toggleable semantics, although since changeable
-        // is false so this will not be called.
-        is BaseUserRestricted -> model.onCheckedChange
-        // Pass null since semantics ToggleableState is provided in RestrictionWrapper.
-        is BlockedByAdmin -> null
-        is BlockedByEcm -> null
-    }
+    override val changeable = restrictedMode.restrictEnabled(model.changeable)
+
+    override val onCheckedChange = restrictedMode.restrictOnClick(model.onCheckedChange)
 
     @Composable
     fun RestrictionWrapper(content: @Composable () -> Unit) {
@@ -79,26 +75,26 @@ internal class RestrictedSwitchPreferenceModel(
             is BlockedByAdmin -> {
                 Box(
                     Modifier
-                            .clickable(
-                                role = Role.Switch,
-                                onClick = { restrictedMode.sendShowAdminSupportDetailsIntent() },
-                            )
-                            .semantics {
-                                this.toggleableState = ToggleableState(checked())
-                            },
+                        .clickable(
+                            role = Role.Switch,
+                            onClick = { restrictedMode.sendShowAdminSupportDetailsIntent() },
+                        )
+                        .semantics {
+                            this.toggleableState = ToggleableState(checked())
+                        },
                 ) { content() }
             }
 
             is BlockedByEcm -> {
                 Box(
                     Modifier
-                            .clickable(
-                                role = Role.Switch,
-                                onClick = { restrictedMode.showRestrictedSettingsDetails() },
-                            )
-                            .semantics {
-                                this.toggleableState = ToggleableState(checked())
-                            },
+                        .clickable(
+                            role = Role.Switch,
+                            onClick = { restrictedMode.showRestrictedSettingsDetails() },
+                        )
+                        .semantics {
+                            this.toggleableState = ToggleableState(checked())
+                        },
                 ) { content() }
             }
 
@@ -116,33 +112,57 @@ internal class RestrictedSwitchPreferenceModel(
 
     companion object {
         @Composable
-        fun RestrictionsProviderFactory.RestrictedSwitchWrapper(
+        fun RestrictedSwitchWrapper(
             model: SwitchPreferenceModel,
-            restrictions: Restrictions,
+            restrictedMode: RestrictedMode?,
+            ifBlockedByAdminOverrideCheckedValueTo: Boolean? = null,
             content: @Composable (SwitchPreferenceModel) -> Unit,
         ) {
             val context = LocalContext.current
-            val restrictedMode = rememberRestrictedMode(restrictions).value
-            val restrictedSwitchPreferenceModel = remember(restrictedMode) {
-                RestrictedSwitchPreferenceModel(context, model, restrictedMode)
-            }
+            val restrictedSwitchPreferenceModel =
+                remember(restrictedMode, model) {
+                    RestrictedSwitchPreferenceModel(
+                        context = context,
+                        model = model,
+                        restrictedMode = restrictedMode,
+                        ifBlockedByAdminOverrideCheckedValueTo =
+                            ifBlockedByAdminOverrideCheckedValueTo,
+                    )
+                }
             restrictedSwitchPreferenceModel.RestrictionWrapper {
                 content(restrictedSwitchPreferenceModel)
             }
         }
 
+        @Composable
+        fun RestrictionsProviderFactory.RestrictedSwitchWrapper(
+            model: SwitchPreferenceModel,
+            restrictions: Restrictions,
+            ifBlockedByAdminOverrideCheckedValueTo: Boolean? = null,
+            content: @Composable (SwitchPreferenceModel) -> Unit,
+        ) {
+            RestrictedSwitchWrapper(
+                model = model,
+                restrictedMode = rememberRestrictedMode(restrictions).value,
+                ifBlockedByAdminOverrideCheckedValueTo = ifBlockedByAdminOverrideCheckedValueTo,
+                content = content,
+            )
+        }
+
         fun getSummary(
             context: Context,
-            restrictedModeSupplier: () -> RestrictedMode?,
             summaryIfNoRestricted: () -> String,
-            checked: () -> Boolean?,
+            checkedIfNoRestricted: () -> Boolean?,
+            checkedIfBlockedByAdmin: Boolean? = null,
+            restrictedModeSupplier: () -> RestrictedMode?,
         ): () -> String = {
             when (val restrictedMode = restrictedModeSupplier()) {
                 is NoRestricted -> summaryIfNoRestricted()
                 is BaseUserRestricted ->
                     context.getString(com.android.settingslib.R.string.disabled)
 
-                is BlockedByAdmin -> restrictedMode.getSummary(checked())
+                is BlockedByAdmin ->
+                    restrictedMode.getSummary(checkedIfBlockedByAdmin ?: checkedIfNoRestricted())
                 is BlockedByEcm ->
                     context.getString(com.android.settingslib.R.string.disabled)
 

@@ -19,10 +19,10 @@ package com.android.systemui.animation
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.graphics.Typeface
-import android.testing.AndroidTestingRunner
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.google.common.truth.Truth.assertThat
@@ -38,9 +38,11 @@ import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 
-@RunWith(AndroidTestingRunner::class)
+@RunWith(AndroidJUnit4::class)
 @SmallTest
 class TextAnimatorTest : SysuiTestCase() {
+
+    private val typeface = Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf")
 
     private fun makeLayout(text: String, paint: TextPaint): Layout {
         val width = ceil(Layout.getDesiredWidth(text, 0, text.length, paint)).toInt()
@@ -56,7 +58,7 @@ class TextAnimatorTest : SysuiTestCase() {
         `when`(textInterpolator.targetPaint).thenReturn(paint)
 
         val textAnimator =
-            TextAnimator(layout, null, {}).apply {
+            TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
                 this.animator = valueAnimator
             }
@@ -86,7 +88,7 @@ class TextAnimatorTest : SysuiTestCase() {
         `when`(textInterpolator.targetPaint).thenReturn(paint)
 
         val textAnimator =
-            TextAnimator(layout, null, {}).apply {
+            TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
                 this.animator = valueAnimator
             }
@@ -114,7 +116,7 @@ class TextAnimatorTest : SysuiTestCase() {
         val animationEndCallback = mock(Runnable::class.java)
 
         val textAnimator =
-            TextAnimator(layout, null, {}).apply {
+            TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
                 this.animator = valueAnimator
             }
@@ -122,7 +124,7 @@ class TextAnimatorTest : SysuiTestCase() {
         textAnimator.setTextStyle(
             weight = 400,
             animate = true,
-            onAnimationEnd = animationEndCallback
+            onAnimationEnd = animationEndCallback,
         )
 
         // Verify animationEnd callback has been added.
@@ -140,14 +142,11 @@ class TextAnimatorTest : SysuiTestCase() {
         val layout = makeLayout("Hello, World", PAINT)
         val valueAnimator = mock(ValueAnimator::class.java)
         val textInterpolator = mock(TextInterpolator::class.java)
-        val paint =
-            TextPaint().apply {
-                typeface = Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf")
-            }
+        val paint = TextPaint().apply { this.typeface = typeface }
         `when`(textInterpolator.targetPaint).thenReturn(paint)
 
         val textAnimator =
-            TextAnimator(layout, null, {}).apply {
+            TextAnimator(layout, TypefaceVariantCacheImpl(typeface, 20)).apply {
                 this.textInterpolator = textInterpolator
                 this.animator = valueAnimator
             }

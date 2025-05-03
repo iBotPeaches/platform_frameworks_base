@@ -92,6 +92,7 @@ public abstract class BaseLockSettingsServiceTests {
 
     MockLockSettingsContext mContext;
     LockSettingsStorageTestable mStorage;
+    LockSettingsStrongAuth mStrongAuth;
 
     Resources mResources;
     FakeGateKeeperService mGateKeeperService;
@@ -135,6 +136,7 @@ public abstract class BaseLockSettingsServiceTests {
         mFingerprintManager = mock(FingerprintManager.class);
         mFaceManager = mock(FaceManager.class);
         mPackageManager = mock(PackageManager.class);
+        mStrongAuth = mock(LockSettingsStrongAuth.class);
 
         LocalServices.removeServiceForTest(LockSettingsInternal.class);
         LocalServices.removeServiceForTest(DevicePolicyManagerInternal.class);
@@ -162,7 +164,7 @@ public abstract class BaseLockSettingsServiceTests {
         mInjector =
                 new LockSettingsServiceTestable.MockInjector(
                         mContext,
-                        mStorage,
+                        mStorage, mStrongAuth,
                         mActivityManager,
                         setUpStorageManagerMock(),
                         mSpManager,
@@ -352,14 +354,20 @@ public abstract class BaseLockSettingsServiceTests {
 
     @After
     public void tearDown_baseServices() throws Exception {
-        mStorage.closeDatabase();
+        if (mStorage != null) {
+            mStorage.closeDatabase();
+        }
         File db = InstrumentationRegistry.getContext().getDatabasePath("locksettings.db");
         assertTrue(!db.exists() || db.delete());
 
-        File storageDir = mStorage.mStorageDir;
-        assertTrue(FileUtils.deleteContents(storageDir));
+        if (mStorage != null) {
+            File storageDir = mStorage.mStorageDir;
+            assertTrue(FileUtils.deleteContents(storageDir));
+        }
 
-        mPasswordSlotManager.cleanup();
+        if (mPasswordSlotManager != null) {
+            mPasswordSlotManager.cleanup();
+        }
     }
 
     protected void flushHandlerTasks() {

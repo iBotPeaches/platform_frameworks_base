@@ -22,15 +22,18 @@ import android.annotation.EnforcePermission;
 import android.app.ActivityOptions.LaunchCookie;
 import android.os.PermissionEnforcer;
 import android.os.RemoteException;
+import android.view.Display;
 
 /**
  * The connection between MediaProjection and system server is represented by IMediaProjection;
  * outside the test it is implemented by the system server.
  */
 public final class FakeIMediaProjection extends IMediaProjection.Stub {
+    int mTaskId = -1;
     boolean mIsStarted = false;
     LaunchCookie mLaunchCookie = null;
     IMediaProjectionCallback mIMediaProjectionCallback = null;
+    int mDisplayId = Display.DEFAULT_DISPLAY;
 
     FakeIMediaProjection(PermissionEnforcer enforcer) {
         super(enforcer);
@@ -43,7 +46,7 @@ public final class FakeIMediaProjection extends IMediaProjection.Stub {
     }
 
     @Override
-    public void stop() throws RemoteException {
+    public void stop(@StopReason int stopReason) throws RemoteException {
         // Pass along to the client's callback wrapper.
         mIMediaProjectionCallback.onStop();
     }
@@ -87,9 +90,27 @@ public final class FakeIMediaProjection extends IMediaProjection.Stub {
 
     @Override
     @EnforcePermission(MANAGE_MEDIA_PROJECTION)
+    public int getTaskId() throws RemoteException {
+        getTaskId_enforcePermission();
+        return mTaskId;
+    }
+
+    public int getDisplayId() {
+        return mDisplayId;
+    }
+
+    @Override
+    @EnforcePermission(MANAGE_MEDIA_PROJECTION)
     public void setLaunchCookie(LaunchCookie launchCookie) throws RemoteException {
         setLaunchCookie_enforcePermission();
         mLaunchCookie = launchCookie;
+    }
+
+    @Override
+    @EnforcePermission(MANAGE_MEDIA_PROJECTION)
+    public void setTaskId(int taskId) throws RemoteException {
+        setTaskId_enforcePermission();
+        mTaskId = taskId;
     }
 
     @Override

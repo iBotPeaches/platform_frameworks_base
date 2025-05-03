@@ -14,9 +14,11 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 //#define LOG_NDEBUG 0
 
+#include <atomic>
 #define LOG_TAG "AudioSystem-JNI"
 #include <android/binder_ibinder_jni.h>
 #include <android/binder_libbinder.h>
@@ -27,22 +29,26 @@
 #include <android_media_audiopolicy.h>
 #include <android_os_Parcel.h>
 #include <audiomanager/AudioManager.h>
+#include <android-base/properties.h>
 #include <binder/IBinder.h>
 #include <jni.h>
 #include <media/AidlConversion.h>
 #include <media/AudioContainers.h>
 #include <media/AudioPolicy.h>
 #include <media/AudioSystem.h>
+#include <mediautils/jthread.h>
 #include <nativehelper/JNIHelp.h>
 #include <nativehelper/ScopedLocalRef.h>
 #include <nativehelper/ScopedPrimitiveArray.h>
 #include <nativehelper/jni_macros.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
+#include <sys/system_properties.h>
 #include <utils/Log.h>
 
 #include <optional>
 #include <sstream>
+#include <memory>
 #include <vector>
 
 #include "android_media_AudioAttributes.h"
@@ -54,6 +60,7 @@
 #include "android_media_AudioMixerAttributes.h"
 #include "android_media_AudioProfile.h"
 #include "android_media_MicrophoneInfo.h"
+#include "android_media_JNIUtils.h"
 #include "android_util_Binder.h"
 #include "core_jni_helpers.h"
 
@@ -103,6 +110,7 @@ static struct {
     // Valid only if an AudioDevicePort
     jfieldID    mType;
     jfieldID    mAddress;
+    jfieldID mSpeakerLayoutChannelMask;
     // other fields unused by JNI
 } gAudioPortFields;
 
@@ -161,6 +169,7 @@ static struct {
     jfieldID mMixType;
     jfieldID mCallbackFlags;
     jfieldID mToken;
+    jfieldID mVirtualDeviceId;
 } gAudioMixFields;
 
 static jclass gAudioFormatClass;
@@ -259,6 +268,13 @@ static struct {
     jfieldID mFormat;
     jfieldID mMixerBehavior;
 } gAudioMixerAttributesField;
+
+static struct {
+    jclass clazz;
+    jmethodID run;
+} gRunnableClassInfo;
+
+static JavaVM* gVm;
 
 static Mutex gLock;
 
@@ -712,6 +728,19 @@ android_media_AudioSystem_getForceUse(JNIEnv *env, jobject thiz, jint usage)
             AudioSystem::getForceUse(static_cast<audio_policy_force_use_t>(usage)));
 }
 
+static jint android_media_AudioSystem_setDeviceAbsoluteVolumeEnabled(JNIEnv *env, jobject thiz,
+                                                                     jint device, jstring address,
+                                                                     jboolean enabled,
+                                                                     jint stream) {
+    const char *c_address = env->GetStringUTFChars(address, nullptr);
+    int state = check_AudioSystem_Command(
+            AudioSystem::setDeviceAbsoluteVolumeEnabled(static_cast<audio_devices_t>(device),
+                                                        c_address, enabled,
+                                                        static_cast<audio_stream_type_t>(stream)));
+    env->ReleaseStringUTFChars(address, c_address);
+    return state;
+}
+
 static jint
 android_media_AudioSystem_initStreamVolume(JNIEnv *env, jobject thiz, jint stream, jint indexMin, jint indexMax)
 {
@@ -720,16 +749,12 @@ android_media_AudioSystem_initStreamVolume(JNIEnv *env, jobject thiz, jint strea
                                           indexMax));
 }
 
-static jint
-android_media_AudioSystem_setStreamVolumeIndex(JNIEnv *env,
-                                               jobject thiz,
-                                               jint stream,
-                                               jint index,
-                                               jint device)
-{
+static jint android_media_AudioSystem_setStreamVolumeIndex(JNIEnv *env, jobject thiz, jint stream,
+                                                           jint index, jboolean muted,
+                                                           jint device) {
     return check_AudioSystem_Command(
             AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(stream), index,
-                                              static_cast<audio_devices_t>(device)));
+                                              muted, static_cast<audio_devices_t>(device)));
 }
 
 static jint
@@ -746,13 +771,9 @@ android_media_AudioSystem_getStreamVolumeIndex(JNIEnv *env,
     return index;
 }
 
-static jint
-android_media_AudioSystem_setVolumeIndexForAttributes(JNIEnv *env,
-                                                      jobject thiz,
-                                                      jobject jaa,
-                                                      jint index,
-                                                      jint device)
-{
+static jint android_media_AudioSystem_setVolumeIndexForAttributes(JNIEnv *env, jobject thiz,
+                                                                  jobject jaa, jint index,
+                                                                  jboolean muted, jint device) {
     // read the AudioAttributes values
     JNIAudioAttributeHelper::UniqueAaPtr paa = JNIAudioAttributeHelper::makeUnique();
     jint jStatus = JNIAudioAttributeHelper::nativeFromJava(env, jaa, paa.get());
@@ -760,7 +781,7 @@ android_media_AudioSystem_setVolumeIndexForAttributes(JNIEnv *env,
         return jStatus;
     }
     return check_AudioSystem_Command(
-            AudioSystem::setVolumeIndexForAttributes(*(paa.get()), index,
+            AudioSystem::setVolumeIndexForAttributes(*(paa.get()), index, muted,
                                                      static_cast<audio_devices_t>(device)));
 }
 
@@ -1065,6 +1086,8 @@ static jint convertAudioPortConfigToNativeWithDevicePort(JNIEnv *env,
     strncpy(nAudioPortConfig->ext.device.address,
             nDeviceAddress, AUDIO_DEVICE_MAX_ADDRESS_LEN - 1);
     env->ReleaseStringUTFChars(jDeviceAddress, nDeviceAddress);
+    nAudioPortConfig->ext.device.speaker_layout_channel_mask = outChannelMaskToNative(
+            env->GetIntField(jAudioDevicePort, gAudioPortFields.mSpeakerLayoutChannelMask));
     env->DeleteLocalRef(jDeviceAddress);
     env->DeleteLocalRef(jAudioDevicePort);
     return jStatus;
@@ -1522,10 +1545,12 @@ static jint convertAudioPortFromNative(JNIEnv *env, ScopedLocalRef<jobject> *jAu
                                                            .encapsulation_metadata_types));
         ALOGV("convertAudioPortFromNative is a device %08x", nAudioPort->ext.device.type);
         ScopedLocalRef<jstring> jAddress(env, env->NewStringUTF(nAudioPort->ext.device.address));
+        int speakerLayoutChannelMask = outChannelMaskFromNative(
+                nAudioPort->active_config.ext.device.speaker_layout_channel_mask);
         jAudioPort->reset(env->NewObject(gAudioDevicePortClass, gAudioDevicePortCstor,
                                          jHandle.get(), jDeviceName.get(), jAudioProfiles.get(),
                                          jGains.get(), nAudioPort->ext.device.type, jAddress.get(),
-                                         jEncapsulationModes.get(),
+                                         speakerLayoutChannelMask, jEncapsulationModes.get(),
                                          jEncapsulationMetadataTypes.get(),
                                          jAudioDescriptors.get()));
     } else if (nAudioPort->type == AUDIO_PORT_TYPE_MIX) {
@@ -2268,7 +2293,7 @@ static jint nativeAudioMixToJavaAudioMixingRule(JNIEnv *env, const AudioMix &nAu
                                  criteria.mValue.mUsage);
                 jMixMatchCriterion = env->NewObject(gAudioMixMatchCriterionClass,
                                                     gAudioMixMatchCriterionAttrCstor,
-                                                    jMixMatchCriterion, criteria.mRule);
+                                                    jAudioAttributes, criteria.mRule);
                 break;
             case RULE_MATCH_ATTRIBUTE_CAPTURE_PRESET:
                 jAudioAttributes = env->NewObject(gAudioAttributesClass, gAudioAttributesCstor);
@@ -2276,7 +2301,7 @@ static jint nativeAudioMixToJavaAudioMixingRule(JNIEnv *env, const AudioMix &nAu
                                  criteria.mValue.mSource);
                 jMixMatchCriterion = env->NewObject(gAudioMixMatchCriterionClass,
                                                     gAudioMixMatchCriterionAttrCstor,
-                                                    jMixMatchCriterion, criteria.mRule);
+                                                    jAudioAttributes, criteria.mRule);
                 break;
         }
         env->CallBooleanMethod(jAudioMixMatchCriterionList, gArrayListMethods.add,
@@ -2312,7 +2337,7 @@ static jint convertAudioMixFromNative(JNIEnv *env, jobject *jAudioMix, const Aud
     jstring deviceAddress = env->NewStringUTF(nAudioMix.mDeviceAddress.c_str());
     *jAudioMix = env->NewObject(gAudioMixClass, gAudioMixCstor, jAudioMixingRule, jAudioFormat,
                                 nAudioMix.mRouteFlags, nAudioMix.mCbFlags, nAudioMix.mDeviceType,
-                                deviceAddress, jBinderToken);
+                                deviceAddress, jBinderToken, nAudioMix.mVirtualDeviceId);
     return AUDIO_JAVA_SUCCESS;
 }
 
@@ -2347,6 +2372,7 @@ static jint convertAudioMixToNative(JNIEnv *env, AudioMix *nAudioMix, const jobj
             aiBinder(AIBinder_fromJavaBinder(env, jToken), &AIBinder_decStrong);
     nAudioMix->mToken = AIBinder_toPlatformBinder(aiBinder.get());
 
+    nAudioMix->mVirtualDeviceId = env->GetIntField(jAudioMix, gAudioMixFields.mVirtualDeviceId);
     jint status = convertAudioMixingRuleToNative(env, jRule, &(nAudioMix->mCriteria));
 
     env->DeleteLocalRef(jRule);
@@ -3347,178 +3373,252 @@ static jboolean android_media_AudioSystem_isBluetoothVariableLatencyEnabled(JNIE
     return enabled;
 }
 
+class JavaSystemPropertyListener {
+  public:
+    JavaSystemPropertyListener(JNIEnv* env, jobject javaCallback, std::string sysPropName) :
+            mCallback {javaCallback, env},
+            mSysPropName(sysPropName),
+            mCachedProperty(android::base::CachedProperty{std::move(sysPropName)}),
+            mListenerThread([this](mediautils::stop_token stok) mutable {
+                while (!stok.stop_requested()) {
+                    using namespace std::chrono_literals;
+                    // 1s timeout so this thread can eventually respond to the stop token
+                    std::string newVal = mCachedProperty.WaitForChange(1000ms) ?: "";
+                    updateValue(newVal);
+                }
+            }) {}
+
+    void triggerUpdateIfChanged() {
+        // We must check the property without using the cached property due to thread safety issues
+        std::string newVal = base::GetProperty(mSysPropName, "");
+        updateValue(newVal);
+    }
+
+  private:
+    void updateValue(std::string newVal) {
+        if (newVal == "") return;
+        std::lock_guard l{mLock};
+        if (mLastVal == newVal) return;
+        const auto threadEnv = GetOrAttachJNIEnvironment(gVm);
+        threadEnv->CallVoidMethod(mCallback.get(), gRunnableClassInfo.run);
+        mLastVal = std::move(newVal);
+    }
+
+    // Should outlive thread object
+    const GlobalRef mCallback;
+    const std::string mSysPropName;
+    android::base::CachedProperty mCachedProperty;
+    std::string mLastVal = "";
+    std::mutex mLock;
+    const mediautils::jthread mListenerThread;
+};
+
+// A logical set keyed by address
+std::vector<std::unique_ptr<JavaSystemPropertyListener>> gSystemPropertyListeners;
+std::mutex gSysPropLock{};
+
+static jlong android_media_AudioSystem_listenForSystemPropertyChange(JNIEnv *env,  jobject thiz,
+        jstring sysProp,
+        jobject javaCallback) {
+    ScopedUtfChars sysPropChars{env, sysProp};
+    auto listener = std::make_unique<JavaSystemPropertyListener>(env, javaCallback,
+            std::string{sysPropChars.c_str()});
+    std::unique_lock _l{gSysPropLock};
+    gSystemPropertyListeners.push_back(std::move(listener));
+    return reinterpret_cast<jlong>(gSystemPropertyListeners.back().get());
+}
+
+static void android_media_AudioSystem_triggerSystemPropertyUpdate(JNIEnv *env,  jobject thiz,
+        jlong nativeHandle) {
+    std::unique_lock _l{gSysPropLock};
+    const auto iter = std::find_if(gSystemPropertyListeners.begin(), gSystemPropertyListeners.end(),
+            [nativeHandle](const auto& x) { return reinterpret_cast<jlong>(x.get()) == nativeHandle; });
+    if (iter != gSystemPropertyListeners.end()) {
+        (*iter)->triggerUpdateIfChanged();
+    } else {
+        jniThrowException(env, "java/lang/IllegalArgumentException", "Invalid handle");
+    }
+}
+
+
 // ----------------------------------------------------------------------------
 
 #define MAKE_AUDIO_SYSTEM_METHOD(x) \
     MAKE_JNI_NATIVE_METHOD_AUTOSIG(#x, android_media_AudioSystem_##x)
 
-static const JNINativeMethod gMethods[] =
-        {MAKE_AUDIO_SYSTEM_METHOD(setParameters),
-         MAKE_AUDIO_SYSTEM_METHOD(getParameters),
-         MAKE_AUDIO_SYSTEM_METHOD(muteMicrophone),
-         MAKE_AUDIO_SYSTEM_METHOD(isMicrophoneMuted),
-         MAKE_AUDIO_SYSTEM_METHOD(isStreamActive),
-         MAKE_AUDIO_SYSTEM_METHOD(isStreamActiveRemotely),
-         MAKE_AUDIO_SYSTEM_METHOD(isSourceActive),
-         MAKE_AUDIO_SYSTEM_METHOD(newAudioSessionId),
-         MAKE_AUDIO_SYSTEM_METHOD(newAudioPlayerId),
-         MAKE_AUDIO_SYSTEM_METHOD(newAudioRecorderId),
-         MAKE_JNI_NATIVE_METHOD("setDeviceConnectionState", "(ILandroid/os/Parcel;I)I",
-                                android_media_AudioSystem_setDeviceConnectionState),
-         MAKE_AUDIO_SYSTEM_METHOD(getDeviceConnectionState),
-         MAKE_AUDIO_SYSTEM_METHOD(handleDeviceConfigChange),
-         MAKE_AUDIO_SYSTEM_METHOD(setPhoneState),
-         MAKE_AUDIO_SYSTEM_METHOD(setForceUse),
-         MAKE_AUDIO_SYSTEM_METHOD(getForceUse),
-         MAKE_AUDIO_SYSTEM_METHOD(initStreamVolume),
-         MAKE_AUDIO_SYSTEM_METHOD(setStreamVolumeIndex),
-         MAKE_AUDIO_SYSTEM_METHOD(getStreamVolumeIndex),
-         MAKE_JNI_NATIVE_METHOD("setVolumeIndexForAttributes",
-                                "(Landroid/media/AudioAttributes;II)I",
-                                android_media_AudioSystem_setVolumeIndexForAttributes),
-         MAKE_JNI_NATIVE_METHOD("getVolumeIndexForAttributes",
-                                "(Landroid/media/AudioAttributes;I)I",
-                                android_media_AudioSystem_getVolumeIndexForAttributes),
-         MAKE_JNI_NATIVE_METHOD("getMinVolumeIndexForAttributes",
-                                "(Landroid/media/AudioAttributes;)I",
-                                android_media_AudioSystem_getMinVolumeIndexForAttributes),
-         MAKE_JNI_NATIVE_METHOD("getMaxVolumeIndexForAttributes",
-                                "(Landroid/media/AudioAttributes;)I",
-                                android_media_AudioSystem_getMaxVolumeIndexForAttributes),
-         MAKE_AUDIO_SYSTEM_METHOD(setMasterVolume),
-         MAKE_AUDIO_SYSTEM_METHOD(getMasterVolume),
-         MAKE_AUDIO_SYSTEM_METHOD(setMasterMute),
-         MAKE_AUDIO_SYSTEM_METHOD(getMasterMute),
-         MAKE_AUDIO_SYSTEM_METHOD(setMasterMono),
-         MAKE_AUDIO_SYSTEM_METHOD(getMasterMono),
-         MAKE_AUDIO_SYSTEM_METHOD(setMasterBalance),
-         MAKE_AUDIO_SYSTEM_METHOD(getMasterBalance),
-         MAKE_AUDIO_SYSTEM_METHOD(getPrimaryOutputSamplingRate),
-         MAKE_AUDIO_SYSTEM_METHOD(getPrimaryOutputFrameCount),
-         MAKE_AUDIO_SYSTEM_METHOD(getOutputLatency),
-         MAKE_AUDIO_SYSTEM_METHOD(setLowRamDevice),
-         MAKE_AUDIO_SYSTEM_METHOD(checkAudioFlinger),
-         MAKE_JNI_NATIVE_METHOD("setAudioFlingerBinder", "(Landroid/os/IBinder;)V",
-                                android_media_AudioSystem_setAudioFlingerBinder),
-         MAKE_JNI_NATIVE_METHOD("listAudioPorts", "(Ljava/util/ArrayList;[I)I",
-                                android_media_AudioSystem_listAudioPorts),
-         MAKE_JNI_NATIVE_METHOD("getSupportedDeviceTypes", "(ILandroid/util/IntArray;)I",
-                                android_media_AudioSystem_getSupportedDeviceTypes),
-         MAKE_JNI_NATIVE_METHOD("createAudioPatch",
-                                "([Landroid/media/AudioPatch;[Landroid/media/"
-                                "AudioPortConfig;[Landroid/media/AudioPortConfig;)I",
-                                android_media_AudioSystem_createAudioPatch),
-         MAKE_JNI_NATIVE_METHOD("releaseAudioPatch", "(Landroid/media/AudioPatch;)I",
-                                android_media_AudioSystem_releaseAudioPatch),
-         MAKE_JNI_NATIVE_METHOD("listAudioPatches", "(Ljava/util/ArrayList;[I)I",
-                                android_media_AudioSystem_listAudioPatches),
-         MAKE_JNI_NATIVE_METHOD("setAudioPortConfig", "(Landroid/media/AudioPortConfig;)I",
-                                android_media_AudioSystem_setAudioPortConfig),
-         MAKE_JNI_NATIVE_METHOD("startAudioSource",
-                                "(Landroid/media/AudioPortConfig;Landroid/media/AudioAttributes;)I",
-                                android_media_AudioSystem_startAudioSource),
-         MAKE_AUDIO_SYSTEM_METHOD(stopAudioSource),
-         MAKE_AUDIO_SYSTEM_METHOD(getAudioHwSyncForSession),
-         MAKE_JNI_NATIVE_METHOD("registerPolicyMixes", "(Ljava/util/ArrayList;Z)I",
-                                android_media_AudioSystem_registerPolicyMixes),
-         MAKE_JNI_NATIVE_METHOD("getRegisteredPolicyMixes", "(Ljava/util/List;)I",
-                                android_media_AudioSystem_getRegisteredPolicyMixes),
-         MAKE_JNI_NATIVE_METHOD("updatePolicyMixes",
-                                "([Landroid/media/audiopolicy/AudioMix;[Landroid/media/audiopolicy/"
-                                "AudioMixingRule;)I",
-                                android_media_AudioSystem_updatePolicyMixes),
-         MAKE_JNI_NATIVE_METHOD("setUidDeviceAffinities", "(I[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_setUidDeviceAffinities),
-         MAKE_AUDIO_SYSTEM_METHOD(removeUidDeviceAffinities),
-         MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_dynamic_policy_callback",
-                                        android_media_AudioSystem_registerDynPolicyCallback),
-         MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_recording_callback",
-                                        android_media_AudioSystem_registerRecordingCallback),
-         MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_routing_callback",
-                                        android_media_AudioSystem_registerRoutingCallback),
-         MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_vol_range_init_req_callback",
-                                        android_media_AudioSystem_registerVolRangeInitReqCallback),
-         MAKE_AUDIO_SYSTEM_METHOD(systemReady),
-         MAKE_AUDIO_SYSTEM_METHOD(getStreamVolumeDB),
-         MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_get_offload_support",
-                                        android_media_AudioSystem_getOffloadSupport),
-         MAKE_JNI_NATIVE_METHOD("getMicrophones", "(Ljava/util/ArrayList;)I",
-                                android_media_AudioSystem_getMicrophones),
-         MAKE_JNI_NATIVE_METHOD("getSurroundFormats", "(Ljava/util/Map;)I",
-                                android_media_AudioSystem_getSurroundFormats),
-         MAKE_JNI_NATIVE_METHOD("getReportedSurroundFormats", "(Ljava/util/ArrayList;)I",
-                                android_media_AudioSystem_getReportedSurroundFormats),
-         MAKE_AUDIO_SYSTEM_METHOD(setSurroundFormatEnabled),
-         MAKE_AUDIO_SYSTEM_METHOD(setAssistantServicesUids),
-         MAKE_AUDIO_SYSTEM_METHOD(setActiveAssistantServicesUids),
-         MAKE_AUDIO_SYSTEM_METHOD(setA11yServicesUids),
-         MAKE_AUDIO_SYSTEM_METHOD(isHapticPlaybackSupported),
-         MAKE_AUDIO_SYSTEM_METHOD(isUltrasoundSupported),
-         MAKE_JNI_NATIVE_METHOD(
-                 "getHwOffloadFormatsSupportedForBluetoothMedia", "(ILjava/util/ArrayList;)I",
-                 android_media_AudioSystem_getHwOffloadFormatsSupportedForBluetoothMedia),
-         MAKE_AUDIO_SYSTEM_METHOD(setSupportedSystemUsages),
-         MAKE_AUDIO_SYSTEM_METHOD(setAllowedCapturePolicy),
-         MAKE_AUDIO_SYSTEM_METHOD(setRttEnabled),
-         MAKE_AUDIO_SYSTEM_METHOD(setAudioHalPids),
-         MAKE_AUDIO_SYSTEM_METHOD(isCallScreeningModeSupported),
-         MAKE_JNI_NATIVE_METHOD("setDevicesRoleForStrategy", "(II[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_setDevicesRoleForStrategy),
-         MAKE_JNI_NATIVE_METHOD("removeDevicesRoleForStrategy", "(II[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_removeDevicesRoleForStrategy),
-         MAKE_AUDIO_SYSTEM_METHOD(clearDevicesRoleForStrategy),
-         MAKE_JNI_NATIVE_METHOD("getDevicesForRoleAndStrategy", "(IILjava/util/List;)I",
-                                android_media_AudioSystem_getDevicesForRoleAndStrategy),
-         MAKE_JNI_NATIVE_METHOD("setDevicesRoleForCapturePreset", "(II[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_setDevicesRoleForCapturePreset),
-         MAKE_JNI_NATIVE_METHOD("addDevicesRoleForCapturePreset", "(II[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_addDevicesRoleForCapturePreset),
-         MAKE_JNI_NATIVE_METHOD("removeDevicesRoleForCapturePreset", "(II[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_removeDevicesRoleForCapturePreset),
-         MAKE_AUDIO_SYSTEM_METHOD(clearDevicesRoleForCapturePreset),
-         MAKE_JNI_NATIVE_METHOD("getDevicesForRoleAndCapturePreset", "(IILjava/util/List;)I",
-                                android_media_AudioSystem_getDevicesForRoleAndCapturePreset),
-         MAKE_JNI_NATIVE_METHOD("getDevicesForAttributes",
-                                "(Landroid/media/AudioAttributes;[Landroid/media/"
-                                "AudioDeviceAttributes;Z)I",
-                                android_media_AudioSystem_getDevicesForAttributes),
-         MAKE_JNI_NATIVE_METHOD("setUserIdDeviceAffinities", "(I[I[Ljava/lang/String;)I",
-                                android_media_AudioSystem_setUserIdDeviceAffinities),
-         MAKE_AUDIO_SYSTEM_METHOD(removeUserIdDeviceAffinities),
-         MAKE_AUDIO_SYSTEM_METHOD(setCurrentImeUid),
-         MAKE_JNI_NATIVE_METHOD("setVibratorInfos", "(Ljava/util/List;)I",
-                                android_media_AudioSystem_setVibratorInfos),
-         MAKE_JNI_NATIVE_METHOD("nativeGetSpatializer",
-                                "(Landroid/media/INativeSpatializerCallback;)Landroid/os/IBinder;",
-                                android_media_AudioSystem_getSpatializer),
-         MAKE_JNI_NATIVE_METHOD("canBeSpatialized",
-                                "(Landroid/media/AudioAttributes;Landroid/media/AudioFormat;"
-                                "[Landroid/media/AudioDeviceAttributes;)Z",
-                                android_media_AudioSystem_canBeSpatialized),
-         MAKE_JNI_NATIVE_METHOD("nativeGetSoundDose",
-                                "(Landroid/media/ISoundDoseCallback;)Landroid/os/IBinder;",
-                                android_media_AudioSystem_nativeGetSoundDose),
-         MAKE_JNI_NATIVE_METHOD("getDirectPlaybackSupport",
-                                "(Landroid/media/AudioFormat;Landroid/media/AudioAttributes;)I",
-                                android_media_AudioSystem_getDirectPlaybackSupport),
-         MAKE_JNI_NATIVE_METHOD("getDirectProfilesForAttributes",
-                                "(Landroid/media/AudioAttributes;Ljava/util/ArrayList;)I",
-                                android_media_AudioSystem_getDirectProfilesForAttributes),
-         MAKE_JNI_NATIVE_METHOD("getSupportedMixerAttributes", "(ILjava/util/List;)I",
-                                android_media_AudioSystem_getSupportedMixerAttributes),
-         MAKE_JNI_NATIVE_METHOD("setPreferredMixerAttributes",
-                                "(Landroid/media/AudioAttributes;IILandroid/media/"
-                                "AudioMixerAttributes;)I",
-                                android_media_AudioSystem_setPreferredMixerAttributes),
-         MAKE_JNI_NATIVE_METHOD("getPreferredMixerAttributes",
-                                "(Landroid/media/AudioAttributes;ILjava/util/List;)I",
-                                android_media_AudioSystem_getPreferredMixerAttributes),
-         MAKE_JNI_NATIVE_METHOD("clearPreferredMixerAttributes",
-                                "(Landroid/media/AudioAttributes;II)I",
-                                android_media_AudioSystem_clearPreferredMixerAttributes),
-         MAKE_AUDIO_SYSTEM_METHOD(supportsBluetoothVariableLatency),
-         MAKE_AUDIO_SYSTEM_METHOD(setBluetoothVariableLatencyEnabled),
-         MAKE_AUDIO_SYSTEM_METHOD(isBluetoothVariableLatencyEnabled)};
+static const JNINativeMethod gMethods[] = {
+        MAKE_AUDIO_SYSTEM_METHOD(setParameters),
+        MAKE_AUDIO_SYSTEM_METHOD(getParameters),
+        MAKE_AUDIO_SYSTEM_METHOD(muteMicrophone),
+        MAKE_AUDIO_SYSTEM_METHOD(isMicrophoneMuted),
+        MAKE_AUDIO_SYSTEM_METHOD(isStreamActive),
+        MAKE_AUDIO_SYSTEM_METHOD(isStreamActiveRemotely),
+        MAKE_AUDIO_SYSTEM_METHOD(isSourceActive),
+        MAKE_AUDIO_SYSTEM_METHOD(newAudioSessionId),
+        MAKE_AUDIO_SYSTEM_METHOD(newAudioPlayerId),
+        MAKE_AUDIO_SYSTEM_METHOD(newAudioRecorderId),
+        MAKE_JNI_NATIVE_METHOD("setDeviceConnectionState", "(ILandroid/os/Parcel;I)I",
+                               android_media_AudioSystem_setDeviceConnectionState),
+        MAKE_AUDIO_SYSTEM_METHOD(getDeviceConnectionState),
+        MAKE_AUDIO_SYSTEM_METHOD(handleDeviceConfigChange),
+        MAKE_AUDIO_SYSTEM_METHOD(setPhoneState),
+        MAKE_AUDIO_SYSTEM_METHOD(setForceUse),
+        MAKE_AUDIO_SYSTEM_METHOD(getForceUse),
+        MAKE_AUDIO_SYSTEM_METHOD(setDeviceAbsoluteVolumeEnabled),
+        MAKE_AUDIO_SYSTEM_METHOD(initStreamVolume),
+        MAKE_AUDIO_SYSTEM_METHOD(setStreamVolumeIndex),
+        MAKE_AUDIO_SYSTEM_METHOD(getStreamVolumeIndex),
+        MAKE_JNI_NATIVE_METHOD("setVolumeIndexForAttributes",
+                               "(Landroid/media/AudioAttributes;IZI)I",
+                               android_media_AudioSystem_setVolumeIndexForAttributes),
+        MAKE_JNI_NATIVE_METHOD("getVolumeIndexForAttributes", "(Landroid/media/AudioAttributes;I)I",
+                               android_media_AudioSystem_getVolumeIndexForAttributes),
+        MAKE_JNI_NATIVE_METHOD("getMinVolumeIndexForAttributes",
+                               "(Landroid/media/AudioAttributes;)I",
+                               android_media_AudioSystem_getMinVolumeIndexForAttributes),
+        MAKE_JNI_NATIVE_METHOD("getMaxVolumeIndexForAttributes",
+                               "(Landroid/media/AudioAttributes;)I",
+                               android_media_AudioSystem_getMaxVolumeIndexForAttributes),
+        MAKE_AUDIO_SYSTEM_METHOD(setMasterVolume),
+        MAKE_AUDIO_SYSTEM_METHOD(getMasterVolume),
+        MAKE_AUDIO_SYSTEM_METHOD(setMasterMute),
+        MAKE_AUDIO_SYSTEM_METHOD(getMasterMute),
+        MAKE_AUDIO_SYSTEM_METHOD(setMasterMono),
+        MAKE_AUDIO_SYSTEM_METHOD(getMasterMono),
+        MAKE_AUDIO_SYSTEM_METHOD(setMasterBalance),
+        MAKE_AUDIO_SYSTEM_METHOD(getMasterBalance),
+        MAKE_AUDIO_SYSTEM_METHOD(getPrimaryOutputSamplingRate),
+        MAKE_AUDIO_SYSTEM_METHOD(getPrimaryOutputFrameCount),
+        MAKE_AUDIO_SYSTEM_METHOD(getOutputLatency),
+        MAKE_AUDIO_SYSTEM_METHOD(setLowRamDevice),
+        MAKE_AUDIO_SYSTEM_METHOD(checkAudioFlinger),
+        MAKE_JNI_NATIVE_METHOD("setAudioFlingerBinder", "(Landroid/os/IBinder;)V",
+                               android_media_AudioSystem_setAudioFlingerBinder),
+        MAKE_JNI_NATIVE_METHOD("listAudioPorts", "(Ljava/util/ArrayList;[I)I",
+                               android_media_AudioSystem_listAudioPorts),
+        MAKE_JNI_NATIVE_METHOD("getSupportedDeviceTypes", "(ILandroid/util/IntArray;)I",
+                               android_media_AudioSystem_getSupportedDeviceTypes),
+        MAKE_JNI_NATIVE_METHOD("createAudioPatch",
+                               "([Landroid/media/AudioPatch;[Landroid/media/"
+                               "AudioPortConfig;[Landroid/media/AudioPortConfig;)I",
+                               android_media_AudioSystem_createAudioPatch),
+        MAKE_JNI_NATIVE_METHOD("releaseAudioPatch", "(Landroid/media/AudioPatch;)I",
+                               android_media_AudioSystem_releaseAudioPatch),
+        MAKE_JNI_NATIVE_METHOD("listAudioPatches", "(Ljava/util/ArrayList;[I)I",
+                               android_media_AudioSystem_listAudioPatches),
+        MAKE_JNI_NATIVE_METHOD("setAudioPortConfig", "(Landroid/media/AudioPortConfig;)I",
+                               android_media_AudioSystem_setAudioPortConfig),
+        MAKE_JNI_NATIVE_METHOD("startAudioSource",
+                               "(Landroid/media/AudioPortConfig;Landroid/media/AudioAttributes;)I",
+                               android_media_AudioSystem_startAudioSource),
+        MAKE_AUDIO_SYSTEM_METHOD(stopAudioSource),
+        MAKE_AUDIO_SYSTEM_METHOD(getAudioHwSyncForSession),
+        MAKE_JNI_NATIVE_METHOD("registerPolicyMixes", "(Ljava/util/ArrayList;Z)I",
+                               android_media_AudioSystem_registerPolicyMixes),
+        MAKE_JNI_NATIVE_METHOD("getRegisteredPolicyMixes", "(Ljava/util/List;)I",
+                               android_media_AudioSystem_getRegisteredPolicyMixes),
+        MAKE_JNI_NATIVE_METHOD("updatePolicyMixes",
+                               "([Landroid/media/audiopolicy/AudioMix;[Landroid/media/audiopolicy/"
+                               "AudioMixingRule;)I",
+                               android_media_AudioSystem_updatePolicyMixes),
+        MAKE_JNI_NATIVE_METHOD("setUidDeviceAffinities", "(I[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_setUidDeviceAffinities),
+        MAKE_AUDIO_SYSTEM_METHOD(removeUidDeviceAffinities),
+        MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_dynamic_policy_callback",
+                                       android_media_AudioSystem_registerDynPolicyCallback),
+        MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_recording_callback",
+                                       android_media_AudioSystem_registerRecordingCallback),
+        MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_routing_callback",
+                                       android_media_AudioSystem_registerRoutingCallback),
+        MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_register_vol_range_init_req_callback",
+                                       android_media_AudioSystem_registerVolRangeInitReqCallback),
+        MAKE_AUDIO_SYSTEM_METHOD(systemReady),
+        MAKE_AUDIO_SYSTEM_METHOD(getStreamVolumeDB),
+        MAKE_JNI_NATIVE_METHOD_AUTOSIG("native_get_offload_support",
+                                       android_media_AudioSystem_getOffloadSupport),
+        MAKE_JNI_NATIVE_METHOD("getMicrophones", "(Ljava/util/ArrayList;)I",
+                               android_media_AudioSystem_getMicrophones),
+        MAKE_JNI_NATIVE_METHOD("getSurroundFormats", "(Ljava/util/Map;)I",
+                               android_media_AudioSystem_getSurroundFormats),
+        MAKE_JNI_NATIVE_METHOD("getReportedSurroundFormats", "(Ljava/util/ArrayList;)I",
+                               android_media_AudioSystem_getReportedSurroundFormats),
+        MAKE_AUDIO_SYSTEM_METHOD(setSurroundFormatEnabled),
+        MAKE_AUDIO_SYSTEM_METHOD(setAssistantServicesUids),
+        MAKE_AUDIO_SYSTEM_METHOD(setActiveAssistantServicesUids),
+        MAKE_AUDIO_SYSTEM_METHOD(setA11yServicesUids),
+        MAKE_AUDIO_SYSTEM_METHOD(isHapticPlaybackSupported),
+        MAKE_AUDIO_SYSTEM_METHOD(isUltrasoundSupported),
+        MAKE_JNI_NATIVE_METHOD(
+                "getHwOffloadFormatsSupportedForBluetoothMedia", "(ILjava/util/ArrayList;)I",
+                android_media_AudioSystem_getHwOffloadFormatsSupportedForBluetoothMedia),
+        MAKE_AUDIO_SYSTEM_METHOD(setSupportedSystemUsages),
+        MAKE_AUDIO_SYSTEM_METHOD(setAllowedCapturePolicy),
+        MAKE_AUDIO_SYSTEM_METHOD(setRttEnabled),
+        MAKE_AUDIO_SYSTEM_METHOD(setAudioHalPids),
+        MAKE_AUDIO_SYSTEM_METHOD(isCallScreeningModeSupported),
+        MAKE_JNI_NATIVE_METHOD("setDevicesRoleForStrategy", "(II[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_setDevicesRoleForStrategy),
+        MAKE_JNI_NATIVE_METHOD("removeDevicesRoleForStrategy", "(II[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_removeDevicesRoleForStrategy),
+        MAKE_AUDIO_SYSTEM_METHOD(clearDevicesRoleForStrategy),
+        MAKE_JNI_NATIVE_METHOD("getDevicesForRoleAndStrategy", "(IILjava/util/List;)I",
+                               android_media_AudioSystem_getDevicesForRoleAndStrategy),
+        MAKE_JNI_NATIVE_METHOD("setDevicesRoleForCapturePreset", "(II[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_setDevicesRoleForCapturePreset),
+        MAKE_JNI_NATIVE_METHOD("addDevicesRoleForCapturePreset", "(II[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_addDevicesRoleForCapturePreset),
+        MAKE_JNI_NATIVE_METHOD("removeDevicesRoleForCapturePreset", "(II[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_removeDevicesRoleForCapturePreset),
+        MAKE_AUDIO_SYSTEM_METHOD(clearDevicesRoleForCapturePreset),
+        MAKE_JNI_NATIVE_METHOD("getDevicesForRoleAndCapturePreset", "(IILjava/util/List;)I",
+                               android_media_AudioSystem_getDevicesForRoleAndCapturePreset),
+        MAKE_JNI_NATIVE_METHOD("getDevicesForAttributes",
+                               "(Landroid/media/AudioAttributes;[Landroid/media/"
+                               "AudioDeviceAttributes;Z)I",
+                               android_media_AudioSystem_getDevicesForAttributes),
+        MAKE_JNI_NATIVE_METHOD("setUserIdDeviceAffinities", "(I[I[Ljava/lang/String;)I",
+                               android_media_AudioSystem_setUserIdDeviceAffinities),
+        MAKE_AUDIO_SYSTEM_METHOD(removeUserIdDeviceAffinities),
+        MAKE_AUDIO_SYSTEM_METHOD(setCurrentImeUid),
+        MAKE_JNI_NATIVE_METHOD("setVibratorInfos", "(Ljava/util/List;)I",
+                               android_media_AudioSystem_setVibratorInfos),
+        MAKE_JNI_NATIVE_METHOD("nativeGetSpatializer",
+                               "(Landroid/media/INativeSpatializerCallback;)Landroid/os/IBinder;",
+                               android_media_AudioSystem_getSpatializer),
+        MAKE_JNI_NATIVE_METHOD("canBeSpatialized",
+                               "(Landroid/media/AudioAttributes;Landroid/media/AudioFormat;"
+                               "[Landroid/media/AudioDeviceAttributes;)Z",
+                               android_media_AudioSystem_canBeSpatialized),
+        MAKE_JNI_NATIVE_METHOD("nativeGetSoundDose",
+                               "(Landroid/media/ISoundDoseCallback;)Landroid/os/IBinder;",
+                               android_media_AudioSystem_nativeGetSoundDose),
+        MAKE_JNI_NATIVE_METHOD("getDirectPlaybackSupport",
+                               "(Landroid/media/AudioFormat;Landroid/media/AudioAttributes;)I",
+                               android_media_AudioSystem_getDirectPlaybackSupport),
+        MAKE_JNI_NATIVE_METHOD("getDirectProfilesForAttributes",
+                               "(Landroid/media/AudioAttributes;Ljava/util/ArrayList;)I",
+                               android_media_AudioSystem_getDirectProfilesForAttributes),
+        MAKE_JNI_NATIVE_METHOD("getSupportedMixerAttributes", "(ILjava/util/List;)I",
+                               android_media_AudioSystem_getSupportedMixerAttributes),
+        MAKE_JNI_NATIVE_METHOD("setPreferredMixerAttributes",
+                               "(Landroid/media/AudioAttributes;IILandroid/media/"
+                               "AudioMixerAttributes;)I",
+                               android_media_AudioSystem_setPreferredMixerAttributes),
+        MAKE_JNI_NATIVE_METHOD("getPreferredMixerAttributes",
+                               "(Landroid/media/AudioAttributes;ILjava/util/List;)I",
+                               android_media_AudioSystem_getPreferredMixerAttributes),
+        MAKE_JNI_NATIVE_METHOD("clearPreferredMixerAttributes",
+                               "(Landroid/media/AudioAttributes;II)I",
+                               android_media_AudioSystem_clearPreferredMixerAttributes),
+        MAKE_AUDIO_SYSTEM_METHOD(supportsBluetoothVariableLatency),
+        MAKE_AUDIO_SYSTEM_METHOD(setBluetoothVariableLatencyEnabled),
+        MAKE_AUDIO_SYSTEM_METHOD(isBluetoothVariableLatencyEnabled),
+        MAKE_JNI_NATIVE_METHOD("listenForSystemPropertyChange",
+                               "(Ljava/lang/String;Ljava/lang/Runnable;)J",
+                               android_media_AudioSystem_listenForSystemPropertyChange),
+        MAKE_JNI_NATIVE_METHOD("triggerSystemPropertyUpdate", "(J)V",
+                               android_media_AudioSystem_triggerSystemPropertyUpdate),
+};
 
 static const JNINativeMethod gEventHandlerMethods[] =
         {MAKE_JNI_NATIVE_METHOD("native_setup", "(Ljava/lang/Object;)V",
@@ -3611,14 +3711,15 @@ int register_android_media_AudioSystem(JNIEnv *env)
     gAudioDevicePortCstor =
             GetMethodIDOrDie(env, audioDevicePortClass, "<init>",
                              "(Landroid/media/AudioHandle;Ljava/lang/String;Ljava/util/List;"
-                             "[Landroid/media/AudioGain;ILjava/lang/String;[I[I"
+                             "[Landroid/media/AudioGain;ILjava/lang/String;I[I[I"
                              "Ljava/util/List;)V");
 
     // When access AudioPort as AudioDevicePort
     gAudioPortFields.mType = GetFieldIDOrDie(env, audioDevicePortClass, "mType", "I");
     gAudioPortFields.mAddress = GetFieldIDOrDie(env, audioDevicePortClass, "mAddress",
             "Ljava/lang/String;");
-
+    gAudioPortFields.mSpeakerLayoutChannelMask =
+            GetFieldIDOrDie(env, audioDevicePortClass, "mSpeakerLayoutChannelMask", "I");
     jclass audioMixPortClass = FindClassOrDie(env, "android/media/AudioMixPort");
     gAudioMixPortClass = MakeGlobalRefOrDie(env, audioMixPortClass);
     gAudioMixPortCstor =
@@ -3675,7 +3776,7 @@ int register_android_media_AudioSystem(JNIEnv *env)
         gAudioMixCstor =
                 GetMethodIDOrDie(env, audioMixClass, "<init>",
                                  "(Landroid/media/audiopolicy/AudioMixingRule;Landroid/"
-                                 "media/AudioFormat;IIILjava/lang/String;Landroid/os/IBinder;)V");
+                                 "media/AudioFormat;IIILjava/lang/String;Landroid/os/IBinder;I)V");
     }
     gAudioMixFields.mRule = GetFieldIDOrDie(env, audioMixClass, "mRule",
                                                 "Landroid/media/audiopolicy/AudioMixingRule;");
@@ -3688,6 +3789,7 @@ int register_android_media_AudioSystem(JNIEnv *env)
     gAudioMixFields.mMixType = GetFieldIDOrDie(env, audioMixClass, "mMixType", "I");
     gAudioMixFields.mCallbackFlags = GetFieldIDOrDie(env, audioMixClass, "mCallbackFlags", "I");
     gAudioMixFields.mToken = GetFieldIDOrDie(env, audioMixClass, "mToken", "Landroid/os/IBinder;");
+    gAudioMixFields.mVirtualDeviceId = GetFieldIDOrDie(env, audioMixClass, "mVirtualDeviceId", "I");
 
     jclass audioFormatClass = FindClassOrDie(env, "android/media/AudioFormat");
     gAudioFormatClass = MakeGlobalRefOrDie(env, audioFormatClass);
@@ -3798,6 +3900,12 @@ int register_android_media_AudioSystem(JNIEnv *env)
                                                          "Landroid/media/AudioFormat;");
     gAudioMixerAttributesField.mMixerBehavior =
             GetFieldIDOrDie(env, audioMixerAttributesClass, "mMixerBehavior", "I");
+
+    jclass runnableClazz = FindClassOrDie(env, "java/lang/Runnable");
+    gRunnableClassInfo.clazz = MakeGlobalRefOrDie(env, runnableClazz);
+    gRunnableClassInfo.run = GetMethodIDOrDie(env, runnableClazz, "run", "()V");
+
+    LOG_ALWAYS_FATAL_IF(env->GetJavaVM(&gVm) != 0);
 
     AudioSystem::addErrorCallback(android_media_AudioSystem_error_callback);
 

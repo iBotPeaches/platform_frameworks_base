@@ -20,7 +20,9 @@ import android.credentials.flags.Flags
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,14 +33,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.android.compose.rememberSystemUiController
-import com.android.compose.theme.LocalAndroidColorScheme
 import androidx.compose.ui.unit.dp
 import com.android.credentialmanager.common.material.ModalBottomSheetLayout
 import com.android.credentialmanager.common.material.ModalBottomSheetValue
 import com.android.credentialmanager.common.material.rememberModalBottomSheetState
 import com.android.credentialmanager.ui.theme.EntryShape
 import kotlinx.coroutines.launch
-
 
 /** Draws a modal bottom sheet with the same styles and effects shared by various flows. */
 @Composable
@@ -56,7 +56,7 @@ fun ModalBottomSheet(
         )
         androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = onDismiss,
-                containerColor = LocalAndroidColorScheme.current.surfaceBright,
+                containerColor = MaterialTheme.colorScheme.surfaceBright,
                 sheetState = state,
                 content = {
                     Box(
@@ -70,10 +70,11 @@ fun ModalBottomSheet(
                 },
                 scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = .32f),
                 shape = EntryShape.TopRoundedCorner,
+                contentWindowInsets = { WindowInsets.navigationBars },
                 dragHandle = null,
                 // Never take over the full screen. We always want to leave some top scrim space
                 // for exiting and viewing the underlying app to help a user gain context.
-                modifier = Modifier.padding(top = 56.dp),
+                modifier = Modifier.padding(top = 72.dp),
         )
     } else {
         val scope = rememberCoroutineScope()
@@ -89,7 +90,7 @@ fun ModalBottomSheet(
             setBottomSheetSystemBarsColor(sysUiController)
         }
         ModalBottomSheetLayout(
-                sheetBackgroundColor = LocalAndroidColorScheme.current.surfaceBright,
+                sheetBackgroundColor = MaterialTheme.colorScheme.surfaceBright,
                 modifier = Modifier.background(Color.Transparent),
                 sheetState = state,
                 sheetContent = { sheetContent() },

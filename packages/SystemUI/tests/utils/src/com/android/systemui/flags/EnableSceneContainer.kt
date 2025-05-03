@@ -17,10 +17,11 @@
 package com.android.systemui.flags
 
 import android.platform.test.annotations.EnableFlags
-import com.android.systemui.Flags.FLAG_COMPOSE_LOCKSCREEN
 import com.android.systemui.Flags.FLAG_KEYGUARD_BOTTOM_AREA_REFACTOR
-import com.android.systemui.Flags.FLAG_MEDIA_IN_SCENE_CONTAINER
+import com.android.systemui.Flags.FLAG_KEYGUARD_WM_STATE_REFACTOR
 import com.android.systemui.Flags.FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT
+import com.android.systemui.Flags.FLAG_NOTIFICATION_AVALANCHE_THROTTLE_HUN
+import com.android.systemui.Flags.FLAG_PREDICTIVE_BACK_SYSUI
 import com.android.systemui.Flags.FLAG_SCENE_CONTAINER
 
 /**
@@ -28,11 +29,12 @@ import com.android.systemui.Flags.FLAG_SCENE_CONTAINER
  * that feature. It is also picked up by [SceneContainerRule] to set non-aconfig prerequisites.
  */
 @EnableFlags(
-    FLAG_SCENE_CONTAINER,
     FLAG_KEYGUARD_BOTTOM_AREA_REFACTOR,
+    FLAG_KEYGUARD_WM_STATE_REFACTOR,
     FLAG_MIGRATE_CLOCKS_TO_BLUEPRINT,
-    FLAG_COMPOSE_LOCKSCREEN,
-    FLAG_MEDIA_IN_SCENE_CONTAINER,
+    FLAG_NOTIFICATION_AVALANCHE_THROTTLE_HUN,
+    FLAG_PREDICTIVE_BACK_SYSUI,
+    FLAG_SCENE_CONTAINER,
 )
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)

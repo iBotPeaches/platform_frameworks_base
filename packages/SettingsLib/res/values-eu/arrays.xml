@@ -27,7 +27,7 @@
     <item msgid="8356618438494652335">"Autentifikatzen…"</item>
     <item msgid="2837871868181677206">"IP helbidea lortzen…"</item>
     <item msgid="4613015005934755724">"Konektatuta"</item>
-    <item msgid="3763530049995655072">"Etenda"</item>
+    <item msgid="3763530049995655072">"Aldi baterako etenda"</item>
     <item msgid="7852381437933824454">"Deskonektatzen…"</item>
     <item msgid="5046795712175415059">"Deskonektatuta"</item>
     <item msgid="2473654476624070462">"Ezin izan da konektatu"</item>
@@ -41,7 +41,7 @@
     <item msgid="3028983857109369308">"<xliff:g id="NETWORK_NAME">%1$s</xliff:g> sarearekin autentifikatzen…"</item>
     <item msgid="4287401332778341890">"<xliff:g id="NETWORK_NAME">%1$s</xliff:g> sarearen IP helbidea lortzen…"</item>
     <item msgid="1043944043827424501">"<xliff:g id="NETWORK_NAME">%1$s</xliff:g> sarera konektatuta"</item>
-    <item msgid="7445993821842009653">"Etenda"</item>
+    <item msgid="7445993821842009653">"Aldi baterako etenda"</item>
     <item msgid="1175040558087735707">"<xliff:g id="NETWORK_NAME">%1$s</xliff:g> saretik deskonektatzen…"</item>
     <item msgid="699832486578171722">"Deskonektatuta"</item>
     <item msgid="522383512264986901">"Ezin izan da konektatu"</item>
@@ -153,15 +153,15 @@
     <item msgid="1333279807604675720">"Estereoa"</item>
   </string-array>
   <string-array name="bluetooth_a2dp_codec_ldac_playback_quality_titles">
-    <item msgid="1241278021345116816">"Audioaren kalitatea areagotzeko optimizatua (990 Kb/s / 909 Kb/s)"</item>
+    <item msgid="1241278021345116816">"Audioaren kalitatea hobetzeko optimizatua (990 Kb/s / 909 Kb/s)"</item>
     <item msgid="3523665555859696539">"Audioaren eta konexioaren kalitate orekatua (660 Kb/s / 606 Kb/s)"</item>
-    <item msgid="886408010459747589">"Konexioaren kalitatea areagotzeko optimizatua (330 Kb/s / 303 Kb/s)"</item>
+    <item msgid="886408010459747589">"Konexioaren kalitatea hobetzeko optimizatua (330 Kb/s / 303 Kb/s)"</item>
     <item msgid="3808414041654351577">"Emaitzarik onenak (bit-abiadura egokitua)"</item>
   </string-array>
   <string-array name="bluetooth_a2dp_codec_ldac_playback_quality_summaries">
-    <item msgid="804499336721569838">"Audioaren kalitatea areagotzeko optimizatua"</item>
+    <item msgid="804499336721569838">"Audioaren kalitatea hobetzeko optimizatua"</item>
     <item msgid="7451422070435297462">"Orekatu audioaren eta konexioaren kalitateak"</item>
-    <item msgid="6173114545795428901">"Konexioaren kalitatea areagotzeko optimizatua"</item>
+    <item msgid="6173114545795428901">"Konexioaren kalitatea hobetzeko optimizatua"</item>
     <item msgid="4349908264188040530">"Emaitzarik onenak (bit-abiadura egokitua)"</item>
   </string-array>
   <string-array name="bluetooth_audio_active_device_summaries">

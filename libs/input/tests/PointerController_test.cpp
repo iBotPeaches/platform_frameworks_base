@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <com_android_input_flags.h>
 #include <flag_macros.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -30,8 +29,6 @@
 
 namespace android {
 
-namespace input_flags = com::android::input::flags;
-
 enum TestCursorType {
     CURSOR_TYPE_DEFAULT = 0,
     CURSOR_TYPE_HOVER,
@@ -42,6 +39,8 @@ enum TestCursorType {
     CURSOR_TYPE_STYLUS,
     CURSOR_TYPE_CUSTOM = -1,
 };
+
+static constexpr float EPSILON = MotionEvent::ROUNDING_PRECISION;
 
 using ::testing::AllOf;
 using ::testing::Field;
@@ -55,20 +54,19 @@ std::pair<float, float> getHotSpotCoordinatesForType(int32_t type) {
 
 class MockPointerControllerPolicyInterface : public PointerControllerPolicyInterface {
 public:
-    virtual void loadPointerIcon(SpriteIcon* icon, int32_t displayId) override;
-    virtual void loadPointerResources(PointerResources* outResources, int32_t displayId) override;
+    virtual void loadPointerIcon(SpriteIcon* icon, ui::LogicalDisplayId displayId) override;
+    virtual void loadPointerResources(PointerResources* outResources,
+                                      ui::LogicalDisplayId displayId) override;
     virtual void loadAdditionalMouseResources(
             std::map<PointerIconStyle, SpriteIcon>* outResources,
             std::map<PointerIconStyle, PointerAnimation>* outAnimationResources,
-            int32_t displayId) override;
+            ui::LogicalDisplayId displayId) override;
     virtual PointerIconStyle getDefaultPointerIconId() override;
     virtual PointerIconStyle getDefaultStylusIconId() override;
     virtual PointerIconStyle getCustomPointerIconId() override;
-    virtual void onPointerDisplayIdChanged(int32_t displayId, const FloatPoint& position) override;
 
     bool allResourcesAreLoaded();
     bool noResourcesAreLoaded();
-    std::optional<int32_t> getLastReportedPointerDisplayId() { return latestPointerDisplayId; }
 
 private:
     void loadPointerIconForType(SpriteIcon* icon, int32_t cursorType);
@@ -76,16 +74,15 @@ private:
     bool pointerIconLoaded{false};
     bool pointerResourcesLoaded{false};
     bool additionalMouseResourcesLoaded{false};
-    std::optional<int32_t /*displayId*/> latestPointerDisplayId;
 };
 
-void MockPointerControllerPolicyInterface::loadPointerIcon(SpriteIcon* icon, int32_t) {
+void MockPointerControllerPolicyInterface::loadPointerIcon(SpriteIcon* icon, ui::LogicalDisplayId) {
     loadPointerIconForType(icon, CURSOR_TYPE_DEFAULT);
     pointerIconLoaded = true;
 }
 
 void MockPointerControllerPolicyInterface::loadPointerResources(PointerResources* outResources,
-        int32_t) {
+                                                                ui::LogicalDisplayId) {
     loadPointerIconForType(&outResources->spotHover, CURSOR_TYPE_HOVER);
     loadPointerIconForType(&outResources->spotTouch, CURSOR_TYPE_TOUCH);
     loadPointerIconForType(&outResources->spotAnchor, CURSOR_TYPE_ANCHOR);
@@ -94,7 +91,7 @@ void MockPointerControllerPolicyInterface::loadPointerResources(PointerResources
 
 void MockPointerControllerPolicyInterface::loadAdditionalMouseResources(
         std::map<PointerIconStyle, SpriteIcon>* outResources,
-        std::map<PointerIconStyle, PointerAnimation>* outAnimationResources, int32_t) {
+        std::map<PointerIconStyle, PointerAnimation>* outAnimationResources, ui::LogicalDisplayId) {
     SpriteIcon icon;
     PointerAnimation anim;
 
@@ -146,12 +143,6 @@ void MockPointerControllerPolicyInterface::loadPointerIconForType(SpriteIcon* ic
     icon->hotSpotY = hotSpot.second;
 }
 
-void MockPointerControllerPolicyInterface::onPointerDisplayIdChanged(int32_t displayId,
-                                                                     const FloatPoint& /*position*/
-) {
-    latestPointerDisplayId = displayId;
-}
-
 class TestPointerController : public PointerController {
 public:
     TestPointerController(sp<android::gui::WindowInfosListener>& registeredListener,
@@ -159,7 +150,6 @@ public:
                           SpriteController& spriteController)
           : PointerController(
                     policy, looper, spriteController,
-                    /*enabled=*/true,
                     [&registeredListener](const sp<android::gui::WindowInfosListener>& listener)
                             -> std::vector<gui::DisplayInfo> {
                         // Register listener
@@ -174,18 +164,6 @@ public:
 };
 
 class PointerControllerTest : public Test {
-protected:
-    PointerControllerTest();
-    ~PointerControllerTest();
-
-    void ensureDisplayViewportIsSet(int32_t displayId = ADISPLAY_ID_DEFAULT);
-
-    sp<MockSprite> mPointerSprite;
-    sp<MockPointerControllerPolicyInterface> mPolicy;
-    std::unique_ptr<MockSpriteController> mSpriteController;
-    std::shared_ptr<PointerController> mPointerController;
-    sp<android::gui::WindowInfosListener> mRegisteredListener;
-
 private:
     void loopThread();
 
@@ -195,12 +173,28 @@ private:
         MyLooper() : Looper(false) {}
         ~MyLooper() = default;
     };
+
+protected:
+    PointerControllerTest();
+    ~PointerControllerTest();
+
+    void ensureDisplayViewportIsSet(ui::LogicalDisplayId displayId = ui::LogicalDisplayId::DEFAULT);
+
+    sp<MockSprite> mPointerSprite;
+    sp<MockPointerControllerPolicyInterface> mPolicy;
+    std::unique_ptr<MockSpriteController> mSpriteController;
+    std::shared_ptr<PointerController> mPointerController;
+    sp<android::gui::WindowInfosListener> mRegisteredListener;
     sp<MyLooper> mLooper;
+
+private:
     std::thread mThread;
 };
 
-PointerControllerTest::PointerControllerTest() : mPointerSprite(new NiceMock<MockSprite>),
-        mLooper(new MyLooper), mThread(&PointerControllerTest::loopThread, this) {
+PointerControllerTest::PointerControllerTest()
+      : mPointerSprite(new NiceMock<MockSprite>),
+        mLooper(new MyLooper),
+        mThread(&PointerControllerTest::loopThread, this) {
     mSpriteController.reset(new NiceMock<MockSpriteController>(mLooper));
     mPolicy = new MockPointerControllerPolicyInterface();
 
@@ -217,7 +211,7 @@ PointerControllerTest::~PointerControllerTest() {
     mThread.join();
 }
 
-void PointerControllerTest::ensureDisplayViewportIsSet(int32_t displayId) {
+void PointerControllerTest::ensureDisplayViewportIsSet(ui::LogicalDisplayId displayId) {
     DisplayViewport viewport;
     viewport.displayId = displayId;
     viewport.logicalRight = 1600;
@@ -267,8 +261,7 @@ TEST_F(PointerControllerTest, useStylusTypeForStylusHover) {
     mPointerController->reloadPointerResources();
 }
 
-TEST_F_WITH_FLAGS(PointerControllerTest, setPresentationBeforeDisplayViewportDoesNotLoadResources,
-                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(input_flags, enable_pointer_choreographer))) {
+TEST_F(PointerControllerTest, setPresentationBeforeDisplayViewportDoesNotLoadResources) {
     // Setting the presentation mode before a display viewport is set will not load any resources.
     mPointerController->setPresentation(PointerController::Presentation::POINTER);
     ASSERT_TRUE(mPolicy->noResourcesAreLoaded());
@@ -278,26 +271,7 @@ TEST_F_WITH_FLAGS(PointerControllerTest, setPresentationBeforeDisplayViewportDoe
     ASSERT_TRUE(mPolicy->allResourcesAreLoaded());
 }
 
-TEST_F_WITH_FLAGS(PointerControllerTest, updatePointerIcon,
-                  REQUIRES_FLAGS_DISABLED(ACONFIG_FLAG(input_flags,
-                                                       enable_pointer_choreographer))) {
-    ensureDisplayViewportIsSet();
-    mPointerController->setPresentation(PointerController::Presentation::POINTER);
-    mPointerController->unfade(PointerController::Transition::IMMEDIATE);
-
-    int32_t type = CURSOR_TYPE_ADDITIONAL;
-    std::pair<float, float> hotspot = getHotSpotCoordinatesForType(type);
-    EXPECT_CALL(*mPointerSprite, setVisible(true));
-    EXPECT_CALL(*mPointerSprite, setAlpha(1.0f));
-    EXPECT_CALL(*mPointerSprite,
-                setIcon(AllOf(Field(&SpriteIcon::style, static_cast<PointerIconStyle>(type)),
-                              Field(&SpriteIcon::hotSpotX, hotspot.first),
-                              Field(&SpriteIcon::hotSpotY, hotspot.second))));
-    mPointerController->updatePointerIcon(static_cast<PointerIconStyle>(type));
-}
-
-TEST_F_WITH_FLAGS(PointerControllerTest, updatePointerIconWithChoreographer,
-                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(input_flags, enable_pointer_choreographer))) {
+TEST_F(PointerControllerTest, updatePointerIconWithChoreographer) {
     // When PointerChoreographer is enabled, the presentation mode is set before the viewport.
     mPointerController->setPresentation(PointerController::Presentation::POINTER);
     ensureDisplayViewportIsSet();
@@ -348,29 +322,213 @@ TEST_F(PointerControllerTest, doesNotGetResourcesBeforeSettingViewport) {
     ensureDisplayViewportIsSet();
 }
 
-TEST_F(PointerControllerTest, notifiesPolicyWhenPointerDisplayChanges) {
-    EXPECT_FALSE(mPolicy->getLastReportedPointerDisplayId())
-            << "A pointer display change does not occur when PointerController is created.";
+TEST_F(PointerControllerTest, updatesSkipScreenshotFlagForTouchSpots) {
+    ensureDisplayViewportIsSet();
 
-    ensureDisplayViewportIsSet(ADISPLAY_ID_DEFAULT);
+    PointerCoords testSpotCoords;
+    testSpotCoords.clear();
+    testSpotCoords.setAxisValue(AMOTION_EVENT_AXIS_X, 1);
+    testSpotCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, 1);
+    BitSet32 testIdBits;
+    testIdBits.markBit(0);
+    std::array<uint32_t, MAX_POINTER_ID + 1> testIdToIndex;
 
-    const auto lastReportedPointerDisplayId = mPolicy->getLastReportedPointerDisplayId();
-    ASSERT_TRUE(lastReportedPointerDisplayId)
-            << "The policy is notified of a pointer display change when the viewport is first set.";
-    EXPECT_EQ(ADISPLAY_ID_DEFAULT, *lastReportedPointerDisplayId)
-            << "Incorrect pointer display notified.";
+    sp<MockSprite> testSpotSprite(new NiceMock<MockSprite>);
 
-    ensureDisplayViewportIsSet(42);
+    // By default sprite is not marked secure
+    EXPECT_CALL(*mSpriteController, createSprite).WillOnce(Return(testSpotSprite));
+    EXPECT_CALL(*testSpotSprite, setSkipScreenshot).With(testing::Args<0>(false));
 
-    EXPECT_EQ(42, *mPolicy->getLastReportedPointerDisplayId())
-            << "The policy is notified when the pointer display changes.";
+    // Update spots to sync state with sprite
+    mPointerController->setSpots(&testSpotCoords, testIdToIndex.cbegin(), testIdBits,
+                                 ui::LogicalDisplayId::DEFAULT);
+    testing::Mock::VerifyAndClearExpectations(testSpotSprite.get());
 
-    // Release the PointerController.
-    mPointerController = nullptr;
+    // Marking the display to skip screenshot should update sprite as well
+    mPointerController->setSkipScreenshotFlagForDisplay(ui::LogicalDisplayId::DEFAULT);
+    EXPECT_CALL(*testSpotSprite, setSkipScreenshot).With(testing::Args<0>(true));
 
-    EXPECT_EQ(ADISPLAY_ID_NONE, *mPolicy->getLastReportedPointerDisplayId())
-            << "The pointer display changes to invalid when PointerController is destroyed.";
+    // Update spots to sync state with sprite
+    mPointerController->setSpots(&testSpotCoords, testIdToIndex.cbegin(), testIdBits,
+                                 ui::LogicalDisplayId::DEFAULT);
+    testing::Mock::VerifyAndClearExpectations(testSpotSprite.get());
+
+    // Reset flag and verify again
+    mPointerController->clearSkipScreenshotFlags();
+    EXPECT_CALL(*testSpotSprite, setSkipScreenshot).With(testing::Args<0>(false));
+    mPointerController->setSpots(&testSpotCoords, testIdToIndex.cbegin(), testIdBits,
+                                 ui::LogicalDisplayId::DEFAULT);
+    testing::Mock::VerifyAndClearExpectations(testSpotSprite.get());
 }
+
+class PointerControllerSkipScreenshotFlagTest
+      : public PointerControllerTest,
+        public testing::WithParamInterface<PointerControllerInterface::ControllerType> {};
+
+TEST_P(PointerControllerSkipScreenshotFlagTest, updatesSkipScreenshotFlag) {
+    sp<MockSprite> testPointerSprite(new NiceMock<MockSprite>);
+    EXPECT_CALL(*mSpriteController, createSprite).WillOnce(Return(testPointerSprite));
+
+    // Create a pointer controller
+    mPointerController =
+            PointerController::create(mPolicy, mLooper, *mSpriteController, GetParam());
+    ensureDisplayViewportIsSet(ui::LogicalDisplayId::DEFAULT);
+
+    // By default skip screenshot flag is not set for the sprite
+    EXPECT_CALL(*testPointerSprite, setSkipScreenshot).With(testing::Args<0>(false));
+
+    // Update pointer to sync state with sprite
+    mPointerController->setPosition(100, 100);
+    testing::Mock::VerifyAndClearExpectations(testPointerSprite.get());
+
+    // Marking the controller to skip screenshot should update pointer sprite
+    mPointerController->setSkipScreenshotFlagForDisplay(ui::LogicalDisplayId::DEFAULT);
+    EXPECT_CALL(*testPointerSprite, setSkipScreenshot).With(testing::Args<0>(true));
+
+    // Update pointer to sync state with sprite
+    mPointerController->move(10, 10);
+    testing::Mock::VerifyAndClearExpectations(testPointerSprite.get());
+
+    // Reset flag and verify again
+    mPointerController->clearSkipScreenshotFlags();
+    EXPECT_CALL(*testPointerSprite, setSkipScreenshot).With(testing::Args<0>(false));
+    mPointerController->move(10, 10);
+    testing::Mock::VerifyAndClearExpectations(testPointerSprite.get());
+}
+
+INSTANTIATE_TEST_SUITE_P(PointerControllerSkipScreenshotFlagTest,
+                         PointerControllerSkipScreenshotFlagTest,
+                         testing::Values(PointerControllerInterface::ControllerType::MOUSE,
+                                         PointerControllerInterface::ControllerType::STYLUS));
+
+class MousePointerControllerTest : public PointerControllerTest {
+protected:
+    MousePointerControllerTest() {
+        sp<MockSprite> testPointerSprite(new NiceMock<MockSprite>);
+        EXPECT_CALL(*mSpriteController, createSprite).WillOnce(Return(testPointerSprite));
+
+        // create a mouse pointer controller
+        mPointerController =
+                PointerController::create(mPolicy, mLooper, *mSpriteController,
+                                          PointerControllerInterface::ControllerType::MOUSE);
+
+        // set display viewport
+        DisplayViewport viewport;
+        viewport.displayId = ui::LogicalDisplayId::DEFAULT;
+        viewport.logicalRight = 5;
+        viewport.logicalBottom = 5;
+        viewport.physicalRight = 5;
+        viewport.physicalBottom = 5;
+        viewport.deviceWidth = 5;
+        viewport.deviceHeight = 5;
+        mPointerController->setDisplayViewport(viewport);
+    }
+};
+
+struct MousePointerControllerTestParam {
+    vec2 startPosition;
+    vec2 delta;
+    vec2 endPosition;
+    vec2 unconsumedDelta;
+};
+
+class PointerControllerViewportTransitionTest
+      : public MousePointerControllerTest,
+        public testing::WithParamInterface<MousePointerControllerTestParam> {};
+
+TEST_P(PointerControllerViewportTransitionTest, testPointerViewportTransition) {
+    const auto& params = GetParam();
+
+    mPointerController->setPosition(params.startPosition.x, params.startPosition.y);
+    auto unconsumedDelta = mPointerController->move(params.delta.x, params.delta.y);
+
+    auto position = mPointerController->getPosition();
+    EXPECT_NEAR(position.x, params.endPosition.x, EPSILON);
+    EXPECT_NEAR(position.y, params.endPosition.y, EPSILON);
+    EXPECT_NEAR(unconsumedDelta.x, params.unconsumedDelta.x, EPSILON);
+    EXPECT_NEAR(unconsumedDelta.y, params.unconsumedDelta.y, EPSILON);
+}
+
+INSTANTIATE_TEST_SUITE_P(PointerControllerViewportTransitionTest,
+                         PointerControllerViewportTransitionTest,
+                         testing::Values(
+                                 // no transition
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {2.0f, 2.0f},
+                                                                 {4.0f, 4.0f},
+                                                                 {0.0f, 0.0f}},
+                                 // right boundary
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {3.0f, 0.0f},
+                                                                 {4.0f, 2.0f},
+                                                                 {1.0f, 0.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {3.0f, -1.0f},
+                                                                 {4.0f, 1.0f},
+                                                                 {1.0f, 0.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {3.0f, 1.0f},
+                                                                 {4.0f, 3.0f},
+                                                                 {1.0f, 0.0f}},
+                                 // left boundary
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-3.0f, 0.0f},
+                                                                 {0.0f, 2.0f},
+                                                                 {-1.0f, 0.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-3.0f, -1.0f},
+                                                                 {0.0f, 1.0f},
+                                                                 {-1.0f, 0.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-3.0f, 1.0f},
+                                                                 {0.0f, 3.0f},
+                                                                 {-1.0f, 0.0f}},
+                                 // bottom boundary
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {0.0f, 3.0f},
+                                                                 {2.0f, 4.0f},
+                                                                 {0.0f, 1.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-1.0f, 3.0f},
+                                                                 {1.0f, 4.0f},
+                                                                 {0.0f, 1.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {1.0f, 3.0f},
+                                                                 {3.0f, 4.0f},
+                                                                 {0.0f, 1.0f}},
+                                 // top boundary
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {0.0f, -3.0f},
+                                                                 {2.0f, 0.0f},
+                                                                 {0.0f, -1.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-1.0f, -3.0f},
+                                                                 {1.0f, 0.0f},
+                                                                 {0.0f, -1.0f}},
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {1.0f, -3.0f},
+                                                                 {3.0f, 0.0f},
+                                                                 {0.0f, -1.0f}},
+                                 // top-left corner
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-3.0f, -3.0f},
+                                                                 {0.0f, 0.0f},
+                                                                 {-1.0f, -1.0f}},
+                                 // top-right corner
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {3.0f, -3.0f},
+                                                                 {4.0f, 0.0f},
+                                                                 {1.0f, -1.0f}},
+                                 // bottom-right corner
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {3.0f, 3.0f},
+                                                                 {4.0f, 4.0f},
+                                                                 {1.0f, 1.0f}},
+                                 // bottom-left corner
+                                 MousePointerControllerTestParam{{2.0f, 2.0f},
+                                                                 {-3.0f, 3.0f},
+                                                                 {0.0f, 4.0f},
+                                                                 {-1.0f, 1.0f}}));
 
 class PointerControllerWindowInfoListenerTest : public Test {};
 

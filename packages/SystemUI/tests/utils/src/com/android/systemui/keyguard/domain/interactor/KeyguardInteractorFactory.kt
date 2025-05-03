@@ -19,20 +19,22 @@ package com.android.systemui.keyguard.domain.interactor
 
 import com.android.systemui.bouncer.data.repository.FakeKeyguardBouncerRepository
 import com.android.systemui.common.ui.data.repository.FakeConfigurationRepository
-import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
+import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractorImpl
 import com.android.systemui.flags.FakeFeatureFlags
-import com.android.systemui.keyguard.data.repository.FakeCommandQueue
 import com.android.systemui.keyguard.data.repository.FakeKeyguardRepository
 import com.android.systemui.keyguard.shared.model.KeyguardState
+import com.android.systemui.keyguard.shared.model.TransitionStep
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.power.domain.interactor.PowerInteractorFactory
 import com.android.systemui.scene.domain.interactor.SceneInteractor
-import com.android.systemui.scene.shared.flag.FakeSceneContainerFlags
-import com.android.systemui.scene.shared.flag.SceneContainerFlags
 import com.android.systemui.shade.data.repository.FakeShadeRepository
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
+import org.mockito.kotlin.any
 
 /**
  * Simply put, I got tired of adding a constructor argument and then having to tweak dozens of
@@ -44,48 +46,52 @@ object KeyguardInteractorFactory {
     @JvmStatic
     fun create(
         featureFlags: FakeFeatureFlags = FakeFeatureFlags(),
-        sceneContainerFlags: SceneContainerFlags = FakeSceneContainerFlags(),
         repository: FakeKeyguardRepository = FakeKeyguardRepository(),
-        commandQueue: FakeCommandQueue = FakeCommandQueue(),
         bouncerRepository: FakeKeyguardBouncerRepository = FakeKeyguardBouncerRepository(),
         configurationRepository: FakeConfigurationRepository = FakeConfigurationRepository(),
         shadeRepository: FakeShadeRepository = FakeShadeRepository(),
         sceneInteractor: SceneInteractor = mock(),
+        fromGoneTransitionInteractor: FromGoneTransitionInteractor = mock(),
+        fromLockscreenTransitionInteractor: FromLockscreenTransitionInteractor = mock(),
+        fromOccludedTransitionInteractor: FromOccludedTransitionInteractor = mock(),
         powerInteractor: PowerInteractor = PowerInteractorFactory.create().powerInteractor,
+        testScope: CoroutineScope = TestScope(),
     ): WithDependencies {
-        // Mock this until the class is replaced by kosmos
-        val keyguardTransitionInteractor: KeyguardTransitionInteractor = mock()
+        // Mock these until they are replaced by kosmos
         val currentKeyguardStateFlow = MutableSharedFlow<KeyguardState>()
-        whenever(keyguardTransitionInteractor.currentKeyguardState)
-            .thenReturn(currentKeyguardStateFlow)
+        val transitionStateFlow = MutableStateFlow(TransitionStep())
+        val keyguardTransitionInteractor =
+            mock<KeyguardTransitionInteractor>().also {
+                whenever(it.currentKeyguardState).thenReturn(currentKeyguardStateFlow)
+                whenever(it.transitionState).thenReturn(transitionStateFlow)
+                whenever(it.isFinishedIn(any(), any())).thenReturn(MutableStateFlow(false))
+            }
         return WithDependencies(
             repository = repository,
-            commandQueue = commandQueue,
             featureFlags = featureFlags,
-            sceneContainerFlags = sceneContainerFlags,
             bouncerRepository = bouncerRepository,
             configurationRepository = configurationRepository,
             shadeRepository = shadeRepository,
             powerInteractor = powerInteractor,
             KeyguardInteractor(
                 repository = repository,
-                commandQueue = commandQueue,
-                sceneContainerFlags = sceneContainerFlags,
-                bouncerRepository = bouncerRepository,
-                configurationInteractor = ConfigurationInteractor(configurationRepository),
-                shadeRepository = shadeRepository,
-                sceneInteractorProvider = { sceneInteractor },
-                keyguardTransitionInteractor = keyguardTransitionInteractor,
                 powerInteractor = powerInteractor,
+                bouncerRepository = bouncerRepository,
+                configurationInteractor = ConfigurationInteractorImpl(configurationRepository),
+                shadeRepository = shadeRepository,
+                keyguardTransitionInteractor = keyguardTransitionInteractor,
+                sceneInteractorProvider = { sceneInteractor },
+                fromGoneTransitionInteractor = { fromGoneTransitionInteractor },
+                fromLockscreenTransitionInteractor = { fromLockscreenTransitionInteractor },
+                fromOccludedTransitionInteractor = { fromOccludedTransitionInteractor },
+                applicationScope = testScope,
             ),
         )
     }
 
     data class WithDependencies(
         val repository: FakeKeyguardRepository,
-        val commandQueue: FakeCommandQueue,
         val featureFlags: FakeFeatureFlags,
-        val sceneContainerFlags: SceneContainerFlags,
         val bouncerRepository: FakeKeyguardBouncerRepository,
         val configurationRepository: FakeConfigurationRepository,
         val shadeRepository: FakeShadeRepository,

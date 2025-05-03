@@ -16,9 +16,8 @@
 
 package com.android.server.media;
 
-import android.app.ForegroundServiceDelegationOptions;
+import android.app.Notification;
 import android.media.AudioManager;
-import android.media.session.PlaybackState;
 import android.os.ResultReceiver;
 import android.view.KeyEvent;
 
@@ -33,8 +32,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class MediaSessionRecordImpl {
 
-    static final AtomicInteger sNextMediaSessionRecordId = new AtomicInteger(1);
-    int mUniqueId;
+    private static final AtomicInteger sNextMediaSessionRecordId = new AtomicInteger(1);
+    private final int mUniqueId;
+
+    protected MediaSessionRecordImpl() {
+        mUniqueId = sNextMediaSessionRecordId.getAndIncrement();
+    }
 
     /**
      * Get the info for this session.
@@ -58,13 +61,14 @@ public abstract class MediaSessionRecordImpl {
     public abstract int getUserId();
 
     /**
-     * Get the {@link ForegroundServiceDelegationOptions} needed for notifying activity manager
-     * service with changes in the {@link PlaybackState} for this session.
+     * Returns whether this session supports linked notifications.
      *
-     * @return the {@link ForegroundServiceDelegationOptions} needed for notifying the activity
-     *     manager service with changes in the {@link PlaybackState} for this session.
+     * <p>A notification is linked to a media session if it contains
+     * {@link android.app.Notification#EXTRA_MEDIA_SESSION}.
+     *
+     * @return {@code true} if this session supports linked notifications, {@code false} otherwise.
      */
-    public abstract ForegroundServiceDelegationOptions getForegroundServiceDelegationOptions();
+    public abstract boolean hasLinkedNotificationSupport();
 
     /**
      * Check if this session has system priority and should receive media buttons before any other
@@ -153,6 +157,9 @@ public abstract class MediaSessionRecordImpl {
      */
     public abstract boolean canHandleVolumeKey();
 
+    /** Returns whether this session is linked to the passed notification. */
+    abstract boolean isLinkedToNotification(Notification notification);
+
     /**
      * Get session policies from custom policy provider set when MediaSessionRecord is instantiated.
      * If custom policy does not exist, will return null.
@@ -191,6 +198,16 @@ public abstract class MediaSessionRecordImpl {
      * Returns whether {@link #close()} is called before.
      */
     public abstract boolean isClosed();
+
+    /**
+     * Note: This method is only used for testing purposes If the session is temporary engaged, the
+     * timeout will expire and it will become disengaged.
+     */
+    public abstract void expireTempEngaged();
+
+    /** Notifies record that the global priority session active state changed. */
+    public abstract void onGlobalPrioritySessionActiveChanged(
+            boolean isGlobalPrioritySessionActive);
 
     @Override
     public final boolean equals(Object o) {

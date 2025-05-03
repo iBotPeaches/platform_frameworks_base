@@ -31,10 +31,8 @@ import com.android.systemui.coroutines.collectLastValue
 import com.android.systemui.coroutines.collectValues
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.log.table.TableLogBuffer
-import com.android.systemui.scene.shared.flag.sceneContainerFlags
-import com.android.systemui.statusbar.pipeline.mobile.data.repository.FakeMobileConnectionsRepository
-import com.android.systemui.statusbar.pipeline.mobile.util.FakeMobileMappingsProxy
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.fake
+import com.android.systemui.statusbar.pipeline.mobile.data.repository.mobileConnectionsRepository
 import com.android.systemui.testKosmos
 import com.android.systemui.user.data.repository.FakeUserRepository
 import com.android.systemui.util.mockito.whenever
@@ -59,14 +57,13 @@ class AuthenticationRepositoryTest : SysuiTestCase() {
 
     @Mock private lateinit var lockPatternUtils: LockPatternUtils
     @Mock private lateinit var getSecurityMode: Function<Int, KeyguardSecurityModel.SecurityMode>
-    @Mock private lateinit var tableLogger: TableLogBuffer
     @Mock private lateinit var devicePolicyManager: DevicePolicyManager
 
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val clock = FakeSystemClock()
     private val userRepository = FakeUserRepository()
-    private lateinit var mobileConnectionsRepository: FakeMobileConnectionsRepository
+    private val mobileConnectionsRepository = kosmos.mobileConnectionsRepository
 
     private lateinit var underTest: AuthenticationRepository
 
@@ -79,14 +76,11 @@ class AuthenticationRepositoryTest : SysuiTestCase() {
         userRepository.setUserInfos(USER_INFOS)
         runBlocking { userRepository.setSelectedUserInfo(USER_INFOS[0]) }
         whenever(getSecurityMode.apply(anyInt())).thenAnswer { currentSecurityMode }
-        mobileConnectionsRepository =
-            FakeMobileConnectionsRepository(FakeMobileMappingsProxy(), tableLogger)
 
         underTest =
             AuthenticationRepositoryImpl(
                 applicationScope = testScope.backgroundScope,
                 backgroundDispatcher = kosmos.testDispatcher,
-                flags = kosmos.sceneContainerFlags,
                 clock = clock,
                 getSecurityMode = getSecurityMode,
                 userRepository = userRepository,
@@ -117,7 +111,7 @@ class AuthenticationRepositoryTest : SysuiTestCase() {
                 .isEqualTo(AuthenticationMethodModel.None)
 
             currentSecurityMode = KeyguardSecurityModel.SecurityMode.SimPin
-            mobileConnectionsRepository.isAnySimSecure.value = true
+            mobileConnectionsRepository.fake.isAnySimSecure.value = true
             assertThat(authMethod).isEqualTo(AuthenticationMethodModel.Sim)
             assertThat(underTest.getAuthenticationMethod()).isEqualTo(AuthenticationMethodModel.Sim)
         }
@@ -206,7 +200,7 @@ class AuthenticationRepositoryTest : SysuiTestCase() {
         }
 
     private fun setSecurityModeAndDispatchBroadcast(
-        securityMode: KeyguardSecurityModel.SecurityMode,
+        securityMode: KeyguardSecurityModel.SecurityMode
     ) {
         currentSecurityMode = securityMode
         dispatchBroadcast()
@@ -215,23 +209,15 @@ class AuthenticationRepositoryTest : SysuiTestCase() {
     private fun dispatchBroadcast() {
         fakeBroadcastDispatcher.sendIntentToMatchingReceiversOnly(
             context,
-            Intent(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED)
+            Intent(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED),
         )
     }
 
     companion object {
         private val USER_INFOS =
             listOf(
-                UserInfo(
-                    /* id= */ 100,
-                    /* name= */ "First user",
-                    /* flags= */ 0,
-                ),
-                UserInfo(
-                    /* id= */ 101,
-                    /* name= */ "Second user",
-                    /* flags= */ 0,
-                ),
+                UserInfo(/* id= */ 100, /* name= */ "First user", /* flags= */ 0),
+                UserInfo(/* id= */ 101, /* name= */ "Second user", /* flags= */ 0),
             )
     }
 }

@@ -33,12 +33,23 @@ import java.io.PrintWriter;
  *  abstract fun bind(impl: FoobarStartable): CoreStartable
  *  </pre>
  *
- * If your CoreStartable depends on different CoreStartables starting before it, use a
- * {@link com.android.systemui.startable.Dependencies} annotation to list out those dependencies.
+ * If your CoreStartable depends on different CoreStartables starting before it, you can specify
+ * another map binding listing out its dependencies:
+ *  <pre>
+ *  &#64;Provides
+ *  &#64;IntoMap
+ *  &#64;Dependencies  // Important! com.android.systemui.startable.Dependencies.
+ *  &#64;ClassKey(FoobarStartable::class)
+ *  fun providesDeps(): Set&lt;Class&lt;out CoreStartable&gt;&gt; {
+ *      return setOf(OtherStartable::class.java)
+ *  }
+ *  </pre>
+ *
  *
  * @see SystemUIApplication#startSystemUserServicesIfNeeded()
  */
 public interface CoreStartable extends Dumpable {
+    String STARTABLE_DEPENDENCIES = "startable_dependencies";
 
     /** Main entry point for implementations. Called shortly after SysUI startup. */
     void start();
@@ -58,5 +69,13 @@ public interface CoreStartable extends Dumpable {
      * starting a new SysUI instance, such as when starting SysUI for a secondary user.
      * {@link #onBootCompleted()} will never be called before {@link #start()}. */
     default void onBootCompleted() {
+    }
+
+    /** No op implementation that can be used when feature flagging on the Dagger Module level. */
+    CoreStartable NOP = new Nop();
+
+    class Nop implements CoreStartable {
+        @Override
+        public void start() {}
     }
 }

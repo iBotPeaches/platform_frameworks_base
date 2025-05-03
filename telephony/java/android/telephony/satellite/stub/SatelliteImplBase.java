@@ -17,6 +17,7 @@
 package android.telephony.satellite.stub;
 
 import android.annotation.NonNull;
+import android.hardware.radio.network.IRadioNetwork;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.telephony.IBooleanConsumer;
@@ -80,21 +81,20 @@ public class SatelliteImplBase extends SatelliteService {
         }
 
         @Override
-        public void enableCellularModemWhileSatelliteModeIsOn(boolean enabled,
+        public void enableTerrestrialNetworkScanWhileSatelliteModeIsOn(boolean enabled,
                 IIntegerConsumer resultCallback) throws RemoteException {
             executeMethodAsync(
                     () -> SatelliteImplBase.this
-                            .enableCellularModemWhileSatelliteModeIsOn(enabled, resultCallback),
-                    "enableCellularModemWhileSatelliteModeIsOn");
+                            .enableTerrestrialNetworkScanWhileSatelliteModeIsOn(
+                    enabled, resultCallback), "enableTerrestrialNetworkScanWhileSatelliteModeIsOn");
         }
 
         @Override
-        public void requestSatelliteEnabled(boolean enableSatellite, boolean enableDemoMode,
+        public void requestSatelliteEnabled(SatelliteModemEnableRequestAttributes enableAttributes,
                 IIntegerConsumer resultCallback) throws RemoteException {
             executeMethodAsync(
                     () -> SatelliteImplBase.this
-                            .requestSatelliteEnabled(
-                                    enableSatellite, enableDemoMode, resultCallback),
+                            .requestSatelliteEnabled(enableAttributes, resultCallback),
                     "requestSatelliteEnabled");
         }
 
@@ -142,32 +142,6 @@ public class SatelliteImplBase extends SatelliteService {
         }
 
         @Override
-        public void provisionSatelliteService(String token, byte[] provisionData,
-                IIntegerConsumer resultCallback) throws RemoteException {
-            executeMethodAsync(
-                    () -> SatelliteImplBase.this
-                            .provisionSatelliteService(token, provisionData, resultCallback),
-                    "provisionSatelliteService");
-        }
-
-        @Override
-        public void deprovisionSatelliteService(String token, IIntegerConsumer resultCallback)
-                throws RemoteException {
-            executeMethodAsync(
-                    () -> SatelliteImplBase.this.deprovisionSatelliteService(token, resultCallback),
-                    "deprovisionSatelliteService");
-        }
-
-        @Override
-        public void requestIsSatelliteProvisioned(IIntegerConsumer resultCallback,
-                IBooleanConsumer callback) throws RemoteException {
-            executeMethodAsync(
-                    () -> SatelliteImplBase.this
-                            .requestIsSatelliteProvisioned(resultCallback, callback),
-                    "requestIsSatelliteProvisioned");
-        }
-
-        @Override
         public void pollPendingSatelliteDatagrams(IIntegerConsumer resultCallback)
                 throws RemoteException {
             executeMethodAsync(
@@ -191,17 +165,6 @@ public class SatelliteImplBase extends SatelliteService {
                     () -> SatelliteImplBase.this
                             .requestSatelliteModemState(resultCallback, callback),
                     "requestSatelliteModemState");
-        }
-
-        @Override
-        public void requestIsSatelliteCommunicationAllowedForCurrentLocation(
-                IIntegerConsumer resultCallback, IBooleanConsumer callback)
-                throws RemoteException {
-            executeMethodAsync(
-                    () -> SatelliteImplBase.this
-                            .requestIsSatelliteCommunicationAllowedForCurrentLocation(
-                                    resultCallback, callback),
-                    "requestIsCommunicationAllowedForCurrentLocation");
         }
 
         @Override
@@ -273,6 +236,22 @@ public class SatelliteImplBase extends SatelliteService {
                     "abortSendingSatelliteDatagrams");
         }
 
+        @Override
+        public void updateSatelliteSubscription(String iccId, IIntegerConsumer resultCallback)
+                throws RemoteException {
+            executeMethodAsync(() -> SatelliteImplBase.this.updateSatelliteSubscription(
+                    iccId, resultCallback), "updateSatelliteSubscription");
+        }
+
+        @Override
+        public void updateSystemSelectionChannels(
+                List<SystemSelectionSpecifier> systemSelectionSpecifiers,
+                IIntegerConsumer resultCallback) throws RemoteException {
+            executeMethodAsync(() -> SatelliteImplBase.this.updateSystemSelectionChannels(
+                    systemSelectionSpecifiers, resultCallback),
+                    "updateSystemSelectionChannels");
+        }
+
         // Call the methods with a clean calling identity on the executor and wait indefinitely for
         // the future to return.
         private void executeMethodAsync(Runnable r, String errorLogName) throws RemoteException {
@@ -336,7 +315,7 @@ public class SatelliteImplBase extends SatelliteService {
      * and {@code false} to disable
      * @param resultCallback The callback to receive the error code result of the operation.
      */
-    public void enableCellularModemWhileSatelliteModeIsOn(boolean enabled,
+    public void enableTerrestrialNetworkScanWhileSatelliteModeIsOn(boolean enabled,
             @NonNull IIntegerConsumer resultCallback) {
         // stub implementation
     }
@@ -346,8 +325,7 @@ public class SatelliteImplBase extends SatelliteService {
      * enabled, this may also disable the cellular modem, and if the satellite modem is disabled,
      * this may also re-enable the cellular modem.
      *
-     * @param enableSatellite True to enable the satellite modem and false to disable.
-     * @param enableDemoMode True to enable demo mode and false to disable.
+     * @param enableAttributes The enable parameters that will be applied to the satellite session
      * @param resultCallback The callback to receive the error code result of the operation.
      *
      * Valid result codes returned:
@@ -360,7 +338,7 @@ public class SatelliteImplBase extends SatelliteService {
      *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
      *   SatelliteResult:SATELLITE_RESULT_NO_RESOURCES
      */
-    public void requestSatelliteEnabled(boolean enableSatellite, boolean enableDemoMode,
+    public void requestSatelliteEnabled(SatelliteModemEnableRequestAttributes enableAttributes,
             @NonNull IIntegerConsumer resultCallback) {
         // stub implementation
     }
@@ -479,85 +457,6 @@ public class SatelliteImplBase extends SatelliteService {
     }
 
     /**
-     * Provision the device with a satellite provider.
-     * This is needed if the provider allows dynamic registration.
-     * Once provisioned, ISatelliteListener#onSatelliteProvisionStateChanged should report true.
-     *
-     * @param token The token to be used as a unique identifier for provisioning with satellite
-     *              gateway.
-     * @param provisionData Data from the provisioning app that can be used by provisioning
-     *                      server
-     * @param resultCallback The callback to receive the error code result of the operation.
-     *
-     * Valid result codes returned:
-     *   SatelliteResult:SATELLITE_RESULT_SUCCESS
-     *   SatelliteResult:SATELLITE_RESULT_SERVICE_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_MODEM_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_NETWORK_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_MODEM_STATE
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_ARGUMENTS
-     *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
-     *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
-     *   SatelliteResult:SATELLITE_RESULT_NO_RESOURCES
-     *   SatelliteResult:SATELLITE_RESULT_REQUEST_ABORTED
-     *   SatelliteResult:SATELLITE_RESULT_NETWORK_TIMEOUT
-     */
-    public void provisionSatelliteService(@NonNull String token, @NonNull byte[] provisionData,
-            @NonNull IIntegerConsumer resultCallback) {
-        // stub implementation
-    }
-
-    /**
-     * Deprovision the device with the satellite provider.
-     * This is needed if the provider allows dynamic registration.
-     * Once deprovisioned, ISatelliteListener#onSatelliteProvisionStateChanged should report false.
-     *
-     * @param token The token of the device/subscription to be deprovisioned.
-     * @param resultCallback The callback to receive the error code result of the operation.
-     *
-     * Valid result codes returned:
-     *   SatelliteResult:SATELLITE_RESULT_SUCCESS
-     *   SatelliteResult:SATELLITE_RESULT_SERVICE_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_MODEM_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_NETWORK_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_MODEM_STATE
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_ARGUMENTS
-     *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
-     *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
-     *   SatelliteResult:SATELLITE_RESULT_NO_RESOURCES
-     *   SatelliteResult:SATELLITE_RESULT_REQUEST_ABORTED
-     *   SatelliteResult:SATELLITE_RESULT_NETWORK_TIMEOUT
-     */
-    public void deprovisionSatelliteService(@NonNull String token,
-            @NonNull IIntegerConsumer resultCallback) {
-        // stub implementation
-    }
-
-    /**
-     * Request to get whether this device is provisioned with a satellite provider.
-     *
-     * @param resultCallback The callback to receive the error code result of the operation.
-     *                       This must only be sent when the result is not
-     *                       SatelliteResult#SATELLITE_RESULT_SUCCESS.
-     * @param callback If the result is SatelliteResult#SATELLITE_RESULT_SUCCESS, the callback to
-     *                 receive whether this device is provisioned with a satellite provider.
-     *
-     * Valid result codes returned:
-     *   SatelliteResult:SATELLITE_RESULT_SUCCESS
-     *   SatelliteResult:SATELLITE_RESULT_SERVICE_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_MODEM_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_MODEM_STATE
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_ARGUMENTS
-     *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
-     *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
-     *   SatelliteResult:SATELLITE_RESULT_NO_RESOURCES
-     */
-    public void requestIsSatelliteProvisioned(@NonNull IIntegerConsumer resultCallback,
-            @NonNull IBooleanConsumer callback) {
-        // stub implementation
-    }
-
-    /**
      * Poll the pending datagrams to be received over satellite.
      * The satellite service should check if there are any pending datagrams to be received over
      * satellite and report them via ISatelliteListener#onSatelliteDatagramsReceived.
@@ -638,30 +537,6 @@ public class SatelliteImplBase extends SatelliteService {
     }
 
     /**
-     * Request to get whether satellite communication is allowed for the current location.
-     *
-     * @param resultCallback The callback to receive the error code result of the operation.
-     *                       This must only be sent when the result is not
-     *                       SatelliteResult#SATELLITE_RESULT_SUCCESS.
-     * @param callback If the result is SatelliteResult#SATELLITE_RESULT_SUCCESS, the callback to
-     *                 receive whether satellite communication is allowed for the current location.
-     *
-     * Valid result codes returned:
-     *   SatelliteResult:SATELLITE_RESULT_SUCCESS
-     *   SatelliteResult:SATELLITE_RESULT_SERVICE_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_MODEM_ERROR
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_MODEM_STATE
-     *   SatelliteResult:SATELLITE_RESULT_INVALID_ARGUMENTS
-     *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
-     *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
-     *   SatelliteResult:SATELLITE_RESULT_NO_RESOURCES
-     */
-    public void requestIsSatelliteCommunicationAllowedForCurrentLocation(
-            @NonNull IIntegerConsumer resultCallback, @NonNull IBooleanConsumer callback) {
-        // stub implementation
-    }
-
-    /**
      * Request to get the time after which the satellite will be visible. This is an int
      * representing the duration in seconds after which the satellite will be visible.
      * This will return 0 if the satellite is currently visible.
@@ -712,7 +587,11 @@ public class SatelliteImplBase extends SatelliteService {
      *   SatelliteResult:SATELLITE_RESULT_NO_RESOURCES
      *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
      *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
+     *
+     * @deprecated Use
+     * {@link IRadioNetwork#setSatellitePlmn(int, int, String[], String[])}.
      */
+    @Deprecated
     public void setSatellitePlmn(@NonNull int simLogicalSlotIndex,
             @NonNull List<String> carrierPlmnList, @NonNull List<String> allSatellitePlmnList,
             @NonNull IIntegerConsumer resultCallback) {
@@ -734,7 +613,11 @@ public class SatelliteImplBase extends SatelliteService {
      *   SatelliteResult:SATELLITE_RESULT_MODEM_ERROR
      *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
      *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
+     *
+     * @deprecated Use
+     * {@link IRadioNetwork#setSatelliteEnabledForCarrier(int, int, boolean)}.
      */
+    @Deprecated
     public void setSatelliteEnabledForCarrier(@NonNull int simLogicalSlotIndex,
             @NonNull boolean satelliteEnabled, @NonNull IIntegerConsumer callback) {
         // stub implementation
@@ -755,7 +638,11 @@ public class SatelliteImplBase extends SatelliteService {
      *   SatelliteResult:SATELLITE_RESULT_MODEM_ERROR
      *   SatelliteResult:SATELLITE_RESULT_RADIO_NOT_AVAILABLE
      *   SatelliteResult:SATELLITE_RESULT_REQUEST_NOT_SUPPORTED
+     *
+     * @deprecated Use
+     * {@link IRadioNetwork#isSatelliteEnabledForCarrier(int, int)}.
      */
+    @Deprecated
     public void requestIsSatelliteEnabledForCarrier(@NonNull int simLogicalSlotIndex,
             @NonNull IIntegerConsumer resultCallback, @NonNull IBooleanConsumer callback) {
         // stub implementation
@@ -798,6 +685,29 @@ public class SatelliteImplBase extends SatelliteService {
      * @param resultCallback The {@link SatelliteError} result of the operation.
      */
     public void abortSendingSatelliteDatagrams(@NonNull IIntegerConsumer resultCallback){
+        // stub implementation
+    }
+
+    /**
+     * Request to update the satellite subscription to be used for Non-Terrestrial network.
+     *
+     * @param iccId The ICCID of the subscription
+     * @param resultCallback The callback to receive the error code result of the operation.
+     */
+    public void updateSatelliteSubscription(String iccId,
+            @NonNull IIntegerConsumer resultCallback) {
+        // stub implementation
+    }
+
+    /**
+     * Request to update system selection channels
+     *
+     * @param systemSelectionSpecifiers list of system selection specifiers
+     * @param resultCallback The callback to receive the error code result of the operation.
+     */
+    public void updateSystemSelectionChannels(
+            @NonNull List<SystemSelectionSpecifier> systemSelectionSpecifiers,
+            @NonNull IIntegerConsumer resultCallback) {
         // stub implementation
     }
 }

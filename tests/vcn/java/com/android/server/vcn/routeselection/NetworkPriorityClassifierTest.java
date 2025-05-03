@@ -23,13 +23,13 @@ import static android.net.vcn.VcnUnderlyingNetworkTemplateTestBase.TEST_MIN_ENTR
 import static android.net.vcn.VcnUnderlyingNetworkTemplateTestBase.TEST_MIN_ENTRY_UPSTREAM_BANDWIDTH_KBPS;
 import static android.net.vcn.VcnUnderlyingNetworkTemplateTestBase.TEST_MIN_EXIT_DOWNSTREAM_BANDWIDTH_KBPS;
 import static android.net.vcn.VcnUnderlyingNetworkTemplateTestBase.TEST_MIN_EXIT_UPSTREAM_BANDWIDTH_KBPS;
+import static android.net.vcn.util.PersistableBundleUtils.PersistableBundleWrapper;
 
 import static com.android.server.vcn.routeselection.NetworkPriorityClassifier.PRIORITY_FALLBACK;
 import static com.android.server.vcn.routeselection.NetworkPriorityClassifier.PRIORITY_INVALID;
 import static com.android.server.vcn.routeselection.NetworkPriorityClassifier.checkMatchesCellPriorityRule;
 import static com.android.server.vcn.routeselection.NetworkPriorityClassifier.checkMatchesPriorityRule;
 import static com.android.server.vcn.routeselection.NetworkPriorityClassifier.checkMatchesWifiPriorityRule;
-import static com.android.server.vcn.util.PersistableBundleUtils.PersistableBundleWrapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -45,13 +45,19 @@ import android.net.vcn.VcnWifiUnderlyingNetworkTemplate;
 import android.os.PersistableBundle;
 import android.util.ArraySet;
 
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class NetworkPriorityClassifierTest extends NetworkEvaluationTestBase {
     private UnderlyingNetworkRecord mWifiNetworkRecord;
     private UnderlyingNetworkRecord mCellNetworkRecord;

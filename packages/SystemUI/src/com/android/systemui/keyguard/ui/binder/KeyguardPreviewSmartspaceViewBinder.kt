@@ -21,9 +21,11 @@ import android.view.View
 import androidx.core.view.isInvisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.systemui.keyguard.shared.model.ClockSizeSetting
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardPreviewSmartspaceViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
-import kotlinx.coroutines.launch
+import com.android.systemui.plugins.clocks.ClockPreviewConfig
 
 /** Binder for the small clock view, large clock view and smartspace. */
 object KeyguardPreviewSmartspaceViewBinder {
@@ -32,12 +34,25 @@ object KeyguardPreviewSmartspaceViewBinder {
     fun bind(
         smartspace: View,
         viewModel: KeyguardPreviewSmartspaceViewModel,
+        clockPreviewConfig: ClockPreviewConfig,
     ) {
         smartspace.repeatWhenAttached {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { viewModel.smartspaceTopPadding.collect { smartspace.setTopPadding(it) } }
-
-                launch { viewModel.shouldHideSmartspace.collect { smartspace.isInvisible = it } }
+                launch("$TAG#viewModel.selectedClockSize") {
+                    viewModel.previewingClockSize.collect {
+                        val topPadding =
+                            when (it) {
+                                ClockSizeSetting.DYNAMIC ->
+                                    viewModel.getLargeClockSmartspaceTopPadding(clockPreviewConfig)
+                                ClockSizeSetting.SMALL ->
+                                    viewModel.getSmallClockSmartspaceTopPadding(clockPreviewConfig)
+                            }
+                        smartspace.setTopPadding(topPadding)
+                    }
+                }
+                launch("$TAG#viewModel.shouldHideSmartspace") {
+                    viewModel.shouldHideSmartspace.collect { smartspace.isInvisible = it }
+                }
             }
         }
     }
@@ -45,4 +60,6 @@ object KeyguardPreviewSmartspaceViewBinder {
     private fun View.setTopPadding(padding: Int) {
         setPaddingRelative(paddingStart, padding, paddingEnd, paddingBottom)
     }
+
+    private const val TAG = "KeyguardPreviewSmartspaceViewBinder"
 }

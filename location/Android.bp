@@ -37,10 +37,12 @@ java_sdk_library {
         ],
     },
     lint: {
+        baseline_filename: "lint-baseline.xml",
         warning_checks: [
             "FlaggedApi",
         ],
     },
+    jarjar_prefix: "com.android.internal.hidden_from_bootclasspath",
 }
 
 platform_compat_config {

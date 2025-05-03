@@ -21,7 +21,6 @@ import android.content.res.Resources;
 import android.graphics.Insets;
 import android.view.Display;
 import android.view.DisplayCutout;
-import android.view.DisplayInfo;
 import android.view.Surface;
 
 import com.android.internal.R;
@@ -60,16 +59,16 @@ public final class SystemBarUtils {
         final Display display = context.getDisplay();
         final int rotation = display.getRotation();
         final DisplayCutout cutout = display.getCutout();
-        DisplayInfo info = new DisplayInfo();
-        display.getDisplayInfo(info);
         Insets insets;
         Insets waterfallInsets;
+        final int localWidth = context.getResources().getDisplayMetrics().widthPixels;
+        final int localHeight = context.getResources().getDisplayMetrics().heightPixels;
         if (cutout == null) {
             insets = Insets.NONE;
             waterfallInsets = Insets.NONE;
         } else {
             DisplayCutout rotated =
-                    cutout.getRotated(info.logicalWidth, info.logicalHeight, rotation, targetRot);
+                    cutout.getRotated(localWidth, localHeight, rotation, targetRot);
             insets = Insets.of(rotated.getSafeInsets());
             waterfallInsets = rotated.getWaterfallInsets();
         }
@@ -91,5 +90,12 @@ public final class SystemBarUtils {
         final int statusBarHeight = getStatusBarHeight(context);
         // Equals to status bar height if status bar height is bigger.
         return Math.max(defaultSize, statusBarHeight);
+    }
+
+    /**
+     * Gets the taskbar frame height.
+     */
+    public static int getTaskbarHeight(Resources res) {
+        return res.getDimensionPixelSize(R.dimen.taskbar_frame_height);
     }
 }

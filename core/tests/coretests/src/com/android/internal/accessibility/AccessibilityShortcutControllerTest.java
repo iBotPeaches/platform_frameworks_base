@@ -16,18 +16,17 @@
 
 package com.android.internal.accessibility;
 
-import static android.provider.Settings.Secure.ACCESSIBILITY_BUTTON_TARGETS;
 import static android.provider.Settings.Secure.ACCESSIBILITY_SHORTCUT_DIALOG_SHOWN;
 import static android.provider.Settings.Secure.ACCESSIBILITY_SHORTCUT_ON_LOCK_SCREEN;
 import static android.provider.Settings.Secure.ACCESSIBILITY_SHORTCUT_TARGET_SERVICE;
 import static android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES;
-import static android.view.accessibility.AccessibilityManager.ACCESSIBILITY_SHORTCUT_KEY;
 
 import static com.android.internal.accessibility.AccessibilityShortcutController.ACCESSIBILITY_HEARING_AIDS_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.COLOR_INVERSION_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.DALTONIZER_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.ONE_HANDED_COMPONENT_NAME;
 import static com.android.internal.accessibility.AccessibilityShortcutController.REDUCE_BRIGHT_COLORS_COMPONENT_NAME;
+import static com.android.internal.accessibility.common.ShortcutConstants.UserShortcutType.HARDWARE;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -64,17 +63,14 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Vibrator;
-import android.platform.test.annotations.RequiresFlagsEnabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.Voice;
 import android.test.mock.MockContentResolver;
+import android.view.Display;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
-import android.view.accessibility.Flags;
 import android.view.accessibility.IAccessibilityManager;
 import android.widget.Toast;
 
@@ -87,10 +83,10 @@ import com.android.internal.util.test.FakeSettingsProvider;
 
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
@@ -98,14 +94,12 @@ import org.mockito.invocation.InvocationOnMock;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
 public class AccessibilityShortcutControllerTest {
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
-
     private static final String SERVICE_NAME_STRING = "fake.package/fake.service.name";
     private static final CharSequence PACKAGE_NAME_STRING = "Service name";
     private static final String SERVICE_NAME_SUMMARY = "Summary";
@@ -134,6 +128,7 @@ public class AccessibilityShortcutControllerTest {
     private @Mock TextToSpeech mTextToSpeech;
     private @Mock Voice mVoice;
     private @Mock Ringtone mRingtone;
+    private @Captor ArgumentCaptor<List<String>> mListCaptor;
 
     private MockContentResolver mContentResolver;
     private WindowManager.LayoutParams mLayoutParams = new WindowManager.LayoutParams();
@@ -376,7 +371,8 @@ public class AccessibilityShortcutControllerTest {
         verify(mAlertDialog).show();
         verify(mAccessibilityManagerService, atLeastOnce()).getInstalledAccessibilityServiceList(
                 anyInt());
-        verify(mAccessibilityManagerService, times(0)).performAccessibilityShortcut(null);
+        verify(mAccessibilityManagerService, times(0)).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
         verify(mFrameworkObjectProvider, times(0)).getTextToSpeech(any(), any());
     }
 
@@ -395,7 +391,8 @@ public class AccessibilityShortcutControllerTest {
         // assertEquals(WindowManager.LayoutParams.SYSTEM_FLAG_SHOW_FOR_ALL_USERS,
         //        mLayoutParams.privateFlags
         //                & WindowManager.LayoutParams.SYSTEM_FLAG_SHOW_FOR_ALL_USERS);
-        verify(mAccessibilityManagerService, times(1)).performAccessibilityShortcut(null);
+        verify(mAccessibilityManagerService, times(1)).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
     }
 
     @Test
@@ -431,39 +428,12 @@ public class AccessibilityShortcutControllerTest {
                 captor.capture());
         captor.getValue().onClick(null, DialogInterface.BUTTON_POSITIVE);
 
-        assertThat(
-                Settings.Secure.getString(mContentResolver, ACCESSIBILITY_SHORTCUT_TARGET_SERVICE)
-        ).isEmpty();
+        verify(mAccessibilityManagerService).enableShortcutsForTargets(
+                eq(false), eq(HARDWARE), mListCaptor.capture(), anyInt());
+        assertThat(mListCaptor.getValue()).containsExactly(SERVICE_NAME_STRING);
         assertThat(Settings.Secure.getInt(
                 mContentResolver, ACCESSIBILITY_SHORTCUT_DIALOG_SHOWN)).isEqualTo(
                 AccessibilityShortcutController.DialogStatus.NOT_SHOWN);
-    }
-
-    @Test
-    @RequiresFlagsEnabled(Flags.FLAG_UPDATE_ALWAYS_ON_A11Y_SERVICE)
-    public void turnOffVolumeShortcutForAlwaysOnA11yService_shouldTurnOffA11yService()
-            throws Exception {
-        configureApplicationTargetSdkVersion(Build.VERSION_CODES.R);
-        turnOffVolumeKeyShortcutForA11yService(/* alwaysOnService= */ true);
-
-        assertThat(
-                Settings.Secure.getString(mContentResolver, ENABLED_ACCESSIBILITY_SERVICES)
-        ).isEmpty();
-    }
-
-    @Test
-    @RequiresFlagsEnabled(Flags.FLAG_UPDATE_ALWAYS_ON_A11Y_SERVICE)
-    public void turnOffVolumeShortcutForAlwaysOnA11yService_hasOtherTypesShortcut_shouldNotTurnOffA11yService()
-            throws Exception {
-        configureApplicationTargetSdkVersion(Build.VERSION_CODES.R);
-        Settings.Secure.putString(
-                mContentResolver, ACCESSIBILITY_BUTTON_TARGETS, SERVICE_NAME_STRING);
-
-        turnOffVolumeKeyShortcutForA11yService(/* alwaysOnService= */ true);
-
-        assertThat(
-                Settings.Secure.getString(mContentResolver, ENABLED_ACCESSIBILITY_SERVICES)
-        ).isEqualTo(SERVICE_NAME_STRING);
     }
 
     @Test
@@ -513,9 +483,9 @@ public class AccessibilityShortcutControllerTest {
                 captor.capture());
         captor.getValue().onClick(null, DialogInterface.BUTTON_NEGATIVE);
 
-        assertThat(
-                Settings.Secure.getString(mContentResolver,
-                        ACCESSIBILITY_SHORTCUT_TARGET_SERVICE)).isEqualTo(SERVICE_NAME_STRING);
+        verify(mAccessibilityManagerService).enableShortcutsForTargets(
+                eq(true), eq(HARDWARE), mListCaptor.capture(), anyInt());
+        assertThat(mListCaptor.getValue()).containsExactly(SERVICE_NAME_STRING);
         assertThat(Settings.Secure.getInt(
                 mContentResolver, ACCESSIBILITY_SHORTCUT_DIALOG_SHOWN)).isEqualTo(
                 AccessibilityShortcutController.DialogStatus.SHOWN);
@@ -536,9 +506,9 @@ public class AccessibilityShortcutControllerTest {
                 captor.capture());
         captor.getValue().onClick(null, DialogInterface.BUTTON_POSITIVE);
 
-        assertThat(
-                Settings.Secure.getString(mContentResolver,
-                        ACCESSIBILITY_SHORTCUT_TARGET_SERVICE)).isEmpty();
+        verify(mAccessibilityManagerService).enableShortcutsForTargets(
+                eq(false), eq(HARDWARE), mListCaptor.capture(), anyInt());
+        assertThat(mListCaptor.getValue()).isEmpty();
         assertThat(Settings.Secure.getInt(
                 mContentResolver, ACCESSIBILITY_SHORTCUT_DIALOG_SHOWN)).isEqualTo(
                 AccessibilityShortcutController.DialogStatus.NOT_SHOWN);
@@ -554,7 +524,25 @@ public class AccessibilityShortcutControllerTest {
 
         verifyZeroInteractions(mAlertDialogBuilder, mAlertDialog);
         verify(mToast).show();
-        verify(mAccessibilityManagerService).performAccessibilityShortcut(null);
+        verify(mAccessibilityManagerService).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
+    }
+
+    @Test
+    public void testOnAccessibilityShortcut_settingNull_dialogShown_enablesDefaultShortcut()
+            throws Exception {
+        configureDefaultAccessibilityService();
+        Settings.Secure.putInt(mContentResolver, ACCESSIBILITY_SHORTCUT_DIALOG_SHOWN,
+                AccessibilityShortcutController.DialogStatus.SHOWN);
+        // Setting is only `null` during SUW.
+        Settings.Secure.putString(mContentResolver, ACCESSIBILITY_SHORTCUT_TARGET_SERVICE, null);
+        getController().performAccessibilityShortcut();
+
+        verify(mAccessibilityManagerService).enableShortcutsForTargets(
+                eq(true), eq(HARDWARE), mListCaptor.capture(), anyInt());
+        assertThat(mListCaptor.getValue()).containsExactly(SERVICE_NAME_STRING);
+        verify(mAccessibilityManagerService).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
     }
 
     @Test
@@ -614,7 +602,8 @@ public class AccessibilityShortcutControllerTest {
         Settings.Secure.putInt(mContentResolver, ACCESSIBILITY_SHORTCUT_DIALOG_SHOWN,
                 AccessibilityShortcutController.DialogStatus.SHOWN);
         getController().performAccessibilityShortcut();
-        verify(mAccessibilityManagerService).performAccessibilityShortcut(null);
+        verify(mAccessibilityManagerService).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
     }
 
     @Test
@@ -627,7 +616,8 @@ public class AccessibilityShortcutControllerTest {
         getController().performAccessibilityShortcut();
 
         verifyZeroInteractions(mToast);
-        verify(mAccessibilityManagerService).performAccessibilityShortcut(null);
+        verify(mAccessibilityManagerService).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
     }
 
     @Test
@@ -643,7 +633,8 @@ public class AccessibilityShortcutControllerTest {
         getController().performAccessibilityShortcut();
 
         verifyZeroInteractions(mToast);
-        verify(mAccessibilityManagerService).performAccessibilityShortcut(null);
+        verify(mAccessibilityManagerService).performAccessibilityShortcut(
+                Display.DEFAULT_DISPLAY, HARDWARE, null);
     }
 
     @Test
@@ -726,14 +717,14 @@ public class AccessibilityShortcutControllerTest {
 
     private void configureNoShortcutService() throws Exception {
         when(mAccessibilityManagerService
-                .getAccessibilityShortcutTargets(ACCESSIBILITY_SHORTCUT_KEY))
+                .getAccessibilityShortcutTargets(HARDWARE))
                 .thenReturn(Collections.emptyList());
         Settings.Secure.putString(mContentResolver, ACCESSIBILITY_SHORTCUT_TARGET_SERVICE, "");
     }
 
     private void configureValidShortcutService() throws Exception {
         when(mAccessibilityManagerService
-                .getAccessibilityShortcutTargets(ACCESSIBILITY_SHORTCUT_KEY))
+                .getAccessibilityShortcutTargets(HARDWARE))
                 .thenReturn(Collections.singletonList(SERVICE_NAME_STRING));
         Settings.Secure.putString(
                 mContentResolver, ACCESSIBILITY_SHORTCUT_TARGET_SERVICE, SERVICE_NAME_STRING);
@@ -744,7 +735,7 @@ public class AccessibilityShortcutControllerTest {
                 (ComponentName) AccessibilityShortcutController.getFrameworkShortcutFeaturesMap()
                         .keySet().toArray()[0];
         when(mAccessibilityManagerService
-                .getAccessibilityShortcutTargets(ACCESSIBILITY_SHORTCUT_KEY))
+                .getAccessibilityShortcutTargets(HARDWARE))
                 .thenReturn(Collections.singletonList(featureComponentName.flattenToString()));
         Settings.Secure.putString(mContentResolver, ACCESSIBILITY_SHORTCUT_TARGET_SERVICE,
                 featureComponentName.flattenToString());
@@ -806,7 +797,7 @@ public class AccessibilityShortcutControllerTest {
 
     private void configureDefaultAccessibilityService() throws Exception {
         when(mAccessibilityManagerService
-                .getAccessibilityShortcutTargets(ACCESSIBILITY_SHORTCUT_KEY))
+                .getAccessibilityShortcutTargets(HARDWARE))
                 .thenReturn(Collections.singletonList(SERVICE_NAME_STRING));
 
         when(mResources.getString(R.string.config_defaultAccessibilityService)).thenReturn(

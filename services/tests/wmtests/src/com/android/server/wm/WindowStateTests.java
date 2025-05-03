@@ -71,27 +71,36 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
+import android.content.ContentResolver;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
 import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.os.Bundle;
+import android.graphics.Region;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.InputConfig;
 import android.os.RemoteException;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.provider.Settings;
 import android.util.ArraySet;
 import android.util.MergedConfiguration;
 import android.view.Gravity;
@@ -104,6 +113,7 @@ import android.view.SurfaceControl;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.WindowRelayoutResult;
 import android.view.inputmethod.ImeTracker;
 import android.window.ClientWindowFrames;
 import android.window.ITaskFragmentOrganizer;
@@ -111,8 +121,10 @@ import android.window.TaskFragmentOrganizer;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.testutils.StubTransaction;
 import com.android.server.wm.SensitiveContentPackages.PackageInfo;
+import com.android.window.flags.Flags;
 
 import org.junit.After;
 import org.junit.Test;
@@ -307,10 +319,8 @@ public class WindowStateTests extends WindowTestsBase {
         // Simulate the window is in split screen root task.
         final Task rootTask = createTask(mDisplayContent,
                 WINDOWING_MODE_MULTI_WINDOW, ACTIVITY_TYPE_STANDARD);
-        spyOn(appWindow);
-        spyOn(rootTask);
         rootTask.setFocusable(false);
-        doReturn(rootTask).when(appWindow).getRootTask();
+        appWindow.mActivityRecord.reparent(rootTask, 0 /* position */, "test");
 
         // Make sure canBeImeTarget is false;
         assertFalse(appWindow.canBeImeTarget());
@@ -344,6 +354,29 @@ public class WindowStateTests extends WindowTestsBase {
         assertEquals(mediaOverlayChild, windows.pollFirst());
         assertEquals(mediaChild, windows.pollFirst());
         assertTrue(windows.isEmpty());
+    }
+
+    @Test
+    public void testDestroySurface() {
+        final WindowState win = createWindow(null, TYPE_APPLICATION, "win");
+        win.mHasSurface = win.mAnimatingExit = true;
+        win.mWinAnimator.mSurfaceControl = mock(SurfaceControl.class);
+        win.onExitAnimationDone();
+
+        assertFalse("Case 1 destroySurface no-op",
+                win.destroySurface(false /* cleanupOnResume */, false /* appStopped */));
+        assertTrue(win.mHasSurface);
+        assertTrue(win.mDestroying);
+
+        assertFalse("Case 2 destroySurface no-op",
+                win.destroySurface(true /* cleanupOnResume */, false /* appStopped */));
+        assertTrue(win.mHasSurface);
+        assertTrue(win.mDestroying);
+
+        assertTrue("Case 3 destroySurface destroys surface",
+                win.destroySurface(false /* cleanupOnResume */, true /* appStopped */));
+        assertFalse(win.mDestroying);
+        assertFalse(win.mHasSurface);
     }
 
     @Test
@@ -400,11 +433,11 @@ public class WindowStateTests extends WindowTestsBase {
         final var powerManager = mWm.mPowerManager;
         clearInvocations(powerManager);
         firstWindow.prepareWindowToDisplayDuringRelayout(false /*wasVisible*/);
-        verify(powerManager).wakeUp(anyLong(), anyInt(), anyString());
+        verify(powerManager).wakeUp(anyLong(), anyInt(), anyString(), anyInt());
 
         clearInvocations(powerManager);
         secondWindow.prepareWindowToDisplayDuringRelayout(false /*wasVisible*/);
-        verify(powerManager).wakeUp(anyLong(), anyInt(), anyString());
+        verify(powerManager).wakeUp(anyLong(), anyInt(), anyString(), anyInt());
     }
 
     private void testPrepareWindowToDisplayDuringRelayout(WindowState appWindow,
@@ -414,9 +447,9 @@ public class WindowStateTests extends WindowTestsBase {
         appWindow.prepareWindowToDisplayDuringRelayout(false /* wasVisible */);
 
         if (expectedWakeupCalled) {
-            verify(powerManager).wakeUp(anyLong(), anyInt(), anyString());
+            verify(powerManager).wakeUp(anyLong(), anyInt(), anyString(), anyInt());
         } else {
-            verify(powerManager, never()).wakeUp(anyLong(), anyInt(), anyString());
+            verify(powerManager, never()).wakeUp(anyLong(), anyInt(), anyString(), anyInt());
         }
         // If wakeup is expected to be called, the currentLaunchCanTurnScreenOn should be false
         // because the state will be consumed.
@@ -472,9 +505,35 @@ public class WindowStateTests extends WindowTestsBase {
         app.setRequestedVisibleTypes(0, statusBars());
         mDisplayContent.getInsetsStateController()
                 .getOrCreateSourceProvider(statusBarId, statusBars())
-                .updateClientVisibility(app);
+                .updateClientVisibility(app, null /* statsToken */);
         waitUntilHandlersIdle();
         assertFalse(statusBar.isVisible());
+    }
+
+    /**
+     * Verifies that the InsetsSourceProvider frame cannot be updated by WindowState before
+     * relayout is called.
+     */
+    @SetupWindows(addWindows = { W_STATUS_BAR })
+    @Test
+    public void testUpdateSourceFrameBeforeRelayout() {
+        final WindowState statusBar = mStatusBarWindow;
+        statusBar.mHasSurface = true;
+        assertTrue(statusBar.isVisible());
+        final int statusBarId = InsetsSource.createId(null, 0, statusBars());
+        final var statusBarProvider = mDisplayContent.getInsetsStateController()
+                .getOrCreateSourceProvider(statusBarId, statusBars());
+        statusBarProvider.setWindowContainer(statusBar, null /* frameProvider */,
+                        null /* imeFrameProvider */);
+
+        statusBar.updateSourceFrame(new Rect(0, 0, 500, 200));
+        assertTrue("InsetsSourceProvider frame should not be updated before relayout",
+                statusBarProvider.getSourceFrame().isEmpty());
+
+        makeWindowVisible(statusBar);
+        statusBar.updateSourceFrame(new Rect(0, 0, 500, 100));
+        assertEquals("InsetsSourceProvider frame should be updated after relayout",
+                new Rect(0, 0, 500, 100), statusBarProvider.getSourceFrame());
     }
 
     @Test
@@ -804,7 +863,8 @@ public class WindowStateTests extends WindowTestsBase {
                     anyBoolean() /* reportDraw */, any() /* mergedConfig */,
                     any() /* insetsState */, anyBoolean() /* forceLayout */,
                     anyBoolean() /* alwaysConsumeSystemBars */, anyInt() /* displayId */,
-                    anyInt() /* seqId */, anyBoolean() /* dragResizing */);
+                    anyInt() /* seqId */, anyBoolean() /* dragResizing */,
+                    any() /* activityWindowInfo */);
         } catch (RemoteException ignored) {
         }
         win.reportResized();
@@ -816,17 +876,20 @@ public class WindowStateTests extends WindowTestsBase {
         assertFalse(win.getOrientationChanging());
     }
 
-    @SetupWindows(addWindows = W_ABOVE_ACTIVITY)
     @Test
     public void testRequestResizeForBlastSync() {
-        final WindowState win = mChildAppWindowAbove;
-        makeWindowVisible(win, win.getParentWindow());
+        final WindowState win = createWindow(null, TYPE_APPLICATION, "window");
+        makeWindowVisible(win);
+        makeLastConfigReportedToClient(win, true /* visible */);
         win.mLayoutSeq = win.getDisplayContent().mLayoutSeq;
         win.reportResized();
         win.updateResizingWindowIfNeeded();
         assertThat(mWm.mResizingWindows).doesNotContain(win);
 
         // Check that the window is in resizing if using blast sync.
+        final BLASTSyncEngine.SyncGroup syncGroup = mock(BLASTSyncEngine.SyncGroup.class);
+        syncGroup.mSyncMethod = BLASTSyncEngine.METHOD_BLAST;
+        win.mSyncGroup = syncGroup;
         win.reportResized();
         win.prepareSync();
         assertEquals(SYNC_STATE_WAITING_FOR_DRAW, win.mSyncState);
@@ -839,6 +902,20 @@ public class WindowStateTests extends WindowTestsBase {
         mWm.mResizingWindows.remove(win);
         win.updateResizingWindowIfNeeded();
         assertThat(mWm.mResizingWindows).doesNotContain(win);
+
+        // Non blast sync doesn't require to force resizing, because it won't use syncSeqId.
+        // And if the window is already drawn, it can report sync finish immediately so that the
+        // sync group won't be blocked.
+        win.finishSync(mTransaction, syncGroup, false /* cancel */);
+        syncGroup.mSyncMethod = BLASTSyncEngine.METHOD_NONE;
+        win.mSyncGroup = syncGroup;
+        win.mWinAnimator.mDrawState = WindowStateAnimator.HAS_DRAWN;
+        win.prepareSync();
+        assertEquals(SYNC_STATE_WAITING_FOR_DRAW, win.mSyncState);
+        win.updateResizingWindowIfNeeded();
+        assertThat(mWm.mResizingWindows).doesNotContain(win);
+        assertTrue(win.isSyncFinished(syncGroup));
+        assertEquals(WindowContainer.SYNC_STATE_READY, win.mSyncState);
     }
 
     @Test
@@ -946,6 +1023,88 @@ public class WindowStateTests extends WindowTestsBase {
         assertTrue(testFlag(handle.inputConfig, InputConfig.NO_INPUT_CHANNEL));
     }
 
+    @DisableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testTouchRegionUsesLetterboxBoundsIfTransformedBoundsAndLetterboxScrolling() {
+        final WindowState win = createWindow(null, TYPE_APPLICATION, "win");
+
+        // Transformed bounds used for size of touchable region if letterbox inner bounds are empty.
+        final Rect transformedBounds = new Rect(0, 0, 300, 500);
+        doReturn(transformedBounds).when(win.mToken).getFixedRotationTransformDisplayBounds();
+
+        // Otherwise, touchable region should match letterbox inner bounds.
+        final Rect letterboxInnerBounds = new Rect(30, 0, 270, 500);
+        doAnswer(invocation -> {
+            Rect rect = invocation.getArgument(0);
+            rect.set(letterboxInnerBounds);
+            return null;
+        }).when(win.mActivityRecord).getLetterboxInnerBounds(any());
+
+        Region outRegion = new Region();
+        win.getSurfaceTouchableRegion(outRegion, win.mAttrs);
+
+        // Because scrollingFromLetterbox flag is disabled and letterboxInnerBounds is not empty,
+        // touchable region should match letterboxInnerBounds always.
+        assertEquals(letterboxInnerBounds, outRegion.getBounds());
+    }
+
+    @DisableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testTouchRegionUsesLetterboxBoundsIfNullTransformedBoundsAndLetterboxScrolling() {
+        final WindowState win = createWindow(null, TYPE_APPLICATION, "win");
+
+        // Fragment bounds used for size of touchable region if letterbox inner bounds are empty
+        // and Transform bounds are null.
+        doReturn(null).when(win.mToken).getFixedRotationTransformDisplayBounds();
+        final Rect fragmentBounds = new Rect(0, 0, 300, 500);
+        final TaskFragment taskFragment = win.mActivityRecord.getTaskFragment();
+        doAnswer(invocation -> {
+            Rect rect = invocation.getArgument(0);
+            rect.set(fragmentBounds);
+            return null;
+        }).when(taskFragment).getDimBounds(any());
+
+        // Otherwise, touchable region should match letterbox inner bounds.
+        final Rect letterboxInnerBounds = new Rect(30, 0, 270, 500);
+        doAnswer(invocation -> {
+            Rect rect = invocation.getArgument(0);
+            rect.set(letterboxInnerBounds);
+            return null;
+        }).when(win.mActivityRecord).getLetterboxInnerBounds(any());
+
+        Region outRegion = new Region();
+        win.getSurfaceTouchableRegion(outRegion, win.mAttrs);
+
+        // Because scrollingFromLetterbox flag is disabled and letterboxInnerBounds is not empty,
+        // touchable region should match letterboxInnerBounds always.
+        assertEquals(letterboxInnerBounds, outRegion.getBounds());
+    }
+
+    @EnableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testTouchRegionUsesTransformedBoundsIfLetterboxScrolling() {
+        final WindowState win = createWindow(null, TYPE_APPLICATION, "win");
+
+        // Transformed bounds used for size of touchable region if letterbox inner bounds are empty.
+        final Rect transformedBounds = new Rect(0, 0, 300, 500);
+        doReturn(transformedBounds).when(win.mToken).getFixedRotationTransformDisplayBounds();
+
+        // Otherwise, touchable region should match letterbox inner bounds.
+        final Rect letterboxInnerBounds = new Rect(30, 0, 270, 500);
+        doAnswer(invocation -> {
+            Rect rect = invocation.getArgument(0);
+            rect.set(letterboxInnerBounds);
+            return null;
+        }).when(win.mActivityRecord).getLetterboxInnerBounds(any());
+
+        Region outRegion = new Region();
+        win.getSurfaceTouchableRegion(outRegion, win.mAttrs);
+
+        // Because scrollingFromLetterbox flag is enabled and transformedBounds are non-null,
+        // touchable region should match transformedBounds.
+        assertEquals(transformedBounds, outRegion.getBounds());
+    }
+
     @Test
     public void testHasActiveVisibleWindow() {
         final int uid = ActivityBuilder.DEFAULT_FAKE_UID;
@@ -1014,7 +1173,7 @@ public class WindowStateTests extends WindowTestsBase {
                 mDisplayContent,
                 "SystemDialog", true);
         mDisplayContent.setImeLayeringTarget(mAppWindow);
-        mAppWindow.getRootTask().setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
+        mAppWindow.getTask().setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
         makeWindowVisible(mImeWindow);
         systemDialogWindow.mAttrs.flags |= FLAG_ALT_FOCUSABLE_IM;
         assertTrue(systemDialogWindow.needsRelativeLayeringToIme());
@@ -1319,8 +1478,8 @@ public class WindowStateTests extends WindowTestsBase {
 
     @Test
     public void testImeTargetChangeListener_OnImeInputTargetVisibilityChanged() {
-        final TestImeTargetChangeListener listener = new TestImeTargetChangeListener();
-        mWm.mImeTargetChangeListener = listener;
+        final InputMethodManagerInternal immi = InputMethodManagerInternal.get();
+        spyOn(immi);
 
         final WindowState imeTarget = createWindow(null /* parent */, TYPE_BASE_APPLICATION,
                 createActivityRecord(mDisplayContent), "imeTarget");
@@ -1329,29 +1488,26 @@ public class WindowStateTests extends WindowTestsBase {
         makeWindowVisible(imeTarget);
         mDisplayContent.setImeInputTarget(imeTarget);
         waitHandlerIdle(mWm.mH);
-
-        assertThat(listener.mImeTargetToken).isEqualTo(imeTarget.mClient.asBinder());
-        assertThat(listener.mIsRemoved).isFalse();
-        assertThat(listener.mIsVisibleForImeInputTarget).isTrue();
+        verify(immi).onImeInputTargetVisibilityChanged(imeTarget.mClient.asBinder(),
+                true /* visibleAndNotRemoved */, mDisplayContent.getDisplayId());
+        reset(immi);
 
         imeTarget.mActivityRecord.setVisibleRequested(false);
         waitHandlerIdle(mWm.mH);
-
-        assertThat(listener.mImeTargetToken).isEqualTo(imeTarget.mClient.asBinder());
-        assertThat(listener.mIsRemoved).isFalse();
-        assertThat(listener.mIsVisibleForImeInputTarget).isFalse();
+        verify(immi).onImeInputTargetVisibilityChanged(imeTarget.mClient.asBinder(),
+                false /* visibleAndNotRemoved */, mDisplayContent.getDisplayId());
+        reset(immi);
 
         imeTarget.removeImmediately();
-        assertThat(listener.mImeTargetToken).isEqualTo(imeTarget.mClient.asBinder());
-        assertThat(listener.mIsRemoved).isTrue();
-        assertThat(listener.mIsVisibleForImeInputTarget).isFalse();
+        verify(immi).onImeInputTargetVisibilityChanged(imeTarget.mClient.asBinder(),
+                false /* visibleAndNotRemoved */, mDisplayContent.getDisplayId());
     }
 
     @SetupWindows(addWindows = {W_INPUT_METHOD})
     @Test
     public void testImeTargetChangeListener_OnImeTargetOverlayVisibilityChanged() {
-        final TestImeTargetChangeListener listener = new TestImeTargetChangeListener();
-        mWm.mImeTargetChangeListener = listener;
+        final InputMethodManagerInternal immi = InputMethodManagerInternal.get();
+        spyOn(immi);
 
         // Scenario 1: test addWindow/relayoutWindow to add Ime layering overlay window as visible.
         final WindowToken windowToken = createTestWindowToken(TYPE_APPLICATION_OVERLAY,
@@ -1363,7 +1519,8 @@ public class WindowStateTests extends WindowTestsBase {
         final SurfaceControl outSurfaceControl = new SurfaceControl();
         final InsetsState outInsetsState = new InsetsState();
         final InsetsSourceControl.Array outControls = new InsetsSourceControl.Array();
-        final Bundle outBundle = new Bundle();
+        final WindowRelayoutResult outRelayoutResult = new WindowRelayoutResult(outFrames,
+                outConfig, outSurfaceControl, outInsetsState, outControls);
         final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 TYPE_APPLICATION_OVERLAY);
         params.setTitle("imeLayeringTargetOverlay");
@@ -1374,33 +1531,84 @@ public class WindowStateTests extends WindowTestsBase {
                 0 /* userUd */, WindowInsets.Type.defaultVisible(), null, new InsetsState(),
                 new InsetsSourceControl.Array(), new Rect(), new float[1]);
         mWm.relayoutWindow(session, client, params, 100, 200, View.VISIBLE, 0, 0, 0,
-                outFrames, outConfig, outSurfaceControl, outInsetsState, outControls, outBundle);
+                outRelayoutResult);
         waitHandlerIdle(mWm.mH);
 
         final WindowState imeLayeringTargetOverlay = mDisplayContent.getWindow(
                 w -> w.mClient.asBinder() == client.asBinder());
         assertThat(imeLayeringTargetOverlay.isVisible()).isTrue();
-        assertThat(listener.mImeTargetToken).isEqualTo(client.asBinder());
-        assertThat(listener.mIsRemoved).isFalse();
-        assertThat(listener.mIsVisibleForImeTargetOverlay).isTrue();
+        verify(immi, atLeast(1))
+                .setHasVisibleImeLayeringOverlay(true /* hasVisibleOverlay */,
+                        mDisplayContent.getDisplayId());
+        reset(immi);
 
         // Scenario 2: test relayoutWindow to let the Ime layering target overlay window invisible.
         mWm.relayoutWindow(session, client, params, 100, 200, View.GONE, 0, 0, 0,
-                outFrames, outConfig, outSurfaceControl, outInsetsState, outControls, outBundle);
+                outRelayoutResult);
         waitHandlerIdle(mWm.mH);
 
         assertThat(imeLayeringTargetOverlay.isVisible()).isFalse();
-        assertThat(listener.mImeTargetToken).isEqualTo(client.asBinder());
-        assertThat(listener.mIsRemoved).isFalse();
-        assertThat(listener.mIsVisibleForImeTargetOverlay).isFalse();
+        verify(immi).setHasVisibleImeLayeringOverlay(false /* hasVisibleOverlay */,
+                mDisplayContent.getDisplayId());
+        reset(immi);
 
         // Scenario 3: test removeWindow to remove the Ime layering target overlay window.
         mWm.removeClientToken(session, client.asBinder());
         waitHandlerIdle(mWm.mH);
 
-        assertThat(listener.mImeTargetToken).isEqualTo(client.asBinder());
-        assertThat(listener.mIsRemoved).isTrue();
-        assertThat(listener.mIsVisibleForImeTargetOverlay).isFalse();
+        verify(immi).setHasVisibleImeLayeringOverlay(false /* hasVisibleOverlay */,
+                mDisplayContent.getDisplayId());
+    }
+
+    @Test
+    public void testIsSecureLocked_flagSecureSet() {
+        WindowState window = createWindow(null /* parent */, TYPE_APPLICATION, "test-window",
+                1 /* ownerId */);
+        window.mAttrs.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+
+        assertTrue(window.isSecureLocked());
+    }
+
+    @Test
+    public void testIsSecureLocked_flagSecureNotSet() {
+        WindowState window = createWindow(null /* parent */, TYPE_APPLICATION, "test-window",
+                1 /* ownerId */);
+
+        assertFalse(window.isSecureLocked());
+    }
+
+    @Test
+    public void testIsSecureLocked_disableSecureWindows() {
+        assumeTrue(Build.IS_DEBUGGABLE);
+
+        WindowState window = createWindow(null /* parent */, TYPE_APPLICATION, "test-window",
+                1 /* ownerId */);
+        window.mAttrs.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+        ContentResolver cr = useFakeSettingsProvider();
+
+        // isSecureLocked should return false when DISABLE_SECURE_WINDOWS is set to 1
+        Settings.Secure.putString(cr, Settings.Secure.DISABLE_SECURE_WINDOWS, "1");
+        mWm.mSettingsObserver.onChange(false /* selfChange */,
+                Settings.Secure.getUriFor(Settings.Secure.DISABLE_SECURE_WINDOWS));
+        assertFalse(window.isSecureLocked());
+
+        // isSecureLocked should return true if DISABLE_SECURE_WINDOWS is set to 0.
+        Settings.Secure.putString(cr, Settings.Secure.DISABLE_SECURE_WINDOWS, "0");
+        mWm.mSettingsObserver.onChange(false /* selfChange */,
+                Settings.Secure.getUriFor(Settings.Secure.DISABLE_SECURE_WINDOWS));
+        assertTrue(window.isSecureLocked());
+
+        // Disable secure windows again.
+        Settings.Secure.putString(cr, Settings.Secure.DISABLE_SECURE_WINDOWS, "1");
+        mWm.mSettingsObserver.onChange(false /* selfChange */,
+                Settings.Secure.getUriFor(Settings.Secure.DISABLE_SECURE_WINDOWS));
+        assertFalse(window.isSecureLocked());
+
+        // isSecureLocked should return true if DISABLE_SECURE_WINDOWS is deleted.
+        Settings.Secure.putString(cr, Settings.Secure.DISABLE_SECURE_WINDOWS, null);
+        mWm.mSettingsObserver.onChange(false /* selfChange */,
+                Settings.Secure.getUriFor(Settings.Secure.DISABLE_SECURE_WINDOWS));
+        assertTrue(window.isSecureLocked());
     }
 
     @Test
@@ -1442,29 +1650,5 @@ public class WindowStateTests extends WindowTestsBase {
 
         mWm.mSensitiveContentPackages.removeBlockScreenCaptureForApps(blockedPackages);
         assertFalse(window.isSecureLocked());
-    }
-
-    private static class TestImeTargetChangeListener implements ImeTargetChangeListener {
-        private IBinder mImeTargetToken;
-        private boolean mIsRemoved;
-        private boolean mIsVisibleForImeTargetOverlay;
-        private boolean mIsVisibleForImeInputTarget;
-
-        @Override
-        public void onImeTargetOverlayVisibilityChanged(IBinder overlayWindowToken,
-                @WindowManager.LayoutParams.WindowType int windowType, boolean visible,
-                boolean removed) {
-            mImeTargetToken = overlayWindowToken;
-            mIsVisibleForImeTargetOverlay = visible;
-            mIsRemoved = removed;
-        }
-
-        @Override
-        public void onImeInputTargetVisibilityChanged(IBinder imeInputTarget,
-                boolean visibleRequested, boolean removed) {
-            mImeTargetToken = imeInputTarget;
-            mIsVisibleForImeInputTarget = visibleRequested;
-            mIsRemoved = removed;
-        }
     }
 }

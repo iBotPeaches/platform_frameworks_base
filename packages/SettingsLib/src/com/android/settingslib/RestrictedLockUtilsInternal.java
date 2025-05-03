@@ -27,6 +27,9 @@ import android.annotation.UserIdInt;
 import android.app.AppGlobals;
 import android.app.AppOpsManager;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.EnforcingAdmin;
+import android.app.admin.PackagePolicy;
+import android.app.admin.UnknownAuthority;
 import android.app.ecm.EnhancedConfirmationManager;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
@@ -42,6 +45,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.UserManager.EnforcingUser;
+import android.security.advancedprotection.AdvancedProtectionManager;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -57,6 +61,7 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.widget.LockPatternUtils;
 
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -144,7 +149,8 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
                         uid, packageName);
                 final boolean ecmEnabled = context.getResources().getBoolean(
                         com.android.internal.R.bool.config_enhancedConfirmationModeEnabled);
-                return ecmEnabled && mode != AppOpsManager.MODE_ALLOWED;
+                return ecmEnabled && mode != AppOpsManager.MODE_ALLOWED
+                        && mode != AppOpsManager.MODE_DEFAULT;
             } catch (Exception e) {
                 // Fallback in case if app ops is not available in testing.
                 return false;
@@ -197,6 +203,14 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
         final int restrictionSource = enforcingUser.getUserRestrictionSource();
         if (restrictionSource == UserManager.RESTRICTION_SOURCE_SYSTEM) {
             return null;
+        }
+
+        if (android.security.Flags.aapmApi()) {
+            EnforcingAdmin admin = dpm.getEnforcingAdmin(userId, userRestriction);
+            if (admin != null) {
+                return new EnforcedAdmin(admin.getComponentName(), userRestriction,
+                        admin.getUserHandle());
+            }
         }
 
         final EnforcedAdmin admin =
@@ -427,13 +441,21 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
         return null;
     }
 
+    /**
+     * Retrieves the user ID of a managed profile associated with a specific user.
+     *
+     * <p>This method iterates over the users in the profile group associated with the given user ID
+     * and returns the ID of the user that is identified as a managed profile user.
+     * If no managed profile is found, it returns {@link UserHandle#USER_NULL}.
+     *
+     * @param context The context used to obtain the {@link UserManager} system service.
+     * @param userId  The ID of the user for whom to find the managed profile.
+     * @return The user ID of the managed profile, or {@link UserHandle#USER_NULL} if none exists.
+     */
     private static int getManagedProfileId(Context context, int userId) {
         UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
         List<UserInfo> userProfiles = um.getProfiles(userId);
         for (UserInfo uInfo : userProfiles) {
-            if (uInfo.id == userId) {
-                continue;
-            }
             if (uInfo.isManagedProfile()) {
                 return uInfo.id;
             }
@@ -818,11 +840,50 @@ public class RestrictedLockUtilsInternal extends RestrictedLockUtils {
         }
         EnforcedAdmin admin =
                 RestrictedLockUtils.getProfileOrDeviceOwner(
-                        context, UserHandle.of(UserHandle.USER_SYSTEM));
+                        context, context.getUser());
         if (admin != null) {
             return admin;
         }
-        int profileId = getManagedProfileId(context, UserHandle.USER_SYSTEM);
+        int profileId = getManagedProfileId(context, context.getUserId());
+        return RestrictedLockUtils.getProfileOrDeviceOwner(context, UserHandle.of(profileId));
+    }
+
+    /**
+     * Checks if the identifier is enforced by advanced protection.
+     */
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    public static boolean isPolicyEnforcedByAdvancedProtection(Context context, String identifier,
+            int userId) {
+        if (!android.security.Flags.aapmApi()) return false;
+        if (identifier == null) return false;
+        EnforcingAdmin admin = context.getSystemService(DevicePolicyManager.class)
+                .getEnforcingAdmin(userId, identifier);
+        if (admin == null) return false;
+        return admin.getAuthority() instanceof UnknownAuthority authority
+                && AdvancedProtectionManager.ADVANCED_PROTECTION_SYSTEM_ENTITY.equals(
+                        authority.getName());
+    }
+
+    /**
+     * Check if there are restrictions on an application from being a Credential Manager provider.
+     *
+     * @return EnforcedAdmin Object containing the enforced admin component and admin user details,
+     * or {@code null} if the setting is not managed.
+     */
+    public static @Nullable EnforcedAdmin checkIfApplicationCanBeCredentialManagerProvider(
+            @NonNull Context context, @NonNull String packageName) {
+        final DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
+        final PackagePolicy pp = dpm.getCredentialManagerPolicy();
+
+        if (pp == null || pp.isPackageAllowed(packageName, new HashSet<>())) {
+            return null;
+        }
+
+        EnforcedAdmin admin = RestrictedLockUtilsInternal.getDeviceOwner(context);
+        if (admin != null) {
+            return admin;
+        }
+        int profileId = getManagedProfileId(context, context.getUserId());
         return RestrictedLockUtils.getProfileOrDeviceOwner(context, UserHandle.of(profileId));
     }
 

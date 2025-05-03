@@ -23,8 +23,14 @@ import static org.junit.Assert.assertNotEquals;
 
 import android.net.NetworkCapabilities;
 
-import org.junit.Test;
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class VcnUnderlyingNetworkPolicyTest {
     private static final VcnUnderlyingNetworkPolicy DEFAULT_NETWORK_POLICY =
             new VcnUnderlyingNetworkPolicy(

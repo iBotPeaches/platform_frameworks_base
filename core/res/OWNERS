@@ -9,7 +9,6 @@ hackbod@google.com
 ilyamaty@google.com
 jbolinger@google.com
 jsharkey@android.com
-jsharkey@google.com
 juliacr@google.com
 kchyn@google.com
 michaelwr@google.com
@@ -53,10 +52,14 @@ per-file res/values/config_battery_saver.xml = file:/services/core/java/com/andr
 per-file res/values/dimens_car.xml = file:/platform/packages/services/Car:/OWNERS
 
 # Device Idle
-per-file res/values/config_device_idle.xml = file:/apex/jobscheduler/OWNERS
+per-file res/values/config_device_idle.xml = file:/apex/jobscheduler/DEVICE_IDLE_OWNERS
+
+# Display Manager
+per-file res/values/config_display.xml = file:/services/core/java/com/android/server/display/OWNERS
 
 # Wear
 per-file res/*-watch/* = file:/WEAR_OWNERS
+per-file res/*-watch-v*/* = file:/WEAR_OWNERS
 
 # Performance
 per-file res/values/config.xml = file:/PERFORMANCE_OWNERS
@@ -74,6 +77,11 @@ per-file remote_color_resources_res/values/colors.xml = pbdr@google.com
 # Telephony
 per-file res/values/config_telephony.xml = file:/platform/frameworks/opt/telephony:/OWNERS
 per-file res/xml/sms_short_codes.xml = file:/platform/frameworks/opt/telephony:/OWNERS
+
+# Input Method Framework
+per-file res/*/*input_method* = file:/services/core/java/com/android/server/inputmethod/OWNERS
+per-file res/*/*_ime* = file:/services/core/java/com/android/server/inputmethod/OWNERS
+per-file res/*/ime_* = file:/services/core/java/com/android/server/inputmethod/OWNERS
 
 # TV Input Framework
 per-file res/values/config_tv_external_input_logging.xml = file:/services/core/java/com/android/server/tv/OWNERS

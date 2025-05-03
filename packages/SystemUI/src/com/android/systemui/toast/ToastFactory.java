@@ -40,14 +40,11 @@ import javax.inject.Inject;
 public class ToastFactory implements Dumpable {
     // only one ToastPlugin can be connected at a time.
     private ToastPlugin mPlugin;
-    private final LayoutInflater mLayoutInflater;
 
     @Inject
     public ToastFactory(
-            LayoutInflater layoutInflater,
             PluginManager pluginManager,
             DumpManager dumpManager) {
-        mLayoutInflater = layoutInflater;
         dumpManager.registerDumpable("ToastFactory", this);
         pluginManager.addPluginListener(
                 new PluginListener<ToastPlugin>() {
@@ -68,14 +65,16 @@ public class ToastFactory implements Dumpable {
     /**
      * Create a toast to be shown by ToastUI.
      */
-    public SystemUIToast createToast(Context context, CharSequence text, String packageName,
-            int userId, int orientation) {
+    public SystemUIToast createToast(Context applicationContext, Context displayContext,
+            CharSequence text, String packageName, int userId, int orientation) {
+        LayoutInflater layoutInflater = LayoutInflater.from(displayContext);
         if (isPluginAvailable()) {
-            return new SystemUIToast(mLayoutInflater, context, text, mPlugin.createToast(text,
-                    packageName, userId), packageName, userId, orientation);
+            return new SystemUIToast(layoutInflater, applicationContext, displayContext, text,
+                    mPlugin.createToast(text, packageName, userId), packageName, userId,
+                    orientation);
         }
-        return new SystemUIToast(mLayoutInflater, context, text, packageName, userId,
-                orientation);
+        return new SystemUIToast(layoutInflater, applicationContext, displayContext, text,
+                packageName, userId, orientation);
     }
 
     private boolean isPluginAvailable() {

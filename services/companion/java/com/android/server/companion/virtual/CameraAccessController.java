@@ -59,14 +59,14 @@ class CameraAccessController extends CameraManager.AvailabilityCallback implemen
     private int mObserverCount = 0;
 
     @GuardedBy("mLock")
-    private ArrayMap<String, InjectionSessionData> mPackageToSessionData = new ArrayMap<>();
+    private final ArrayMap<String, InjectionSessionData> mPackageToSessionData = new ArrayMap<>();
 
     /**
      * Mapping from camera ID to open camera app associations. Key is the camera id, value is the
      * information of the app's uid and package name.
      */
     @GuardedBy("mLock")
-    private ArrayMap<String, OpenCameraInfo> mAppsToBlockOnVirtualDevice = new ArrayMap<>();
+    private final ArrayMap<String, OpenCameraInfo> mAppsToBlockOnVirtualDevice = new ArrayMap<>();
 
     static class InjectionSessionData {
         public int appUid;
@@ -179,6 +179,15 @@ class CameraAccessController extends CameraManager.AvailabilityCallback implemen
                 Slog.w(TAG, "Unexpected close with observers remaining: " + mObserverCount);
             }
         }
+        // Clean up camera injection sessions (if any).
+        synchronized (mLock) {
+            for (InjectionSessionData sessionData : mPackageToSessionData.values()) {
+                for (CameraInjectionSession session : sessionData.cameraIdToSession.values()) {
+                    session.close();
+                }
+            }
+            mPackageToSessionData.clear();
+        }
         mCameraManager.unregisterAvailabilityCallback(this);
     }
 
@@ -192,7 +201,8 @@ class CameraAccessController extends CameraManager.AvailabilityCallback implemen
             for (UserInfo user : aliveUsers) {
                 int userId = user.getUserHandle().getIdentifier();
                 int appUid = queryUidFromPackageName(userId, packageName);
-                if (mVirtualDeviceManagerInternal.isAppRunningOnAnyVirtualDevice(appUid)) {
+                if (mVirtualDeviceManagerInternal != null
+                        && mVirtualDeviceManagerInternal.isAppRunningOnAnyVirtualDevice(appUid)) {
                     if (data == null) {
                         data = new InjectionSessionData();
                         data.appUid = appUid;

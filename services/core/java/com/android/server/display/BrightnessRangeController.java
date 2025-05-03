@@ -16,12 +16,13 @@
 
 package com.android.server.display;
 
-import android.hardware.display.BrightnessInfo;
+import android.annotation.Nullable;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.PowerManager;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.display.brightness.clamper.HdrClamper;
+import com.android.server.display.config.HighBrightnessModeData;
 import com.android.server.display.feature.DisplayManagerFlags;
 
 import java.io.PrintWriter;
@@ -30,8 +31,7 @@ import java.util.function.BooleanSupplier;
 class BrightnessRangeController {
 
     private final HighBrightnessModeController mHbmController;
-    private final NormalBrightnessModeController mNormalBrightnessModeController =
-            new NormalBrightnessModeController();
+    private final NormalBrightnessModeController mNormalBrightnessModeController;
 
     private final HdrClamper mHdrClamper;
 
@@ -45,22 +45,30 @@ class BrightnessRangeController {
             Runnable modeChangeCallback, DisplayDeviceConfig displayDeviceConfig, Handler handler,
             DisplayManagerFlags flags, IBinder displayToken, DisplayDeviceInfo info) {
         this(hbmController, modeChangeCallback, displayDeviceConfig,
+                new NormalBrightnessModeController(),
                 new HdrClamper(modeChangeCallback::run, new Handler(handler.getLooper())), flags,
                 displayToken, info);
     }
 
+    @VisibleForTesting
     BrightnessRangeController(HighBrightnessModeController hbmController,
             Runnable modeChangeCallback, DisplayDeviceConfig displayDeviceConfig,
+            NormalBrightnessModeController normalBrightnessModeController,
             HdrClamper hdrClamper, DisplayManagerFlags flags, IBinder displayToken,
             DisplayDeviceInfo info) {
         mHbmController = hbmController;
         mModeChangeCallback = modeChangeCallback;
         mHdrClamper = hdrClamper;
-        mUseHdrClamper = flags.isHdrClamperEnabled();
+        mNormalBrightnessModeController = normalBrightnessModeController;
+        mUseHdrClamper = flags.isHdrClamperEnabled() && !flags.useNewHdrBrightnessModifier();
         mUseNbmController = flags.isNbmControllerEnabled();
         if (mUseNbmController) {
             mNormalBrightnessModeController.resetNbmData(
                     displayDeviceConfig.getLuxThrottlingData());
+        }
+        if (flags.useNewHdrBrightnessModifier()) {
+            // HDR boost is handled by HdrBrightnessModifier and should be disabled in HbmController
+            mHbmController.disableHdrBoost();
         }
         updateHdrClamper(info, displayToken, displayDeviceConfig);
     }
@@ -88,7 +96,7 @@ class BrightnessRangeController {
         return mHbmController.getNormalBrightnessMax();
     }
 
-    void loadFromConfig(HighBrightnessModeMetadata hbmMetadata, IBinder token,
+    void loadFromConfig(@Nullable HighBrightnessModeMetadata hbmMetadata, IBinder token,
             DisplayDeviceInfo info, DisplayDeviceConfig displayDeviceConfig) {
         applyChanges(
                 () -> mNormalBrightnessModeController.resetNbmData(
@@ -113,11 +121,15 @@ class BrightnessRangeController {
                 () -> mNormalBrightnessModeController.setAutoBrightnessState(state),
                 () ->  mHbmController.setAutoBrightnessEnabled(state)
         );
+        mHdrClamper.setAutoBrightnessState(state);
     }
 
     void onBrightnessChanged(float brightness, float unthrottledBrightness,
-            @BrightnessInfo.BrightnessMaxReason int throttlingReason) {
-        mHbmController.onBrightnessChanged(brightness, unthrottledBrightness, throttlingReason);
+            DisplayBrightnessState state) {
+        mHbmController.onHdrBoostApplied(
+                state.getHdrBrightness() != DisplayBrightnessState.BRIGHTNESS_NOT_SET);
+        mHbmController.onBrightnessChanged(brightness, unthrottledBrightness,
+                state.getBrightnessMaxReason());
     }
 
     float getCurrentBrightnessMin() {
@@ -126,8 +138,11 @@ class BrightnessRangeController {
 
 
     float getCurrentBrightnessMax() {
-        if (mUseNbmController && mHbmController.getHighBrightnessMode()
-                == BrightnessInfo.HIGH_BRIGHTNESS_MODE_OFF) {
+        // nbmController might adjust maxBrightness only if device does not support HBM or
+        // hbm is currently not allowed
+        if (mUseNbmController
+                && (!mHbmController.deviceSupportsHbm()
+                || !mHbmController.isHbmCurrentlyAllowed())) {
             return Math.min(mHbmController.getCurrentBrightnessMax(),
                     mNormalBrightnessModeController.getCurrentBrightnessMax());
         }
@@ -140,9 +155,7 @@ class BrightnessRangeController {
 
     float getHdrBrightnessValue() {
         float hdrBrightness = mHbmController.getHdrBrightnessValue();
-        float brightnessMax = mUseHdrClamper ? mHdrClamper.getMaxBrightness()
-                : PowerManager.BRIGHTNESS_MAX;
-        return Math.min(hdrBrightness, brightnessMax);
+        return mUseHdrClamper ? mHdrClamper.clamp(hdrBrightness) : hdrBrightness;
     }
 
     float getTransitionPoint() {
@@ -152,7 +165,7 @@ class BrightnessRangeController {
     private void updateHdrClamper(DisplayDeviceInfo info, IBinder token,
             DisplayDeviceConfig displayDeviceConfig) {
         if (mUseHdrClamper) {
-            DisplayDeviceConfig.HighBrightnessModeData hbmData =
+            HighBrightnessModeData hbmData =
                     displayDeviceConfig.getHighBrightnessModeData();
             float minimumHdrPercentOfScreen =
                     hbmData == null ? -1f : hbmData.minimumHdrPercentOfScreen;

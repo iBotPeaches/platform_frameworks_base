@@ -29,13 +29,13 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
 import android.service.quicksettings.Tile;
-import android.view.View;
 import android.widget.Switch;
 
 import androidx.annotation.Nullable;
 
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
+import com.android.systemui.animation.Expandable;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.plugins.ActivityStarter;
@@ -63,7 +63,8 @@ public class RotationLockTile extends QSTileImpl<BooleanState> implements
 
     private static final String EMPTY_SECONDARY_STRING = "";
 
-    private final Icon mIcon = ResourceIcon.get(com.android.internal.R.drawable.ic_qs_auto_rotate);
+    private final Icon mIcon =
+            maybeLoadResourceIcon(com.android.internal.R.drawable.ic_qs_auto_rotate);
     private final RotationLockController mController;
     private final SensorPrivacyManager mPrivacyManager;
     private final BatteryController mBatteryController;
@@ -131,7 +132,7 @@ public class RotationLockTile extends QSTileImpl<BooleanState> implements
     }
 
     @Override
-    protected void handleClick(@Nullable View view) {
+    protected void handleClick(@Nullable Expandable expandable) {
         final boolean newState = !mState.value;
         mController.setRotationLocked(!newState, /* caller= */ "RotationLockTile#handleClick");
         refreshState(newState);
@@ -153,13 +154,13 @@ public class RotationLockTile extends QSTileImpl<BooleanState> implements
                         && mController.isCameraRotationEnabled();
         state.value = !rotationLocked;
         state.label = mContext.getString(R.string.quick_settings_rotation_unlocked_label);
-        state.icon = ResourceIcon.get(R.drawable.qs_auto_rotate_icon_off);
+        state.icon = maybeLoadResourceIcon(R.drawable.qs_auto_rotate_icon_off);
         state.contentDescription = getAccessibilityString(rotationLocked);
         if (!rotationLocked) {
             state.secondaryLabel = cameraRotation ? mContext.getResources().getString(
                     R.string.rotation_lock_camera_rotation_on)
                     : EMPTY_SECONDARY_STRING;
-            state.icon = ResourceIcon.get(R.drawable.qs_auto_rotate_icon_on);
+            state.icon = maybeLoadResourceIcon(R.drawable.qs_auto_rotate_icon_on);
         } else {
             state.secondaryLabel = EMPTY_SECONDARY_STRING;
         }

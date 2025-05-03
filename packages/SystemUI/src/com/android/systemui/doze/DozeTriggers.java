@@ -250,7 +250,7 @@ public class DozeTriggers implements DozeMachine.Part {
             return;
         }
         mNotificationPulseTime = SystemClock.elapsedRealtime();
-        if (!mConfig.pulseOnNotificationEnabled(mSelectedUserInteractor.getSelectedUserId(true))) {
+        if (!mConfig.pulseOnNotificationEnabled(mSelectedUserInteractor.getSelectedUserId())) {
             runIfNotNull(onPulseSuppressedListener);
             mDozeLog.tracePulseDropped("pulseOnNotificationsDisabled");
             return;
@@ -561,6 +561,11 @@ public class DozeTriggers implements DozeMachine.Part {
         if (dozeState == DozeMachine.State.DOZE_PULSING
                 && reason == DozeLog.PULSE_REASON_SENSOR_WAKE_REACH) {
             mMachine.requestState(DozeMachine.State.DOZE_PULSING_BRIGHT);
+            return;
+        }
+
+        // When already in pulsing, we can show the new Notification without requesting a new pulse.
+        if (dozeState == State.DOZE_PULSING && reason == DozeLog.PULSE_REASON_NOTIFICATION) {
             return;
         }
 

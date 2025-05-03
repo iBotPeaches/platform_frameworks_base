@@ -62,13 +62,18 @@
     <string name="bubble_content_description_single" msgid="8495748092720065813">"<xliff:g id="NOTIFICATION_TITLE">%1$s</xliff:g> de <xliff:g id="APP_NAME">%2$s</xliff:g>"</string>
     <string name="bubble_content_description_stack" msgid="8071515017164630429">"<xliff:g id="NOTIFICATION_TITLE">%1$s</xliff:g> do <xliff:g id="APP_NAME">%2$s</xliff:g> e mais<xliff:g id="BUBBLE_COUNT">%3$d</xliff:g>."</string>
     <string name="bubble_accessibility_action_move_top_left" msgid="2644118920500782758">"Mover p/ parte sup. esquerda"</string>
-    <string name="bubble_accessibility_action_move_top_right" msgid="5864594920870245525">"Mover parte superior direita"</string>
+    <string name="bubble_accessibility_action_move_top_right" msgid="5864594920870245525">"Mover p/ parte sup. direita"</string>
     <string name="bubble_accessibility_action_move_bottom_left" msgid="850271002773745634">"Mover p/ parte infer. esquerda"</string>
-    <string name="bubble_accessibility_action_move_bottom_right" msgid="2107626346109206352">"Mover parte inferior direita"</string>
+    <string name="bubble_accessibility_action_move_bottom_right" msgid="2107626346109206352">"Mover p/ parte inf. direita"</string>
+    <string name="bubble_accessibility_action_expand_menu" msgid="8637233525952938845">"expandir menu"</string>
+    <string name="bubble_accessibility_action_collapse_menu" msgid="2975310870146231463">"reduzir menu"</string>
+    <string name="bubble_accessibility_action_move_bar_left" msgid="4803535120353716759">"Mover para a esquerda"</string>
+    <string name="bubble_accessibility_action_move_bar_right" msgid="7686542531917510421">"Mover para a direita"</string>
     <string name="bubble_accessibility_announce_expand" msgid="5388792092888203776">"expandir <xliff:g id="BUBBLE_TITLE">%1$s</xliff:g>"</string>
     <string name="bubble_accessibility_announce_collapse" msgid="3178806224494537097">"reduzir <xliff:g id="BUBBLE_TITLE">%1$s</xliff:g>"</string>
     <string name="bubbles_app_settings" msgid="3617224938701566416">"Definições de <xliff:g id="NOTIFICATION_TITLE">%1$s</xliff:g>"</string>
     <string name="bubble_dismiss_text" msgid="8816558050659478158">"Ignorar balão"</string>
+    <string name="bubble_fullscreen_text" msgid="1006758103218086231">"Mudar para ecrã inteiro"</string>
     <string name="bubbles_dont_bubble_conversation" msgid="310000317885712693">"Não apresentar a conversa em balões"</string>
     <string name="bubbles_user_education_title" msgid="2112319053732691899">"Converse no chat através de balões"</string>
     <string name="bubbles_user_education_description" msgid="4215862563054175407">"As novas conversas aparecem como ícones flutuantes ou balões. Toque para abrir o balão. Arraste para o mover."</string>
@@ -84,12 +89,17 @@
     <string name="notification_bubble_title" msgid="6082910224488253378">"Balão"</string>
     <string name="manage_bubbles_text" msgid="7730624269650594419">"Gerir"</string>
     <string name="accessibility_bubble_dismissed" msgid="8367471990421247357">"Balão ignorado."</string>
+    <string name="bubble_shortcut_label" msgid="666269077944378311">"Balões"</string>
+    <string name="bubble_shortcut_long_label" msgid="6088437544312894043">"Mostrar balões"</string>
     <string name="restart_button_description" msgid="4564728020654658478">"Toque para reiniciar esta app e ficar com uma melhor visão"</string>
     <string name="user_aspect_ratio_settings_button_hint" msgid="734835849600713016">"Altere o formato desta app nas Definições"</string>
     <string name="user_aspect_ratio_settings_button_description" msgid="4315566801697411684">"Altere o formato"</string>
     <string name="camera_compat_treatment_suggested_button_description" msgid="8103916969024076767">"Problemas com a câmara?\nToque aqui para reajustar"</string>
     <string name="camera_compat_treatment_applied_button_description" msgid="2944157113330703897">"Não foi corrigido?\nToque para reverter"</string>
     <string name="camera_compat_dismiss_button_description" msgid="2795364433503817511">"Nenhum problema com a câmara? Toque para ignorar."</string>
+    <string name="windowing_app_handle_education_tooltip" msgid="2929643449849791854">"O menu da app pode ser encontrado aqui"</string>
+    <string name="windowing_desktop_mode_image_button_education_tooltip" msgid="2523468503353474095">"Entre na vista de computador para abrir várias apps em conjunto"</string>
+    <string name="windowing_desktop_mode_exit_education_tooltip" msgid="5225660258192054132">"Regresse ao ecrã inteiro em qualquer altura a partir do menu da app"</string>
     <string name="letterbox_education_dialog_title" msgid="7739895354143295358">"Veja e faça mais"</string>
     <string name="letterbox_education_split_screen_text" msgid="449233070804658627">"Arraste outra app para usar o ecrã dividido"</string>
     <string name="letterbox_education_reposition_text" msgid="4589957299813220661">"Toque duas vezes fora de uma app para a reposicionar"</string>
@@ -105,7 +115,7 @@
     <string name="minimize_button_text" msgid="271592547935841753">"Minimizar"</string>
     <string name="close_button_text" msgid="2913281996024033299">"Fechar"</string>
     <string name="back_button_text" msgid="1469718707134137085">"Anterior"</string>
-    <string name="handle_text" msgid="1766582106752184456">"Indicador"</string>
+    <string name="handle_text" msgid="4419667835599523257">"Indicador da app"</string>
     <string name="app_icon_text" msgid="2823268023931811747">"Ícone da app"</string>
     <string name="fullscreen_text" msgid="1162316685217676079">"Ecrã inteiro"</string>
     <string name="desktop_text" msgid="1077633567027630454">"Modo de ambiente de trabalho"</string>
@@ -114,7 +124,27 @@
     <string name="float_button_text" msgid="9221657008391364581">"Flutuar"</string>
     <string name="select_text" msgid="5139083974039906583">"Selecionar"</string>
     <string name="screenshot_text" msgid="1477704010087786671">"Captura de ecrã"</string>
+    <string name="open_in_browser_text" msgid="9181692926376072904">"Abrir no navegador"</string>
+    <string name="open_in_app_text" msgid="2874590745116268525">"Abrir na app"</string>
+    <string name="new_window_text" msgid="6318648868380652280">"Nova janela"</string>
+    <string name="manage_windows_text" msgid="5567366688493093920">"Faça a gestão das janelas"</string>
+    <string name="change_aspect_ratio_text" msgid="9104456064548212806">"Alterar formato"</string>
     <string name="close_text" msgid="4986518933445178928">"Fechar"</string>
     <string name="collapse_menu_text" msgid="7515008122450342029">"Fechar menu"</string>
-    <string name="expand_menu_text" msgid="3847736164494181168">"Abrir menu"</string>
+    <string name="desktop_mode_app_header_chip_text" msgid="6366422614991687237">"Abrir menu"</string>
+    <string name="desktop_mode_maximize_menu_maximize_text" msgid="3275717276171114411">"Maximizar ecrã"</string>
+    <string name="desktop_mode_maximize_menu_snap_text" msgid="5673738963174074006">"Redimensionar"</string>
+    <string name="desktop_mode_non_resizable_snap_text" msgid="3771776422751387878">"Não é possível mover a app para aqui"</string>
+    <string name="desktop_mode_maximize_menu_immersive_button_text" msgid="559492223133829481">"Envolvente"</string>
+    <string name="desktop_mode_maximize_menu_immersive_restore_button_text" msgid="4900114367354709257">"Restaurar"</string>
+    <string name="desktop_mode_maximize_menu_maximize_button_text" msgid="3090199175564175845">"Maximizar"</string>
+    <string name="desktop_mode_maximize_menu_restore_button_text" msgid="4234449220944704387">"Restaurar"</string>
+    <string name="desktop_mode_maximize_menu_snap_left_button_text" msgid="8077452201179893424">"Encaixar à esquerda"</string>
+    <string name="desktop_mode_maximize_menu_snap_right_button_text" msgid="7117751068945657304">"Encaixar à direita"</string>
+    <string name="open_by_default_settings_text" msgid="2526548548598185500">"Definições de Abrir por predefinição"</string>
+    <string name="open_by_default_dialog_subheader_text" msgid="1729599730664063881">"Escolha como abrir links da Web para esta app"</string>
+    <string name="open_by_default_dialog_in_app_text" msgid="6978022419634199806">"Na app"</string>
+    <string name="open_by_default_dialog_in_browser_text" msgid="8042769465958497081">"No navegador"</string>
+    <string name="open_by_default_dialog_dismiss_button_text" msgid="3487238795534582291">"OK"</string>
+    <string name="desktop_windowing_app_to_web_education_text" msgid="1599668769538703570">"Abra rapidamente apps no navegador aqui"</string>
 </resources>

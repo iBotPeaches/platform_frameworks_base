@@ -18,9 +18,13 @@ package com.android.providers.settings;
 
 import static android.os.Process.FIRST_APPLICATION_UID;
 
+import static com.android.aconfig_new_storage.Flags.enableAconfigStorageDaemon;
+
+import android.aconfig.Aconfig.flag_permission;
 import android.aconfig.Aconfig.flag_state;
 import android.aconfig.Aconfig.parsed_flag;
 import android.aconfig.Aconfig.parsed_flags;
+import android.aconfigd.AconfigdFlagInfo;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
@@ -72,6 +76,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -89,7 +94,7 @@ import java.util.concurrent.CountDownLatch;
  * the same lock to grab the current state to write to disk.
  * </p>
  */
-final class SettingsState {
+public class SettingsState {
     private static final boolean DEBUG = false;
     private static final boolean DEBUG_PERSISTENCE = false;
 
@@ -157,6 +162,9 @@ final class SettingsState {
             "/product/etc/aconfig_flags.pb",
             "/vendor/etc/aconfig_flags.pb");
 
+    private static final String APEX_DIR = "/apex";
+    private static final String APEX_ACONFIG_PATH_SUFFIX = "/etc/aconfig_flags.pb";
+
     /**
      * This tag is applied to all aconfig default value-loaded flags.
      */
@@ -176,6 +184,12 @@ final class SettingsState {
     private static final String ROOT_PACKAGE_NAME = "root";
 
     private static final String NULL_VALUE = "null";
+
+    // TOBO(b/312444587): remove after Test Mission 2.
+    // Bulk sync names
+    private static final String BULK_SYNC_MARKER = "aconfigd_marker/bulk_synced";
+    private static final String BULK_SYNC_TRIGGER_COUNTER =
+        "core_experiments_team_internal/BulkSyncTriggerCounterFlag__bulk_sync_trigger_counter";
 
     private static final ArraySet<String> sSystemPackages = new ArraySet<>();
 
@@ -238,8 +252,12 @@ final class SettingsState {
     private int mNextHistoricalOpIdx;
 
     @GuardedBy("mLock")
-    @Nullable
+    @NonNull
     private Map<String, Map<String, String>> mNamespaceDefaults;
+
+    // TOBO(b/312444587): remove the comparison logic after Test Mission 2.
+    @NonNull
+    private Map<String, AconfigdFlagInfo> mAconfigDefaultFlags;
 
     public static final int SETTINGS_TYPE_GLOBAL = 0;
     public static final int SETTINGS_TYPE_SYSTEM = 1;
@@ -310,8 +328,13 @@ final class SettingsState {
                 + settingTypeToString(getTypeFromKey(key)) + "]";
     }
 
-    public SettingsState(Context context, Object lock, File file, int key,
-            int maxBytesPerAppPackage, Looper looper) {
+    public SettingsState(
+            Context context,
+            Object lock,
+            File file,
+            int key,
+            int maxBytesPerAppPackage,
+            Looper looper) {
         // It is important that we use the same lock as the settings provider
         // to ensure multiple mutations on this state are atomically persisted
         // as the async persistence should be blocked while we make changes.
@@ -329,60 +352,191 @@ final class SettingsState {
             mPackageToMemoryUsage = null;
         }
 
-        mHistoricalOperations = Build.IS_DEBUGGABLE
-                ? new ArrayList<>(HISTORICAL_OPERATION_COUNT) : null;
+        mHistoricalOperations =
+                Build.IS_DEBUGGABLE ? new ArrayList<>(HISTORICAL_OPERATION_COUNT) : null;
+
+        mNamespaceDefaults = new HashMap<>();
+        mAconfigDefaultFlags = new HashMap<>();
+
+        ProtoOutputStream requests = null;
 
         synchronized (mLock) {
             readStateSyncLocked();
 
             if (Flags.loadAconfigDefaults()) {
                 if (isConfigSettingsKey(mKey)) {
-                    loadAconfigDefaultValuesLocked();
+                    loadAconfigDefaultValuesLocked(sAconfigTextProtoFilesOnDevice);
                 }
             }
 
+            if (Flags.loadApexAconfigProtobufs()) {
+                if (isConfigSettingsKey(mKey)) {
+                    List<String> apexProtoPaths = listApexProtoPaths();
+                    loadAconfigDefaultValuesLocked(apexProtoPaths);
+                }
+            }
+
+            if (enableAconfigStorageDaemon()) {
+                if (isConfigSettingsKey(mKey)) {
+                    getAllAconfigFlagsFromSettings(mAconfigDefaultFlags);
+                }
+            }
         }
     }
 
     @GuardedBy("mLock")
-    private void loadAconfigDefaultValuesLocked() {
-        mNamespaceDefaults = new HashMap<>();
-
-        for (String fileName : sAconfigTextProtoFilesOnDevice) {
-            try (FileInputStream inputStream = new FileInputStream(fileName)) {
-                loadAconfigDefaultValues(inputStream.readAllBytes(), mNamespaceDefaults);
-            } catch (IOException e) {
-                Slog.e(LOG_TAG, "failed to read protobuf", e);
+    public int getAllAconfigFlagsFromSettings(
+            @NonNull Map<String, AconfigdFlagInfo> flagInfoDefault) {
+        Map<String, AconfigdFlagInfo> ret = new HashMap<>();
+        int numSettings = mSettings.size();
+        int num_requests = 0;
+        for (int i = 0; i < numSettings; i++) {
+            String name = mSettings.keyAt(i);
+            Setting setting = mSettings.valueAt(i);
+            AconfigdFlagInfo flag =
+                    getFlagOverrideToSync(name, setting.getValue(), flagInfoDefault);
+            if (flag == null) {
+                continue;
+            }
+            if (flag.getIsReadWrite()) {
+                ++num_requests;
             }
         }
+        Slog.i(LOG_TAG, num_requests + " flag override requests created");
+        return num_requests;
+    }
+
+    // TODO(b/341764371): migrate aconfig flag push to GMS core
+    @VisibleForTesting
+    @GuardedBy("mLock")
+    @Nullable
+    public AconfigdFlagInfo getFlagOverrideToSync(
+            String name, String value, @NonNull Map<String, AconfigdFlagInfo> flagInfoDefault) {
+        int slashIdx = name.indexOf("/");
+        if (slashIdx <= 0 || slashIdx >= name.length() - 1) {
+            Slog.e(LOG_TAG, "invalid flag name " + name);
+            return null;
+        }
+
+        String namespace = name.substring(0, slashIdx);
+        namespace = namespace.intern();  // Many configs have the same namespace.
+        String fullFlagName = name.substring(slashIdx + 1);
+        boolean isLocal = false;
+
+        // get actual fully qualified flag name <package>.<flag>, note this is done
+        // after staged flag is applied, so no need to check staged flags
+        if (namespace.equals("device_config_overrides")) {
+            int colonIdx = fullFlagName.indexOf(":");
+            if (colonIdx == -1) {
+                Slog.e(LOG_TAG, "invalid local override flag name " + name);
+                return null;
+            }
+            namespace = fullFlagName.substring(0, colonIdx);
+            fullFlagName = fullFlagName.substring(colonIdx + 1);
+            isLocal = true;
+        }
+        // get package name and flag name
+        int dotIdx = fullFlagName.lastIndexOf(".");
+        if (dotIdx == -1) {
+            Slog.e(LOG_TAG, "invalid override flag name " + name);
+            return null;
+        }
+        AconfigdFlagInfo flag = flagInfoDefault.get(fullFlagName);
+        if (flag == null || !namespace.equals(flag.getNamespace())) {
+            return null;
+        }
+
+        if (isLocal) {
+            flag.setLocalFlagValue(value);
+        } else {
+            flag.setServerFlagValue(value);
+        }
+        return flag;
+    }
+
+    @GuardedBy("mLock")
+    private void loadAconfigDefaultValuesLocked(List<String> filePaths) {
+        for (String fileName : filePaths) {
+            File f = new File(fileName);
+            if (f.isFile() && f.canRead()) {
+                try (FileInputStream inputStream = new FileInputStream(fileName)) {
+                    loadAconfigDefaultValues(
+                            inputStream.readAllBytes(), mNamespaceDefaults, mAconfigDefaultFlags);
+                } catch (IOException e) {
+                    Slog.e(LOG_TAG, "failed to read protobuf", e);
+                }
+            } else {
+                Slog.d(LOG_TAG, "No protobuf file at " + fileName);
+            }
+        }
+    }
+
+    private List<String> listApexProtoPaths() {
+        LinkedList<String> paths = new LinkedList();
+
+        File apexDirectory = new File(APEX_DIR);
+        if (!apexDirectory.isDirectory()) {
+            return paths;
+        }
+
+        File[] subdirs = apexDirectory.listFiles();
+        if (subdirs == null) {
+            return paths;
+        }
+
+        for (File prefix : subdirs) {
+            // For each mainline modules, there are two directories, one <modulepackage>/,
+            // and one <modulepackage>@<versioncode>/. Just read the former.
+            if (prefix.getAbsolutePath().contains("@")) {
+                continue;
+            }
+
+            File protoPath = new File(prefix + APEX_ACONFIG_PATH_SUFFIX);
+            if (!protoPath.exists()) {
+                continue;
+            }
+
+            paths.add(protoPath.getAbsolutePath());
+        }
+        return paths;
     }
 
     @VisibleForTesting
     @GuardedBy("mLock")
     public void addAconfigDefaultValuesFromMap(
             @NonNull Map<String, Map<String, String>> defaultMap) {
-        if (mNamespaceDefaults != null) {
-            mNamespaceDefaults.putAll(defaultMap);
-        }
+        mNamespaceDefaults.putAll(defaultMap);
     }
 
     @VisibleForTesting
     @GuardedBy("mLock")
-    public static void loadAconfigDefaultValues(byte[] fileContents,
-            @NonNull Map<String, Map<String, String>> defaultMap) {
+    public static void loadAconfigDefaultValues(
+            byte[] fileContents,
+            @NonNull Map<String, Map<String, String>> defaultMap,
+            @NonNull Map<String, AconfigdFlagInfo> flagInfoDefault) {
         try {
-            parsed_flags parsedFlags =
-                    parsed_flags.parseFrom(fileContents);
+            parsed_flags parsedFlags = parsed_flags.parseFrom(fileContents);
             for (parsed_flag flag : parsedFlags.getParsedFlagList()) {
                 if (!defaultMap.containsKey(flag.getNamespace())) {
                     Map<String, String> defaults = new HashMap<>();
                     defaultMap.put(flag.getNamespace(), defaults);
                 }
-                String flagName = flag.getNamespace()
-                        + "/" + flag.getPackage() + "." + flag.getName();
-                String flagValue = flag.getState() == flag_state.ENABLED
-                        ? "true" : "false";
+                String fullFlagName = flag.getPackage() + "." + flag.getName();
+                String flagName = flag.getNamespace() + "/" + fullFlagName;
+                String flagValue = flag.getState() == flag_state.ENABLED ? "true" : "false";
+                boolean isReadWrite = flag.getPermission() == flag_permission.READ_WRITE;
                 defaultMap.get(flag.getNamespace()).put(flagName, flagValue);
+                if (!flagInfoDefault.containsKey(fullFlagName)) {
+                    flagInfoDefault.put(
+                            fullFlagName,
+                            AconfigdFlagInfo.newBuilder()
+                                    .setPackageName(flag.getPackage())
+                                    .setFlagName(flag.getName())
+                                    .setDefaultFlagValue(flagValue)
+                                    .setIsReadWrite(isReadWrite)
+                                    .setNamespace(flag.getNamespace())
+                                    .build());
+                }
             }
         } catch (IOException e) {
             Slog.e(LOG_TAG, "failed to parse protobuf", e);
@@ -413,8 +567,6 @@ final class SettingsState {
     // The settings provider must hold its lock when calling here.
     @GuardedBy("mLock")
     public void removeSettingsForPackageLocked(String packageName) {
-        boolean removedSomething = false;
-
         final int settingCount = mSettings.size();
         for (int i = settingCount - 1; i >= 0; i--) {
             String name = mSettings.keyAt(i);
@@ -425,13 +577,8 @@ final class SettingsState {
             }
             Setting setting = mSettings.valueAt(i);
             if (packageName.equals(setting.packageName)) {
-                mSettings.removeAt(i);
-                removedSomething = true;
+                deleteSettingLocked(setting.name);
             }
-        }
-
-        if (removedSomething) {
-            scheduleWriteIfNeededLocked();
         }
     }
 
@@ -447,10 +594,17 @@ final class SettingsState {
         return names;
     }
 
-    @Nullable
+    @NonNull
     public Map<String, Map<String, String>> getAconfigDefaultValues() {
         synchronized (mLock) {
             return mNamespaceDefaults;
+        }
+    }
+
+    @NonNull
+    public Map<String, AconfigdFlagInfo> getAconfigDefaultFlags() {
+        synchronized (mLock) {
+            return mAconfigDefaultFlags;
         }
     }
 
@@ -519,9 +673,9 @@ final class SettingsState {
             return false;
         }
 
-        // Aconfig flags are always boot stable, so we anytime we write one, we staged it to be
+        // Aconfig flags are always boot stable, so we anytime we write one, we stage it to be
         // applied on reboot.
-        if (Flags.stageAllAconfigFlags() && mNamespaceDefaults != null) {
+        if (Flags.stageAllAconfigFlags()) {
             int slashIndex = name.indexOf("/");
             boolean stageFlag = isConfigSettingsKey(mKey)
                     && slashIndex != -1
@@ -555,14 +709,25 @@ final class SettingsState {
         }
 
         Setting oldState = mSettings.get(name);
+        String previousOwningPackage = (oldState != null) ? oldState.packageName : null;
+        // If the old state doesn't exist, no need to handle the owning package change
+        final boolean owningPackageChanged = previousOwningPackage != null
+                && !previousOwningPackage.equals(packageName);
+
         String oldValue = (oldState != null) ? oldState.value : null;
         String oldDefaultValue = (oldState != null) ? oldState.defaultValue : null;
         String newDefaultValue = makeDefault ? value : oldDefaultValue;
 
-        int newSize = getNewMemoryUsagePerPackageLocked(packageName,
-                oldValue == null ? name.length() : 0 /* deltaKeySize */,
-                oldValue, value, oldDefaultValue, newDefaultValue);
-        checkNewMemoryUsagePerPackageLocked(packageName, newSize);
+        int newSizeForCurrentPackage = getNewMemoryUsagePerPackageLocked(packageName,
+                /* deltaKeyLength= */ (oldState == null || owningPackageChanged) ? name.length() : 0,
+                /* oldValue= */ owningPackageChanged ? null : oldValue,
+                /* newValue= */ value,
+                /* oldDefaultValue= */ owningPackageChanged ? null : oldDefaultValue,
+                /* newDefaultValue = */ newDefaultValue);
+        // Only check the memory usage for the current package. Even if the owning package
+        // has changed, the previous owning package will only have a reduced memory usage, so
+        // there is no need to check its memory usage.
+        checkNewMemoryUsagePerPackageLocked(packageName, newSizeForCurrentPackage);
 
         Setting newState;
 
@@ -584,7 +749,17 @@ final class SettingsState {
 
         addHistoricalOperationLocked(HISTORICAL_OPERATION_UPDATE, newState);
 
-        updateMemoryUsagePerPackageLocked(packageName, newSize);
+        updateMemoryUsagePerPackageLocked(packageName, newSizeForCurrentPackage);
+
+        if (owningPackageChanged) {
+            int newSizeForPreviousPackage = getNewMemoryUsagePerPackageLocked(previousOwningPackage,
+                    /* deltaKeyLength= */ -name.length(),
+                    /* oldValue= */ oldValue,
+                    /* newValue= */ null,
+                    /* oldDefaultValue= */ oldDefaultValue,
+                    /* newDefaultValue = */ null);
+            updateMemoryUsagePerPackageLocked(previousOwningPackage, newSizeForPreviousPackage);
+        }
 
         scheduleWriteIfNeededLocked();
 
@@ -669,23 +844,36 @@ final class SettingsState {
         // Update/add new keys
         for (String key : keyValues.keySet()) {
             String value = keyValues.get(key);
+
+            // Rename key if it's an aconfig flag.
+            String flagName = key;
+            if (Flags.stageAllAconfigFlags() && isConfigSettingsKey(mKey)) {
+                int slashIndex = flagName.indexOf("/");
+                boolean stageFlag = slashIndex > 0 && slashIndex != flagName.length();
+                boolean isAconfig = trunkFlagMap != null && trunkFlagMap.containsKey(flagName);
+                if (stageFlag && isAconfig) {
+                    String flagWithoutNamespace = flagName.substring(slashIndex + 1);
+                    flagName = "staged/" + namespace + "*" + flagWithoutNamespace;
+                }
+            }
+
             String oldValue = null;
-            Setting state = mSettings.get(key);
+            Setting state = mSettings.get(flagName);
             if (state == null) {
-                state = new Setting(key, value, false, packageName, null);
-                mSettings.put(key, state);
-                changedKeys.add(key); // key was added
+                state = new Setting(flagName, value, false, packageName, null);
+                mSettings.put(flagName, state);
+                changedKeys.add(flagName); // key was added
             } else if (state.value != value) {
                 oldValue = state.value;
                 state.update(value, false, packageName, null, true,
                         /* overrideableByRestore */ false);
-                changedKeys.add(key); // key was updated
+                changedKeys.add(flagName); // key was updated
             } else {
                 // this key/value already exists, no change and no logging necessary
                 continue;
             }
 
-            FrameworkStatsLog.write(FrameworkStatsLog.SETTING_CHANGED, key, value, state.value,
+            FrameworkStatsLog.write(FrameworkStatsLog.SETTING_CHANGED, flagName, value, state.value,
                     oldValue, /* tag */ null, /* make default */ false,
                     getUserIdFromKey(mKey), FrameworkStatsLog.SETTING_CHANGED__REASON__UPDATED);
             addHistoricalOperationLocked(HISTORICAL_OPERATION_UPDATE, state);
@@ -1002,7 +1190,10 @@ final class SettingsState {
                     }
 
                     try {
-                        if (writeSingleSetting(mVersion, serializer, setting.getId(),
+                        if (writeSingleSetting(
+                                mVersion,
+                                serializer,
+                                Long.toString(setting.getId()),
                                 setting.getName(),
                                 setting.getValue(), setting.getDefaultValue(),
                                 setting.getPackageName(),
@@ -1047,7 +1238,7 @@ final class SettingsState {
                     Slog.i(LOG_TAG, "[PERSIST END]");
                 }
             } catch (Throwable t) {
-                Slog.wtf(LOG_TAG, "Failed to write settings, restoring old file", t);
+                Slog.e(LOG_TAG, "Failed to write settings, restoring old file", t);
                 if (t instanceof IOException) {
                     if (t.getMessage().contains("Couldn't create directory")) {
                         if (DEBUG) {
@@ -1271,7 +1462,7 @@ final class SettingsState {
             TypedXmlPullParser parser = Xml.resolvePullParser(in);
             parseStateLocked(parser);
             return true;
-        } catch (XmlPullParserException | IOException e) {
+        } catch (XmlPullParserException | IOException | NumberFormatException e) {
             Slog.e(LOG_TAG, "parse settings xml failed", e);
             return false;
         } finally {
@@ -1291,7 +1482,7 @@ final class SettingsState {
     }
 
     private void parseStateLocked(TypedXmlPullParser parser)
-            throws IOException, XmlPullParserException {
+            throws IOException, XmlPullParserException, NumberFormatException {
         final int outerDepth = parser.getDepth();
         int type;
         while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
@@ -1347,7 +1538,7 @@ final class SettingsState {
 
     @GuardedBy("mLock")
     private void parseSettingsLocked(TypedXmlPullParser parser)
-            throws IOException, XmlPullParserException {
+            throws IOException, XmlPullParserException, NumberFormatException {
 
         mVersion = parser.getAttributeInt(null, ATTR_VERSION);
 
@@ -1389,7 +1580,7 @@ final class SettingsState {
                 }
 
                 mSettings.put(name, new Setting(name, value, defaultValue, packageName, tag,
-                        fromSystem, id, isPreservedInRestore));
+                        fromSystem, Long.valueOf(id), isPreservedInRestore));
 
                 if (DEBUG_PERSISTENCE) {
                     Slog.i(LOG_TAG, "[RESTORED] " + name + "=" + value);
@@ -1474,12 +1665,12 @@ final class SettingsState {
         }
     }
 
-    class Setting {
+    public class Setting {
         private String name;
         private String value;
         private String defaultValue;
         private String packageName;
-        private String id;
+        private long id;
         private String tag;
         // Whether the default is set by the system
         private boolean defaultFromSystem;
@@ -1511,30 +1702,27 @@ final class SettingsState {
         }
 
         public Setting(String name, String value, String defaultValue,
-                String packageName, String tag, boolean fromSystem, String id) {
+                String packageName, String tag, boolean fromSystem, long id) {
             this(name, value, defaultValue, packageName, tag, fromSystem, id,
                     /* isOverrideableByRestore */ false);
         }
 
         Setting(String name, String value, String defaultValue,
-                String packageName, String tag, boolean fromSystem, String id,
+                String packageName, String tag, boolean fromSystem, long id,
                 boolean isValuePreservedInRestore) {
-            mNextId = Math.max(mNextId, Long.parseLong(id) + 1);
-            if (NULL_VALUE.equals(value)) {
-                value = null;
-            }
+            mNextId = Math.max(mNextId, id + 1);
             init(name, value, tag, defaultValue, packageName, fromSystem, id,
                     isValuePreservedInRestore);
         }
 
         private void init(String name, String value, String tag, String defaultValue,
-                String packageName, boolean fromSystem, String id,
+                String packageName, boolean fromSystem, long id,
                 boolean isValuePreservedInRestore) {
             this.name = name;
-            this.value = value;
+            this.value = internValue(value);
             this.tag = tag;
-            this.defaultValue = defaultValue;
-            this.packageName = packageName;
+            this.defaultValue = internValue(defaultValue);
+            this.packageName = TextUtils.safeIntern(packageName);
             this.id = id;
             this.defaultFromSystem = fromSystem;
             this.isValuePreservedInRestore = isValuePreservedInRestore;
@@ -1572,7 +1760,7 @@ final class SettingsState {
             return isValuePreservedInRestore;
         }
 
-        public String getId() {
+        public long getId() {
             return id;
         }
 
@@ -1605,9 +1793,6 @@ final class SettingsState {
         private boolean update(String value, boolean setDefault, String packageName, String tag,
                 boolean forceNonSystemPackage, boolean overrideableByRestore,
                 boolean resetToDefault) {
-            if (NULL_VALUE.equals(value)) {
-                value = null;
-            }
             final boolean callerSystem = !forceNonSystemPackage &&
                     !isNull() && (isCalledFromSystem(packageName)
                     || isSystemPackage(mContext, packageName));
@@ -1652,7 +1837,7 @@ final class SettingsState {
             }
 
             init(name, value, tag, defaultValue, packageName, defaultFromSystem,
-                    String.valueOf(mNextId++), isPreserved);
+                    mNextId++, isPreserved);
 
             return true;
         }
@@ -1662,6 +1847,32 @@ final class SettingsState {
                     + (defaultValue != null ? " default=" + defaultValue : "")
                     + " packageName=" + packageName + " tag=" + tag
                     + " defaultFromSystem=" + defaultFromSystem + "}";
+        }
+
+        /**
+         * Interns a string if it's a common setting value.
+         * Otherwise returns the given string.
+         */
+        static String internValue(String str) {
+            if (str == null) {
+                return null;
+            }
+            switch (str) {
+                case "true":
+                    return "true";
+                case "false":
+                    return "false";
+                case "0":
+                    return "0";
+                case "1":
+                    return "1";
+                case "":
+                    return "";
+                case "null":
+                    return null;  // explicit null has special handling
+                default:
+                    return str;
+            }
         }
 
         private boolean shouldPreserveSetting(boolean overrideableByRestore,

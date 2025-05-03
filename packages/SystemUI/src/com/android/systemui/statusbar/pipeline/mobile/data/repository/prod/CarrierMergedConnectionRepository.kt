@@ -90,7 +90,7 @@ class CarrierMergedConnectionRepository(
                         TAG,
                         "Connection repo subId=$subId " +
                             "does not equal wifi repo subId=${network.subscriptionId}; " +
-                            "not showing carrier merged"
+                            "not showing carrier merged",
                     )
                     null
                 }
@@ -149,7 +149,7 @@ class CarrierMergedConnectionRepository(
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(),
-                ResolvedNetworkType.UnknownNetworkType
+                ResolvedNetworkType.UnknownNetworkType,
             )
 
     override val dataConnectionState =
@@ -166,12 +166,14 @@ class CarrierMergedConnectionRepository(
     override val isRoaming = MutableStateFlow(false).asStateFlow()
     override val carrierId = MutableStateFlow(INVALID_SUBSCRIPTION_ID).asStateFlow()
     override val inflateSignalStrength = MutableStateFlow(false).asStateFlow()
+    override val allowNetworkSliceIndicator = MutableStateFlow(false).asStateFlow()
     override val isEmergencyOnly = MutableStateFlow(false).asStateFlow()
     override val operatorAlphaShort = MutableStateFlow(null).asStateFlow()
     override val isInService = MutableStateFlow(true).asStateFlow()
     override val isNonTerrestrial = MutableStateFlow(false).asStateFlow()
     override val isGsm = MutableStateFlow(false).asStateFlow()
     override val carrierNetworkChangeActive = MutableStateFlow(false).asStateFlow()
+    override val satelliteLevel = MutableStateFlow(0)
 
     /**
      * Carrier merged connections happen over wifi but are displayed as a mobile triangle. Because
@@ -206,10 +208,7 @@ class CarrierMergedConnectionRepository(
         @Application private val scope: CoroutineScope,
         private val wifiRepository: WifiRepository,
     ) {
-        fun build(
-            subId: Int,
-            mobileLogger: TableLogBuffer,
-        ): MobileConnectionRepository {
+        fun build(subId: Int, mobileLogger: TableLogBuffer): MobileConnectionRepository {
             return CarrierMergedConnectionRepository(
                 subId,
                 mobileLogger,

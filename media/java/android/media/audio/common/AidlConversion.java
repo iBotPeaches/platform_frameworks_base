@@ -705,6 +705,10 @@ public class AidlConversion {
                 aidl.type = AudioDeviceType.OUT_BROADCAST;
                 aidl.connection = AudioDeviceDescription.CONNECTION_BT_LE;
                 break;
+            case AudioSystem.DEVICE_OUT_MULTICHANNEL_GROUP:
+                aidl.type = AudioDeviceType.OUT_MULTICHANNEL_GROUP;
+                aidl.connection = AudioDeviceDescription.CONNECTION_VIRTUAL;
+                break;
             case AudioSystem.DEVICE_IN_BUILTIN_MIC:
                 aidl.type = AudioDeviceType.IN_MICROPHONE;
                 break;
@@ -753,9 +757,11 @@ public class AidlConversion {
                 break;
             case AudioSystem.DEVICE_IN_REMOTE_SUBMIX:
                 aidl.type = AudioDeviceType.IN_SUBMIX;
+                aidl.connection = AudioDeviceDescription.CONNECTION_VIRTUAL;
                 break;
             case AudioSystem.DEVICE_OUT_REMOTE_SUBMIX:
                 aidl.type = AudioDeviceType.OUT_SUBMIX;
+                aidl.connection = AudioDeviceDescription.CONNECTION_VIRTUAL;
                 break;
             case AudioSystem.DEVICE_IN_ANLG_DOCK_HEADSET:
                 aidl.type = AudioDeviceType.IN_DOCK;
@@ -828,18 +834,18 @@ public class AidlConversion {
                 aidl.connection = AudioDeviceDescription.CONNECTION_IP_V4;
                 break;
             case AudioSystem.DEVICE_IN_BUS:
-                aidl.type = AudioDeviceType.IN_DEVICE;
-                aidl.connection = AudioDeviceDescription.CONNECTION_BUS;
+                aidl.type = AudioDeviceType.IN_BUS;
                 break;
             case AudioSystem.DEVICE_OUT_BUS:
-                aidl.type = AudioDeviceType.OUT_DEVICE;
-                aidl.connection = AudioDeviceDescription.CONNECTION_BUS;
+                aidl.type = AudioDeviceType.OUT_BUS;
                 break;
             case AudioSystem.DEVICE_IN_PROXY:
                 aidl.type = AudioDeviceType.IN_AFE_PROXY;
+                aidl.connection = AudioDeviceDescription.CONNECTION_VIRTUAL;
                 break;
             case AudioSystem.DEVICE_OUT_PROXY:
                 aidl.type = AudioDeviceType.OUT_AFE_PROXY;
+                aidl.connection = AudioDeviceDescription.CONNECTION_VIRTUAL;
                 break;
             case AudioSystem.DEVICE_IN_USB_HEADSET:
                 aidl.type = AudioDeviceType.IN_HEADSET;
@@ -885,10 +891,27 @@ public class AidlConversion {
         return aidl;
     }
 
+    /** For test purposes only, not efficient. */
+    public static AudioDeviceDescription legacy2aidl_audio_devices_t_AudioDeviceDescriptionTestOnly(
+            int nativeType) {
+        Parcel in = legacy2aidl_audio_devices_t_AudioDeviceDescription_Parcel(nativeType);
+        if (in != null) {
+            try {
+                return AudioDeviceDescription.CREATOR.createFromParcel(in);
+            } finally {
+                in.recycle();
+            }
+        }
+        throw new IllegalArgumentException(
+                "Failed to convert legacy audio_devices_t value " + nativeType);
+    }
+
     private static native int aidl2legacy_AudioChannelLayout_Parcel_audio_channel_mask_t(
             Parcel aidl, boolean isInput);
     private static native Parcel legacy2aidl_audio_channel_mask_t_AudioChannelLayout_Parcel(
             int legacy, boolean isInput);
+    private static native Parcel legacy2aidl_audio_devices_t_AudioDeviceDescription_Parcel(
+            int legacy);
     private static native int aidl2legacy_AudioFormatDescription_Parcel_audio_format_t(
             Parcel aidl);
     private static native Parcel legacy2aidl_audio_format_t_AudioFormatDescription_Parcel(

@@ -17,11 +17,13 @@
 package android.service.notification;
 
 import android.annotation.CurrentTimeMillisLong;
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SdkConstant;
 import android.annotation.SystemApi;
+import android.annotation.UiThread;
 import android.app.ActivityManager;
 import android.app.INotificationManager;
 import android.app.Notification;
@@ -468,6 +470,7 @@ public abstract class NotificationListenerService extends Service {
      *            object as well as its identifying information (tag and id) and source
      *            (package name).
      */
+    @UiThread
     public void onNotificationPosted(StatusBarNotification sbn) {
         // optional
     }
@@ -481,6 +484,7 @@ public abstract class NotificationListenerService extends Service {
      * @param rankingMap The current ranking map that can be used to retrieve ranking information
      *                   for active notifications, including the newly posted one.
      */
+    @UiThread
     public void onNotificationPosted(StatusBarNotification sbn, RankingMap rankingMap) {
         onNotificationPosted(sbn);
     }
@@ -499,6 +503,7 @@ public abstract class NotificationListenerService extends Service {
      *            and source (package name) used to post the {@link android.app.Notification} that
      *            was just removed.
      */
+    @UiThread
     public void onNotificationRemoved(StatusBarNotification sbn) {
         // optional
     }
@@ -520,6 +525,7 @@ public abstract class NotificationListenerService extends Service {
      *                   for active notifications.
      *
      */
+    @UiThread
     public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap) {
         onNotificationRemoved(sbn);
     }
@@ -541,6 +547,7 @@ public abstract class NotificationListenerService extends Service {
      * @param rankingMap The current ranking map that can be used to retrieve ranking information
      *                   for active notifications.
      */
+    @UiThread
     public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap,
             @NotificationCancelReason int reason) {
         onNotificationRemoved(sbn, rankingMap);
@@ -552,6 +559,7 @@ public abstract class NotificationListenerService extends Service {
      *
      * @hide
      */
+    @UiThread
     @SystemApi
     public void onNotificationRemoved(@NonNull StatusBarNotification sbn,
             @NonNull RankingMap rankingMap, @NonNull NotificationStats stats, int reason) {
@@ -563,6 +571,7 @@ public abstract class NotificationListenerService extends Service {
      * the notification manager.  You are safe to call {@link #getActiveNotifications()}
      * at this time.
      */
+    @UiThread
     public void onListenerConnected() {
         // optional
     }
@@ -572,6 +581,7 @@ public abstract class NotificationListenerService extends Service {
      * notification manager.You will not receive any events after this call, and may only
      * call {@link #requestRebind(ComponentName)} at this time.
      */
+    @UiThread
     public void onListenerDisconnected() {
         // optional
     }
@@ -582,6 +592,7 @@ public abstract class NotificationListenerService extends Service {
      * @param rankingMap The current ranking map that can be used to retrieve ranking information
      *                   for active notifications.
      */
+    @UiThread
     public void onNotificationRankingUpdate(RankingMap rankingMap) {
         // optional
     }
@@ -592,6 +603,7 @@ public abstract class NotificationListenerService extends Service {
      *
      * @param hints The current {@link #getCurrentListenerHints() listener hints}.
      */
+    @UiThread
     public void onListenerHintsChanged(int hints) {
         // optional
     }
@@ -603,6 +615,7 @@ public abstract class NotificationListenerService extends Service {
      * @param hideSilentStatusIcons whether or not status bar icons should be hidden for silent
      *                              notifications
      */
+    @UiThread
     public void onSilentStatusBarIconsVisibilityChanged(boolean hideSilentStatusIcons) {
         // optional
     }
@@ -620,6 +633,7 @@ public abstract class NotificationListenerService extends Service {
      *                   {@link #NOTIFICATION_CHANNEL_OR_GROUP_UPDATED},
      *                   {@link #NOTIFICATION_CHANNEL_OR_GROUP_DELETED}.
      */
+    @UiThread
     public void onNotificationChannelModified(String pkg, UserHandle user,
             NotificationChannel channel, @ChannelOrGroupModificationTypes int modificationType) {
         // optional
@@ -638,6 +652,7 @@ public abstract class NotificationListenerService extends Service {
      *                   {@link #NOTIFICATION_CHANNEL_OR_GROUP_UPDATED},
      *                   {@link #NOTIFICATION_CHANNEL_OR_GROUP_DELETED}.
      */
+    @UiThread
     public void onNotificationChannelGroupModified(String pkg, UserHandle user,
             NotificationChannelGroup group, @ChannelOrGroupModificationTypes int modificationType) {
         // optional
@@ -650,6 +665,7 @@ public abstract class NotificationListenerService extends Service {
      * @param interruptionFilter The current
      *     {@link #getCurrentInterruptionFilter() interruption filter}.
      */
+    @UiThread
     public void onInterruptionFilterChanged(int interruptionFilter) {
         // optional
     }
@@ -867,6 +883,35 @@ public abstract class NotificationListenerService extends Service {
         }
     }
 
+    /**
+     * Creates a conversation notification channel for a given package for a given user.
+     *
+     * <p>This method will throw a security exception if you don't have access to notifications
+     * for the given user.</p>
+     * <p>The caller must have {@link CompanionDeviceManager#getAssociations() an associated
+     * device} or be the notification assistant in order to use this method.
+     *
+     * @param pkg The package the channel belongs to.
+     * @param user The user the channel belongs to.
+     * @param parentChannelId The parent channel id of the conversation channel belongs to.
+     * @param conversationId The conversation id of the conversation channel.
+     *
+     * @return The created conversation channel.
+     */
+    @FlaggedApi(Flags.FLAG_NOTIFICATION_CONVERSATION_CHANNEL_MANAGEMENT)
+    public final @Nullable NotificationChannel createConversationNotificationChannelForPackage(
+        @NonNull String pkg, @NonNull UserHandle user, @NonNull String parentChannelId,
+        @NonNull String conversationId) {
+        if (!isBound()) return null;
+        try {
+            return getNotificationInterface()
+                    .createConversationNotificationChannelForPackageFromPrivilegedListener(
+                            mWrapper, pkg, user, parentChannelId, conversationId);
+        } catch (RemoteException e) {
+            Log.v(TAG, "Unable to contact notification manager", e);
+            throw e.rethrowFromSystemServer();
+        }
+    }
 
     /**
      * Updates a notification channel for a given package for a given user. This should only be used
@@ -875,7 +920,7 @@ public abstract class NotificationListenerService extends Service {
      * <p>This method will throw a security exception if you don't have access to notifications
      * for the given user.</p>
      * <p>The caller must have {@link CompanionDeviceManager#getAssociations() an associated
-     * device} in order to use this method.
+     * device} or be the notification assistant in order to use this method.
      *
      * @param pkg The package the channel belongs to.
      * @param user The user the channel belongs to.
@@ -1197,6 +1242,11 @@ public abstract class NotificationListenerService extends Service {
      * <p>
      * Listen for updates using {@link #onInterruptionFilterChanged(int)}.
      *
+     * <p>Apps targeting {@link Build.VERSION_CODES#VANILLA_ICE_CREAM} and above (with some
+     * exceptions, such as companion device managers) cannot modify the global interruption filter.
+     * Calling this method will instead activate or deactivate an
+     * {@link android.app.AutomaticZenRule} associated to the app.
+     *
      * <p>The service should wait for the {@link #onListenerConnected()} event
      * before performing this operation.
      *
@@ -1440,7 +1490,12 @@ public abstract class NotificationListenerService extends Service {
                 Log.w(TAG, "onNotificationPosted: Error receiving StatusBarNotification");
                 return;
             }
+            onNotificationPostedFull(sbn, update);
+        }
 
+        @Override
+        public void onNotificationPostedFull(StatusBarNotification sbn,
+                NotificationRankingUpdate update) {
             try {
                 // convert icon metadata to legacy format for older clients
                 createLegacyIconExtras(sbn.getNotification());
@@ -1468,7 +1523,6 @@ public abstract class NotificationListenerService extends Service {
                             mRankingMap).sendToTarget();
                 }
             }
-
         }
 
         @Override
@@ -1481,6 +1535,12 @@ public abstract class NotificationListenerService extends Service {
                 Log.w(TAG, "onNotificationRemoved: Error receiving StatusBarNotification", e);
                 return;
             }
+            onNotificationRemovedFull(sbn, update, stats, reason);
+        }
+
+        @Override
+        public void onNotificationRemovedFull(StatusBarNotification sbn,
+                NotificationRankingUpdate update, NotificationStats stats, int reason) {
             if (sbn == null) {
                 Log.w(TAG, "onNotificationRemoved: Error receiving StatusBarNotification");
                 return;
@@ -1542,6 +1602,14 @@ public abstract class NotificationListenerService extends Service {
         }
 
         @Override
+        public void onNotificationEnqueuedWithChannelFull(
+                StatusBarNotification sbn, NotificationChannel channel,
+                NotificationRankingUpdate update)
+                throws RemoteException {
+            // no-op in the listener
+        }
+
+        @Override
         public void onNotificationsSeen(List<String> keys)
                 throws RemoteException {
             // no-op in the listener
@@ -1566,6 +1634,13 @@ public abstract class NotificationListenerService extends Service {
         @Override
         public void onNotificationSnoozedUntilContext(
                 IStatusBarNotificationHolder notificationHolder, String snoozeCriterionId)
+                throws RemoteException {
+            // no-op in the listener
+        }
+
+        @Override
+        public void onNotificationSnoozedUntilContextFull(
+                StatusBarNotification sbn, String snoozeCriterionId)
                 throws RemoteException {
             // no-op in the listener
         }
@@ -1638,8 +1713,6 @@ public abstract class NotificationListenerService extends Service {
                 Bundle feedback) {
             // no-op in the listener
         }
-
-
     }
 
     /**
@@ -2290,7 +2363,6 @@ public abstract class NotificationListenerService extends Service {
         // -- parcelable interface --
 
         private RankingMap(Parcel in) {
-            final ClassLoader cl = getClass().getClassLoader();
             final int count = in.readInt();
             mOrderedKeys.ensureCapacity(count);
             mRankings.ensureCapacity(count);

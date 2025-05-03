@@ -18,17 +18,20 @@ package com.android.systemui.shade;
 
 import static android.os.Trace.TRACE_TAG_APP;
 
+import static com.android.systemui.Flags.enableViewCaptureTracing;
 import static com.android.systemui.statusbar.phone.CentralSurfaces.DEBUG;
 
 import android.annotation.ColorInt;
 import android.annotation.DrawableRes;
 import android.annotation.LayoutRes;
+import android.annotation.Nullable;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.media.permission.SafeCloseable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Trace;
@@ -47,9 +50,12 @@ import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowInsetsController;
 
+import com.android.app.viewcapture.ViewCaptureFactory;
 import com.android.internal.view.FloatingActionMode;
 import com.android.internal.widget.floatingtoolbar.FloatingToolbar;
 import com.android.systemui.scene.ui.view.WindowRootView;
+import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround;
+import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 
 /**
  * Combined keyguard and notification panel view. Also holding backdrop and scrims. This view can
@@ -65,8 +71,11 @@ public class NotificationShadeWindowView extends WindowRootView {
     private ActionMode mFloatingActionMode;
     private FloatingToolbar mFloatingToolbar;
     private ViewTreeObserver.OnPreDrawListener mFloatingToolbarPreDrawListener;
+    @Nullable private ConfigurationForwarder mConfigurationForwarder;
 
     private InteractionEventHandler mInteractionEventHandler;
+
+    private SafeCloseable mViewCaptureCloseable;
 
     public NotificationShadeWindowView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -77,10 +86,24 @@ public class NotificationShadeWindowView extends WindowRootView {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         setWillNotDraw(!DEBUG);
+        if (enableViewCaptureTracing()) {
+            mViewCaptureCloseable = ViewCaptureFactory.getInstance(getContext())
+                .startCapture(getRootView(), ".NotificationShadeWindowView");
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (mViewCaptureCloseable != null) {
+            mViewCaptureCloseable.close();
+        }
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        mInteractionEventHandler.collectKeyEvent(event);
+
         if (mInteractionEventHandler.interceptMediaKey(event)) {
             return true;
         }
@@ -140,6 +163,29 @@ public class NotificationShadeWindowView extends WindowRootView {
         }
 
         return handled;
+    }
+
+    @Override
+    public void onMovedToDisplay(int displayId, Configuration config) {
+        super.onMovedToDisplay(displayId, config);
+        ShadeWindowGoesAround.isUnexpectedlyInLegacyMode();
+        // When the window is moved we're only receiving a call to this method instead of the
+        // onConfigurationChange itself. Let's just trigegr a normal config change.
+        onConfigurationChanged(config);
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (mConfigurationForwarder != null) {
+            ShadeWindowGoesAround.isUnexpectedlyInLegacyMode();
+            mConfigurationForwarder.onConfigurationChanged(newConfig);
+        }
+    }
+
+    public void setConfigurationForwarder(ConfigurationForwarder configurationForwarder) {
+        ShadeWindowGoesAround.isUnexpectedlyInLegacyMode();
+        mConfigurationForwarder = configurationForwarder;
     }
 
     @Override
@@ -301,6 +347,11 @@ public class NotificationShadeWindowView extends WindowRootView {
         boolean dispatchKeyEvent(KeyEvent event);
 
         boolean dispatchKeyEventPreIme(KeyEvent event);
+
+        /**
+         * Collects the KeyEvent without intercepting it
+         */
+        void collectKeyEvent(KeyEvent event);
     }
 
     /**

@@ -47,18 +47,18 @@ import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
+
+import com.android.packageinstaller.common.EventResultPersister;
+import com.android.packageinstaller.common.UninstallEventReceiver;
 import com.android.packageinstaller.handheld.ErrorDialogFragment;
 import com.android.packageinstaller.handheld.UninstallAlertDialogFragment;
 import com.android.packageinstaller.television.ErrorFragment;
 import com.android.packageinstaller.television.UninstallAlertFragment;
 import com.android.packageinstaller.television.UninstallAppProgress;
-import com.android.packageinstaller.common.EventResultPersister;
-import com.android.packageinstaller.common.UninstallEventReceiver;
 import com.android.packageinstaller.v2.ui.UninstallLaunch;
-
-import java.util.List;
 
 /*
  * This activity presents UI to uninstall an application. Usually launched with intent
@@ -91,8 +91,7 @@ public class UninstallerActivity extends Activity {
         // be stale, if e.g. the app was uninstalled while the activity was destroyed.
         super.onCreate(null);
 
-        // TODO(b/318521110) Enable PIA v2 for archive dialog.
-        if (usePiaV2() && !isTv() && !isArchiveDialog(getIntent())) {
+        if (usePiaV2() && !isTv()) {
             Log.i(TAG, "Using Pia V2");
 
             boolean returnResult = getIntent().getBooleanExtra(Intent.EXTRA_RETURN_RESULT, false);
@@ -182,12 +181,15 @@ public class UninstallerActivity extends Activity {
         if (mDialogInfo.user == null) {
             mDialogInfo.user = Process.myUserHandle();
         } else {
-            List<UserHandle> profiles = userManager.getUserProfiles();
-            if (!profiles.contains(mDialogInfo.user)) {
-                Log.e(TAG, "User " + Process.myUserHandle() + " can't request uninstall "
-                        + "for user " + mDialogInfo.user);
-                showUserIsNotAllowed();
-                return;
+            if (mDialogInfo.user != Process.myUserHandle()) {
+                final boolean isCurrentUserProfileOwner =
+                        (Process.myUserHandle() == userManager.getProfileParent(mDialogInfo.user));
+                if (!isCurrentUserProfileOwner) {
+                    Log.e(TAG, "User " + Process.myUserHandle() + " can't request uninstall "
+                            + "for user " + mDialogInfo.user);
+                    showUserIsNotAllowed();
+                    return;
+                }
             }
         }
 
@@ -223,11 +225,6 @@ public class UninstallerActivity extends Activity {
         parseDeleteFlags(intent);
 
         showConfirmationDialog();
-    }
-
-    private boolean isArchiveDialog(Intent intent) {
-        return (intent.getIntExtra(PackageInstaller.EXTRA_DELETE_FLAGS, 0)
-                & PackageManager.DELETE_ARCHIVE) != 0;
     }
 
     /**

@@ -25,6 +25,7 @@ import static android.os.PowerManager.WAKE_REASON_WAKE_MOTION;
 import static android.view.KeyEvent.KEYCODE_POWER;
 
 import static com.android.server.policy.Flags.supportInputWakeupDelegate;
+import static com.android.server.power.feature.flags.Flags.perDisplayWakeByTouch;
 
 import android.annotation.Nullable;
 import android.content.Context;
@@ -34,7 +35,9 @@ import android.os.PowerManager.WakeReason;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Slog;
+import android.view.Display;
 import android.view.KeyEvent;
+import android.view.WindowManager;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.Clock;
@@ -48,6 +51,7 @@ class WindowWakeUpPolicy {
 
     private final Context mContext;
     private final PowerManager mPowerManager;
+    private final WindowManager mWindowManager;
     private final Clock mClock;
 
     private final boolean mAllowTheaterModeWakeFromKey;
@@ -68,6 +72,7 @@ class WindowWakeUpPolicy {
     WindowWakeUpPolicy(Context context, Clock clock) {
         mContext = context;
         mPowerManager = context.getSystemService(PowerManager.class);
+        mWindowManager = context.getSystemService(WindowManager.class);
         mClock = clock;
 
         final Resources res = context.getResources();
@@ -103,13 +108,14 @@ class WindowWakeUpPolicy {
     /**
      * Wakes up from a key event.
      *
+     * @param displayId the id of the display to wake.
      * @param eventTime the timestamp of the event in {@link SystemClock#uptimeMillis()}.
      * @param keyCode the {@link android.view.KeyEvent} key code of the key event.
      * @param isDown {@code true} if the event's action is {@link KeyEvent#ACTION_DOWN}.
      * @return {@code true} if the policy allows the requested wake up and the request has been
      *      executed; {@code false} otherwise.
      */
-    boolean wakeUpFromKey(long eventTime, int keyCode, boolean isDown) {
+    boolean wakeUpFromKey(int displayId, long eventTime, int keyCode, boolean isDown) {
         final boolean wakeAllowedDuringTheaterMode =
                 keyCode == KEYCODE_POWER
                         ? mAllowTheaterModeWakeFromPowerKey
@@ -122,22 +128,31 @@ class WindowWakeUpPolicy {
                 && mInputWakeUpDelegate.wakeUpFromKey(eventTime, keyCode, isDown)) {
             return true;
         }
-        wakeUp(
-                eventTime,
-                keyCode == KEYCODE_POWER ? WAKE_REASON_POWER_BUTTON : WAKE_REASON_WAKE_KEY,
-                keyCode == KEYCODE_POWER ? "POWER" : "KEY");
+        if (perDisplayWakeByTouch()) {
+            wakeUp(
+                    displayId,
+                    eventTime,
+                    keyCode == KEYCODE_POWER ? WAKE_REASON_POWER_BUTTON : WAKE_REASON_WAKE_KEY,
+                    keyCode == KEYCODE_POWER ? "POWER" : "KEY");
+        } else {
+            wakeUp(
+                    eventTime,
+                    keyCode == KEYCODE_POWER ? WAKE_REASON_POWER_BUTTON : WAKE_REASON_WAKE_KEY,
+                    keyCode == KEYCODE_POWER ? "POWER" : "KEY");
+        }
         return true;
     }
 
     /**
      * Wakes up from a motion event.
      *
+     * @param displayId the id of the display to wake.
      * @param eventTime the timestamp of the event in {@link SystemClock#uptimeMillis()}.
      * @param isDown {@code true} if the event's action is {@link MotionEvent#ACTION_DOWN}.
      * @return {@code true} if the policy allows the requested wake up and the request has been
      *      executed; {@code false} otherwise.
      */
-    boolean wakeUpFromMotion(long eventTime, int source, boolean isDown) {
+    boolean wakeUpFromMotion(int displayId, long eventTime, int source, boolean isDown) {
         if (!canWakeUp(mAllowTheaterModeWakeFromMotion)) {
             if (DEBUG) Slog.d(TAG, "Unable to wake up from motion.");
             return false;
@@ -146,7 +161,11 @@ class WindowWakeUpPolicy {
                 && mInputWakeUpDelegate.wakeUpFromMotion(eventTime, source, isDown)) {
             return true;
         }
-        wakeUp(eventTime, WAKE_REASON_WAKE_MOTION, "MOTION");
+        if (perDisplayWakeByTouch()) {
+            wakeUp(displayId, eventTime, WAKE_REASON_WAKE_MOTION, "MOTION");
+        } else {
+            wakeUp(eventTime, WAKE_REASON_WAKE_MOTION, "MOTION");
+        }
         return true;
     }
 
@@ -212,14 +231,33 @@ class WindowWakeUpPolicy {
     }
 
     private boolean canWakeUp(boolean wakeInTheaterMode) {
+        if (supportInputWakeupDelegate() && isDefaultDisplayOn()) {
+            // If the default display is on, theater mode should not influence whether or not
+            // waking up is allowed. This is because the theater mode checks are there to block
+            // the display from being on in situations where the user may not want it to be
+            // on (so if the display is already on, no need to check for theater mode at all).
+            return true;
+        }
         final boolean isTheaterModeEnabled =
                 Settings.Global.getInt(
                         mContext.getContentResolver(), Settings.Global.THEATER_MODE_ON, 0) == 1;
         return wakeInTheaterMode || !isTheaterModeEnabled;
     }
 
+    private boolean isDefaultDisplayOn() {
+        return Display.isOnState(mWindowManager.getDefaultDisplay().getState());
+    }
+
     /** Wakes up {@link PowerManager}. */
     private void wakeUp(long wakeTime, @WakeReason int reason, String details) {
         mPowerManager.wakeUp(wakeTime, reason, "android.policy:" + details);
+    }
+
+    /** Wakes up given display. */
+    private void wakeUp(int displayId, long wakeTime, @WakeReason int reason, String details) {
+        // If we're given an invalid display id to wake, fall back to waking default display
+        final int displayIdToWake =
+                displayId == Display.INVALID_DISPLAY ? Display.DEFAULT_DISPLAY : displayId;
+        mPowerManager.wakeUp(wakeTime, reason, "android.policy:" + details, displayIdToWake);
     }
 }

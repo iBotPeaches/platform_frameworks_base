@@ -15,6 +15,7 @@
  */
 package com.android.systemui.mediaprojection.permission
 
+import android.view.Display
 import androidx.annotation.IntDef
 import androidx.annotation.StringRes
 import kotlin.annotation.Retention
@@ -26,9 +27,12 @@ annotation class ScreenShareMode
 const val SINGLE_APP = 0
 const val ENTIRE_SCREEN = 1
 
-class ScreenShareOption(
+data class ScreenShareOption(
     @ScreenShareMode val mode: Int,
     @StringRes val spinnerText: Int,
     @StringRes val warningText: Int,
+    @StringRes val startButtonText: Int,
+    val displayId: Int = Display.DEFAULT_DISPLAY,
     val spinnerDisabledText: String? = null,
+    val displayName: String? = null,
 )

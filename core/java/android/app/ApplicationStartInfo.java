@@ -34,6 +34,7 @@ import android.util.proto.ProtoInputStream;
 import android.util.proto.ProtoOutputStream;
 import android.util.proto.WireTypeMismatchException;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.XmlUtils;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
@@ -59,6 +60,16 @@ import java.util.Objects;
  * both for logging and for potential behavior changes. Reason for process start, start type,
  * start times, throttling, and other useful diagnostic data can be obtained from
  * {@link ApplicationStartInfo} records.
+ * </p>
+ *
+ * <p>
+*  ApplicationStartInfo objects can be retrieved via:
+*  - {@link ActivityManager#getHistoricalProcessStartReasons}, which can be called during or after
+ *      a application's startup. Using this method, an app can retrieve information about an
+ *      in-progress app start.
+*  - {@link ActivityManager#addApplicationStartInfoCompletionListener}, which returns an
+ *      ApplicationStartInfo object via a callback when the startup is complete, or immediately
+ *      if requested after the startup is complete.
  * </p>
  */
 @FlaggedApi(Flags.FLAG_APP_START_INFO)
@@ -92,10 +103,10 @@ public final class ApplicationStartInfo implements Parcelable {
     /** Process started due to boot complete. */
     public static final int START_REASON_BOOT_COMPLETE = 2;
 
-    /**  Process started due to broadcast received. */
+    /**  Process started due to broadcast received for any reason not explicitly listed. */
     public static final int START_REASON_BROADCAST = 3;
 
-    /** Process started due to access of ContentProvider */
+    /** Process started due to access of ContentProvider for any reason not explicitly listed. */
     public static final int START_REASON_CONTENT_PROVIDER = 4;
 
     /** * Process started to run scheduled job. */
@@ -113,7 +124,7 @@ public final class ApplicationStartInfo implements Parcelable {
     /** Process started due to push message. */
     public static final int START_REASON_PUSH = 9;
 
-    /** Process service started. */
+    /** Process started due to Service started for any reason not explicitly listed.. */
     public static final int START_REASON_SERVICE = 10;
 
     /** Process started due to Activity started for any reason not explicitly listed. */
@@ -199,6 +210,31 @@ public final class ApplicationStartInfo implements Parcelable {
     /** Clock monotonic timestamp of surfaceflinger composition complete. */
     public static final int START_TIMESTAMP_SURFACEFLINGER_COMPOSITION_COMPLETE = 7;
 
+    /** Process was started for an activity component. */
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    public static final int START_COMPONENT_ACTIVITY = 1;
+
+    /** Process was started for a broadcast component. */
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    public static final int START_COMPONENT_BROADCAST = 2;
+
+    /** Process was started for a content provider component. */
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    public static final int START_COMPONENT_CONTENT_PROVIDER = 3;
+
+    /** Process was started for a service component. */
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    public static final int START_COMPONENT_SERVICE = 4;
+
+    /** Process was started not for one of the four standard components. */
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    public static final int START_COMPONENT_OTHER = 5;
+
+    /**
+     * @see #getMonoticCreationTimeMs
+     */
+    private long mMonoticCreationTimeMs;
+
     /**
      * @see #getStartupState
      */
@@ -265,6 +301,11 @@ public final class ApplicationStartInfo implements Parcelable {
     private boolean mWasForceStopped;
 
     /**
+     * @see #getStartComponent()
+     */
+    private @StartComponent int mStartComponent;
+
+    /**
      * @hide *
      */
     @IntDef(
@@ -327,6 +368,21 @@ public final class ApplicationStartInfo implements Parcelable {
             })
     @Retention(RetentionPolicy.SOURCE)
     public @interface LaunchMode {}
+
+    /**
+     * @hide *
+     */
+    @IntDef(
+            prefix = {"START_COMPONENT_"},
+            value = {
+                START_COMPONENT_ACTIVITY,
+                START_COMPONENT_BROADCAST,
+                START_COMPONENT_CONTENT_PROVIDER,
+                START_COMPONENT_SERVICE,
+                START_COMPONENT_OTHER,
+            })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface StartComponent {}
 
     /**
      * @see #getStartupState
@@ -416,11 +472,34 @@ public final class ApplicationStartInfo implements Parcelable {
 
     /**
      * @see #getStartIntent
+     *
+     * <p class="note"> Note: This method will clone the provided intent and ensure that the cloned
+     * intent doesn't contain any large objects like bitmaps in its extras by stripping it in the
+     * least aggressive acceptable way for the individual intent.</p>
+     *
      * @hide
      */
     public void setIntent(Intent startIntent) {
         if (startIntent != null) {
-            mStartIntent = startIntent.maybeStripForHistory();
+            if (startIntent.canStripForHistory()) {
+                // If maybeStripForHistory will return a lightened version, do that.
+                mStartIntent = startIntent.maybeStripForHistory();
+            } else if (startIntent.getExtras() != null) {
+                // If maybeStripForHistory would not return a lightened version and extras is
+                // non-null then extras contains un-parcelled data. Use cloneFilter to strip data
+                // more aggressively.
+                mStartIntent = startIntent.cloneFilter();
+            } else {
+                // Finally, if maybeStripForHistory would not return a lightened version and extras
+                // is null then do a regular clone so we don't leak the intent.
+                mStartIntent = new Intent(startIntent);
+            }
+
+            // If the newly cloned intent has an original intent, clear that as we don't need it and
+            // can't guarantee it doesn't need to be stripped as well.
+            if (mStartIntent.getOriginalIntent() != null) {
+                mStartIntent.setOriginalIntent(null);
+            }
         }
     }
 
@@ -442,6 +521,14 @@ public final class ApplicationStartInfo implements Parcelable {
     }
 
     /**
+     * @see #getStartComponent()
+     * @hide
+     */
+    public void setStartComponent(@StartComponent int startComponent) {
+        mStartComponent = startComponent;
+    }
+
+    /**
      * Current state of startup.
      *
      * Can be used to determine whether the object will have additional fields added as it may be
@@ -451,6 +538,15 @@ public final class ApplicationStartInfo implements Parcelable {
      */
     public @StartupState int getStartupState() {
         return mStartupState;
+    }
+
+    /**
+     * Monotonic elapsed time persisted across reboots.
+     *
+     * @hide
+     */
+    public long getMonoticCreationTimeMs() {
+        return mMonoticCreationTimeMs;
     }
 
     /**
@@ -519,6 +615,11 @@ public final class ApplicationStartInfo implements Parcelable {
 
     /**
      * The reason code of what triggered the process's start.
+     *
+     * Start reason provides granular reasoning on why the app is being started. Start reason should
+     * not be used for distinguishing between the component the app is being started for as some
+     * reasons may overlap with multiple components, see {@link #getStartComponent} for this
+     * functionality instead.
      *
      * <p class="note"> Note: field will be set for any {@link #getStartupState} value.</p>
      */
@@ -607,6 +708,22 @@ public final class ApplicationStartInfo implements Parcelable {
         return mWasForceStopped;
     }
 
+    /**
+     * The component type that was being started which triggered the start.
+     *
+     * Start component should be used to accurately distinguish between the 4 component types:
+     * activity, service, broadcast, and content provider. This can be useful for optimizing
+     * startup flow by enabling the caller to only load the necessary dependencies for a specific
+     * component type. For more granular information on why the app is being started, see
+     * {@link #getReason}.
+     *
+     * <p class="note"> Note: field will be set for any {@link #getStartupState} value.</p>
+     */
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    public @StartComponent int getStartComponent() {
+        return mStartComponent;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -633,10 +750,14 @@ public final class ApplicationStartInfo implements Parcelable {
         dest.writeParcelable(mStartIntent, flags);
         dest.writeInt(mLaunchMode);
         dest.writeBoolean(mWasForceStopped);
+        dest.writeLong(mMonoticCreationTimeMs);
+        dest.writeInt(mStartComponent);
     }
 
     /** @hide */
-    public ApplicationStartInfo() {}
+    public ApplicationStartInfo(long monotonicCreationTimeMs) {
+        mMonoticCreationTimeMs = monotonicCreationTimeMs;
+    }
 
     /** @hide */
     public ApplicationStartInfo(ApplicationStartInfo other) {
@@ -653,9 +774,13 @@ public final class ApplicationStartInfo implements Parcelable {
         mStartIntent = other.mStartIntent;
         mLaunchMode = other.mLaunchMode;
         mWasForceStopped = other.mWasForceStopped;
+        mMonoticCreationTimeMs = other.mMonoticCreationTimeMs;
+        mStartComponent = other.mStartComponent;
     }
 
-    private ApplicationStartInfo(@NonNull Parcel in) {
+    /** @hide */
+    @VisibleForTesting
+    public ApplicationStartInfo(@NonNull Parcel in) {
         mStartupState = in.readInt();
         mPid = in.readInt();
         mRealUid = in.readInt();
@@ -675,6 +800,8 @@ public final class ApplicationStartInfo implements Parcelable {
                 in.readParcelable(Intent.class.getClassLoader(), android.content.Intent.class);
         mLaunchMode = in.readInt();
         mWasForceStopped = in.readBoolean();
+        mMonoticCreationTimeMs = in.readLong();
+        mStartComponent = in.readInt();
     }
 
     private static String intern(@Nullable String source) {
@@ -753,6 +880,8 @@ public final class ApplicationStartInfo implements Parcelable {
         }
         proto.write(ApplicationStartInfoProto.LAUNCH_MODE, mLaunchMode);
         proto.write(ApplicationStartInfoProto.WAS_FORCE_STOPPED, mWasForceStopped);
+        proto.write(ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS, mMonoticCreationTimeMs);
+        proto.write(ApplicationStartInfoProto.START_COMPONENT, mStartComponent);
         proto.end(token);
     }
 
@@ -836,6 +965,13 @@ public final class ApplicationStartInfo implements Parcelable {
                     mWasForceStopped = proto.readBoolean(
                             ApplicationStartInfoProto.WAS_FORCE_STOPPED);
                     break;
+                case (int) ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS:
+                    mMonoticCreationTimeMs = proto.readLong(
+                            ApplicationStartInfoProto.MONOTONIC_CREATION_TIME_MS);
+                    break;
+                case (int) ApplicationStartInfoProto.START_COMPONENT:
+                    mStartComponent = proto.readInt(ApplicationStartInfoProto.START_COMPONENT);
+                    break;
             }
         }
         proto.end(token);
@@ -847,6 +983,8 @@ public final class ApplicationStartInfo implements Parcelable {
         StringBuilder sb = new StringBuilder();
         sb.append(prefix)
                 .append("ApplicationStartInfo ").append(seqSuffix).append(':')
+                .append('\n')
+                .append(" monotonicCreationTimeMs=").append(mMonoticCreationTimeMs)
                 .append('\n')
                 .append(" pid=").append(mPid)
                 .append(" realUid=").append(mRealUid)
@@ -860,8 +998,11 @@ public final class ApplicationStartInfo implements Parcelable {
                 .append(" reason=").append(reasonToString(mReason))
                 .append(" startType=").append(startTypeToString(mStartType))
                 .append(" launchMode=").append(mLaunchMode)
-                .append(" wasForceStopped=").append(mWasForceStopped)
-                .append('\n');
+                .append(" wasForceStopped=").append(mWasForceStopped);
+        if (Flags.appStartInfoComponent()) {
+            sb.append(" startComponent=").append(startComponentToString(mStartComponent));
+        }
+        sb.append('\n');
         if (mStartIntent != null) {
             sb.append(" intent=").append(mStartIntent.toString())
                 .append('\n');
@@ -905,25 +1046,48 @@ public final class ApplicationStartInfo implements Parcelable {
         };
     }
 
+    @FlaggedApi(Flags.FLAG_APP_START_INFO_COMPONENT)
+    private static String startComponentToString(@StartComponent int startComponent) {
+        return switch (startComponent) {
+            case START_COMPONENT_ACTIVITY -> "ACTIVITY";
+            case START_COMPONENT_BROADCAST -> "BROADCAST";
+            case START_COMPONENT_CONTENT_PROVIDER -> "CONTENT PROVIDER";
+            case START_COMPONENT_SERVICE -> "SERVICE";
+            case START_COMPONENT_OTHER -> "OTHER";
+            default -> "";
+        };
+    }
+
     /** @hide */
     @Override
     public boolean equals(@Nullable Object other) {
         if (other == null || !(other instanceof ApplicationStartInfo)) {
             return false;
         }
+
         final ApplicationStartInfo o = (ApplicationStartInfo) other;
-        return mPid == o.mPid && mRealUid == o.mRealUid && mPackageUid == o.mPackageUid
-            && mDefiningUid == o.mDefiningUid && mReason == o.mReason
-            && mStartupState == o.mStartupState && mStartType == o.mStartType
-            && mLaunchMode == o.mLaunchMode && TextUtils.equals(mProcessName, o.mProcessName)
-            && timestampsEquals(o) && mWasForceStopped == o.mWasForceStopped;
+
+        return mPid == o.mPid
+                && mRealUid == o.mRealUid
+                && mPackageUid == o.mPackageUid
+                && mDefiningUid == o.mDefiningUid
+                && mReason == o.mReason
+                && mStartupState == o.mStartupState
+                && mStartType == o.mStartType
+                && mLaunchMode == o.mLaunchMode
+                && TextUtils.equals(mPackageName, o.mPackageName)
+                && TextUtils.equals(mProcessName, o.mProcessName)
+                && timestampsEquals(o)
+                && mWasForceStopped == o.mWasForceStopped
+                && mMonoticCreationTimeMs == o.mMonoticCreationTimeMs
+                && mStartComponent == o.mStartComponent;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(mPid, mRealUid, mPackageUid, mDefiningUid, mReason, mStartupState,
-                mStartType, mLaunchMode, mProcessName,
-                mStartupTimestampsNs);
+                mStartType, mLaunchMode, mPackageName, mProcessName, mStartupTimestampsNs,
+                mMonoticCreationTimeMs, mStartComponent);
     }
 
     private boolean timestampsEquals(@NonNull ApplicationStartInfo other) {

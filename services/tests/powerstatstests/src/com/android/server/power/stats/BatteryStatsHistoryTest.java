@@ -403,7 +403,7 @@ public class BatteryStatsHistoryTest {
 
     @Test
     public void recordPowerStats() {
-        PowerStats.Descriptor descriptor = new PowerStats.Descriptor(42, "foo", 1, 2,
+        PowerStats.Descriptor descriptor = new PowerStats.Descriptor(42, "foo", 1, null, 0, 2,
                 new PersistableBundle());
         PowerStats powerStats = new PowerStats(descriptor);
         powerStats.durationMs = 100;
@@ -650,6 +650,44 @@ public class BatteryStatsHistoryTest {
         mHistoryPrinter.printNextItem(pw, item, 0, checkin, /* verbose */ true);
         pw.flush();
         return writer.toString();
+    }
+
+    @Test
+    public void getMonotonicHistorySize() {
+        long lastHistorySize = mHistory.getMonotonicHistorySize();
+        mHistory.forceRecordAllHistory();
+
+        mClock.realtime = 1000;
+        mClock.uptime = 1000;
+        mHistory.recordEvent(mClock.realtime, mClock.uptime,
+                BatteryStats.HistoryItem.EVENT_JOB_START, "job", 42);
+        long size = mHistory.getMonotonicHistorySize();
+        assertThat(size).isGreaterThan(lastHistorySize);
+        lastHistorySize = size;
+
+        mHistory.startNextFile(mClock.realtime);
+
+        size = mHistory.getMonotonicHistorySize();
+        assertThat(size).isEqualTo(lastHistorySize);
+
+        mClock.realtime = 2000;
+        mClock.uptime = 2000;
+        mHistory.recordEvent(mClock.realtime, mClock.uptime,
+                BatteryStats.HistoryItem.EVENT_JOB_FINISH, "job", 42);
+
+        size = mHistory.getMonotonicHistorySize();
+        assertThat(size).isGreaterThan(lastHistorySize);
+        lastHistorySize = size;
+
+        mHistory.startNextFile(mClock.realtime);
+
+        mClock.realtime = 3000;
+        mClock.uptime = 3000;
+        mHistory.recordEvent(mClock.realtime, mClock.uptime,
+                HistoryItem.EVENT_ALARM, "alarm", 42);
+
+        size = mHistory.getMonotonicHistorySize();
+        assertThat(size).isGreaterThan(lastHistorySize);
     }
 
     @Test

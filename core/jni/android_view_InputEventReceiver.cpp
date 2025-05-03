@@ -13,30 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 #define LOG_TAG "InputEventReceiver"
 #define ATRACE_TAG ATRACE_TAG_INPUT
 
 //#define LOG_NDEBUG 0
 
-#include <inttypes.h>
-
-#include <nativehelper/JNIHelp.h>
-
 #include <android-base/stringprintf.h>
 #include <android_runtime/AndroidRuntime.h>
+#include <input/InputConsumer.h>
 #include <input/InputTransport.h>
+#include <inttypes.h>
 #include <log/log.h>
+#include <nativehelper/JNIHelp.h>
+#include <nativehelper/ScopedLocalRef.h>
 #include <utils/Looper.h>
+
 #include <variant>
 #include <vector>
+
 #include "android_os_MessageQueue.h"
 #include "android_view_InputChannel.h"
 #include "android_view_KeyEvent.h"
 #include "android_view_MotionEvent.h"
-
-#include <nativehelper/ScopedLocalRef.h>
-
 #include "core_jni_helpers.h"
 
 namespace android {

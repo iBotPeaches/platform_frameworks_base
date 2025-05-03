@@ -30,12 +30,13 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.tiles.ColorCorrectionTile
 import com.android.systemui.qs.tiles.ColorInversionTile
 import com.android.systemui.qs.tiles.FontScalingTile
+import com.android.systemui.qs.tiles.HearingDevicesTile
 import com.android.systemui.qs.tiles.OneHandedModeTile
 import com.android.systemui.qs.tiles.ReduceBrightColorsTile
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
+import com.android.app.tracing.coroutines.asyncTraced as async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
@@ -74,6 +75,8 @@ constructor(
                         .REDUCE_BRIGHT_COLORS_TILE_SERVICE_COMPONENT_NAME,
                 FontScalingTile.TILE_SPEC to
                     AccessibilityShortcutController.FONT_SIZE_TILE_COMPONENT_NAME,
+                HearingDevicesTile.TILE_SPEC to
+                    AccessibilityShortcutController.ACCESSIBILITY_HEARING_AIDS_TILE_COMPONENT_NAME
             )
     }
 
@@ -124,7 +127,7 @@ constructor(
     private suspend fun getAccessibilityTileServices(context: Context): Set<ComponentName> =
         coroutineScope {
             val a11yServiceTileServices: Deferred<Set<ComponentName>> =
-                async(backgroundDispatcher) {
+                async(context = backgroundDispatcher) {
                     manager.installedAccessibilityServiceList
                         .mapNotNull {
                             val packageName = it.resolveInfo.serviceInfo.packageName
@@ -140,7 +143,7 @@ constructor(
                 }
 
             val a11yShortcutInfoTileServices: Deferred<Set<ComponentName>> =
-                async(backgroundDispatcher) {
+                async(context = backgroundDispatcher) {
                     manager
                         .getInstalledAccessibilityShortcutListAsUser(context, context.userId)
                         .mapNotNull {

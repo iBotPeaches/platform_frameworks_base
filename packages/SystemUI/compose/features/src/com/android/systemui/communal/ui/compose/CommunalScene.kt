@@ -17,40 +17,56 @@
 package com.android.systemui.communal.ui.compose
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.compose.animation.scene.SceneScope
-import com.android.compose.animation.scene.Swipe
-import com.android.compose.animation.scene.SwipeDirection
 import com.android.compose.animation.scene.UserAction
 import com.android.compose.animation.scene.UserActionResult
+import com.android.systemui.communal.shared.model.CommunalBackgroundType
+import com.android.systemui.communal.ui.viewmodel.CommunalUserActionsViewModel
 import com.android.systemui.communal.ui.viewmodel.CommunalViewModel
+import com.android.systemui.communal.util.CommunalColors
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.scene.ui.composable.ComposableScene
+import com.android.systemui.scene.ui.composable.Scene
 import javax.inject.Inject
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
 
 /** The communal scene shows glanceable hub when the device is locked and docked. */
 @SysUISingleton
 class CommunalScene
 @Inject
 constructor(
-    private val viewModel: CommunalViewModel,
-) : ComposableScene {
+    private val contentViewModel: CommunalViewModel,
+    actionsViewModelFactory: CommunalUserActionsViewModel.Factory,
+    private val communalColors: CommunalColors,
+    private val communalContent: CommunalContent,
+) : ExclusiveActivatable(), Scene {
     override val key = Scenes.Communal
 
-    override val destinationScenes: StateFlow<Map<UserAction, UserActionResult>> =
-        MutableStateFlow<Map<UserAction, UserActionResult>>(
-                mapOf(
-                    Swipe(SwipeDirection.Right) to UserActionResult(Scenes.Lockscreen),
-                )
-            )
-            .asStateFlow()
+    private val actionsViewModel: CommunalUserActionsViewModel = actionsViewModelFactory.create()
+
+    override val userActions: Flow<Map<UserAction, UserActionResult>> = actionsViewModel.actions
+
+    override suspend fun onActivated(): Nothing {
+        actionsViewModel.activate()
+    }
 
     @Composable
     override fun SceneScope.Content(modifier: Modifier) {
-        CommunalHub(modifier, viewModel)
+        val backgroundType by
+            contentViewModel.communalBackground.collectAsStateWithLifecycle(
+                initialValue = CommunalBackgroundType.ANIMATED
+            )
+
+        CommunalScene(
+            backgroundType = backgroundType,
+            colors = communalColors,
+            content = communalContent,
+            viewModel = contentViewModel,
+            modifier = modifier.horizontalNestedScrollToScene(),
+        )
     }
 }

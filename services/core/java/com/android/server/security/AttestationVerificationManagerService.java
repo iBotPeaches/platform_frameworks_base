@@ -17,11 +17,13 @@
 package com.android.server.security;
 
 import static android.Manifest.permission.USE_ATTESTATION_VERIFICATION_SERVICE;
+import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_CERTS;
+import static android.security.attestationverification.AttestationVerificationManager.FLAG_FAILURE_UNSUPPORTED_PROFILE;
 import static android.security.attestationverification.AttestationVerificationManager.PROFILE_PEER_DEVICE;
 import static android.security.attestationverification.AttestationVerificationManager.PROFILE_SELF_TRUSTED;
-import static android.security.attestationverification.AttestationVerificationManager.RESULT_FAILURE;
-import static android.security.attestationverification.AttestationVerificationManager.RESULT_UNKNOWN;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -31,11 +33,19 @@ import android.security.attestationverification.AttestationProfile;
 import android.security.attestationverification.IAttestationVerificationManagerService;
 import android.security.attestationverification.IVerificationResult;
 import android.security.attestationverification.VerificationToken;
+import android.text.TextUtils;
 import android.util.ExceptionUtils;
+import android.util.IndentingPrintWriter;
 import android.util.Slog;
+import android.util.TimeUtils;
 
 import com.android.internal.infra.AndroidFuture;
+import com.android.internal.util.DumpUtils;
 import com.android.server.SystemService;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.util.ArrayDeque;
 
 /**
  * A {@link SystemService} which provides functionality related to verifying attestations of
@@ -46,11 +56,13 @@ import com.android.server.SystemService;
 public class AttestationVerificationManagerService extends SystemService {
 
     private static final String TAG = "AVF";
+    private static final int DUMP_EVENT_LOG_SIZE = 10;
     private final AttestationVerificationPeerDeviceVerifier mPeerDeviceVerifier;
+    private final DumpLogger mDumpLogger = new DumpLogger();
 
     public AttestationVerificationManagerService(final Context context) throws Exception {
         super(context);
-        mPeerDeviceVerifier = new AttestationVerificationPeerDeviceVerifier(context);
+        mPeerDeviceVerifier = new AttestationVerificationPeerDeviceVerifier(context, mDumpLogger);
     }
 
     private final IBinder mService = new IAttestationVerificationManagerService.Stub() {
@@ -76,12 +88,34 @@ public class AttestationVerificationManagerService extends SystemService {
         public void verifyToken(VerificationToken token, ParcelDuration parcelDuration,
                 AndroidFuture resultCallback) throws RemoteException {
             enforceUsePermission();
-            // TODO(b/201696614): Implement
-            resultCallback.complete(RESULT_UNKNOWN);
+
+            throw new UnsupportedOperationException();
         }
 
         private void enforceUsePermission() {
             getContext().enforceCallingOrSelfPermission(USE_ATTESTATION_VERIFICATION_SERVICE, null);
+        }
+
+        @Override
+        protected void dump(@NonNull FileDescriptor fd, @NonNull PrintWriter writer,
+                @Nullable String[] args) {
+            if (!android.security.Flags.dumpAttestationVerifications()) {
+                super.dump(fd, writer, args);
+                return;
+            }
+
+            if (!DumpUtils.checkDumpAndUsageStatsPermission(getContext(), TAG, writer)) return;
+
+            final IndentingPrintWriter fout = new IndentingPrintWriter(writer, "    ");
+
+            fout.print("AttestationVerificationManagerService");
+            fout.println();
+            fout.increaseIndent();
+
+            fout.println("Event Log:");
+            fout.increaseIndent();
+            mDumpLogger.dumpTo(fout);
+            fout.decreaseIndent();
         }
     };
 
@@ -89,9 +123,9 @@ public class AttestationVerificationManagerService extends SystemService {
             AttestationProfile profile, int localBindingType, Bundle requirements,
             byte[] attestation, AndroidFuture<IVerificationResult> resultCallback) {
         IVerificationResult result = new IVerificationResult();
-        // TODO(b/201696614): Implement
         result.token = null;
-        switch (profile.getAttestationProfileId()) {
+        int profileId = profile.getAttestationProfileId();
+        switch (profileId) {
             case PROFILE_SELF_TRUSTED:
                 Slog.d(TAG, "Verifying Self Trusted profile.");
                 try {
@@ -99,7 +133,7 @@ public class AttestationVerificationManagerService extends SystemService {
                             AttestationVerificationSelfTrustedVerifierForTesting.getInstance()
                                     .verifyAttestation(localBindingType, requirements, attestation);
                 } catch (Throwable t) {
-                    result.resultCode = RESULT_FAILURE;
+                    result.resultCode = FLAG_FAILURE_CERTS;
                 }
                 break;
             case PROFILE_PEER_DEVICE:
@@ -108,8 +142,8 @@ public class AttestationVerificationManagerService extends SystemService {
                         localBindingType, requirements, attestation);
                 break;
             default:
-                Slog.d(TAG, "No profile found, defaulting.");
-                result.resultCode = RESULT_UNKNOWN;
+                Slog.e(TAG, "Profile [" + profileId + "] is not supported.");
+                result.resultCode = FLAG_FAILURE_UNSUPPORTED_PROFILE;
         }
         resultCallback.complete(result);
     }
@@ -118,5 +152,46 @@ public class AttestationVerificationManagerService extends SystemService {
     public void onStart() {
         Slog.d(TAG, "Started");
         publishBinderService(Context.ATTESTATION_VERIFICATION_SERVICE, mService);
+    }
+
+
+    static class DumpLogger {
+        private final ArrayDeque<DumpData> mData = new ArrayDeque<>(DUMP_EVENT_LOG_SIZE);
+        private int mEventsLogged = 0;
+
+        void logAttempt(DumpData data) {
+            synchronized (mData) {
+                if (mData.size() == DUMP_EVENT_LOG_SIZE) {
+                    mData.removeFirst();
+                }
+
+                mEventsLogged++;
+                data.mEventNumber = mEventsLogged;
+
+                data.mEventTimeMs = System.currentTimeMillis();
+
+                mData.add(data);
+            }
+        }
+
+        void dumpTo(IndentingPrintWriter writer) {
+            synchronized (mData) {
+                for (DumpData data : mData.reversed()) {
+                    writer.println(
+                            TextUtils.formatSimple("Verification #%d [%s]", data.mEventNumber,
+                                    TimeUtils.formatForLogging(data.mEventTimeMs)));
+                    writer.increaseIndent();
+                    data.dumpTo(writer);
+                    writer.decreaseIndent();
+                }
+            }
+        }
+    }
+
+    abstract static class DumpData {
+        protected int mEventNumber = -1;
+        protected long mEventTimeMs = -1;
+
+        abstract void dumpTo(IndentingPrintWriter writer);
     }
 }

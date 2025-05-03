@@ -35,7 +35,6 @@ android_app {
 android_robolectric_test {
     name: "WMShellRobolectricTests",
     instrumentation_for: "WindowManagerShellRobolectric",
-    upstream: true,
     java_resource_dirs: [
         "robolectric/config",
     ],
@@ -46,12 +45,15 @@ android_robolectric_test {
     exclude_srcs: ["src/com/android/wm/shell/bubbles/BubbleStackViewTest.kt"],
     static_libs: [
         "junit",
+        "androidx.core_core-animation-testing",
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.ext.junit",
         "mockito-robolectric-prebuilt",
         "mockito-kotlin2",
         "truth",
+        "flag-junit-base",
+        "flag-junit",
     ],
     auto_gen_config: true,
 }
@@ -64,6 +66,7 @@ android_test {
     static_libs: [
         "WindowManager-Shell",
         "junit",
+        "androidx.core_core-animation-testing",
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.ext.junit",
@@ -75,8 +78,8 @@ android_test {
         "platform-test-rules",
     ],
     libs: [
-        "android.test.base",
-        "android.test.runner",
+        "android.test.base.stubs.system",
+        "android.test.runner.stubs.system",
     ],
     jni_libs: [
         "libdexmakerjvmtiagent",

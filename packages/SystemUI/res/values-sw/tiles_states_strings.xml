@@ -186,4 +186,14 @@
     <item msgid="2478289035899842865">"Umezima"</item>
     <item msgid="5137565285664080143">"Umewasha"</item>
   </string-array>
+  <string-array name="tile_states_hearing_devices">
+    <item msgid="1235334096484287173">"Havipatikani"</item>
+    <item msgid="3079622119444911877">"Vimezimwa"</item>
+    <item msgid="3028994095749238254">"Vimewashwa"</item>
+  </string-array>
+  <string-array name="tile_states_notes">
+    <item msgid="5894333929299989301">"Halipatikani"</item>
+    <item msgid="6419996398343291862">"Limezimwa"</item>
+    <item msgid="5908720590832378783">"Limewashwa"</item>
+  </string-array>
 </resources>

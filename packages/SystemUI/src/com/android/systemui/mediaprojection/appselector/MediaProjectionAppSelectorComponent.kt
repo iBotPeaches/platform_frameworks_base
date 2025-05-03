@@ -22,11 +22,12 @@ import android.content.Context
 import android.os.UserHandle
 import androidx.lifecycle.DefaultLifecycleObserver
 import com.android.launcher3.icons.IconFactory
+import com.android.systemui.coroutines.newTracingContext
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.mediaprojection.appselector.data.ActivityTaskManagerLabelLoader
 import com.android.systemui.mediaprojection.appselector.data.ActivityTaskManagerThumbnailLoader
-import com.android.systemui.mediaprojection.appselector.data.AppIconLoader
-import com.android.systemui.mediaprojection.appselector.data.IconLoaderLibAppIconLoader
+import com.android.systemui.mediaprojection.appselector.data.BasicAppIconLoader
+import com.android.systemui.mediaprojection.appselector.data.BasicPackageManagerAppIconLoader
 import com.android.systemui.mediaprojection.appselector.data.RecentTaskLabelLoader
 import com.android.systemui.mediaprojection.appselector.data.RecentTaskListProvider
 import com.android.systemui.mediaprojection.appselector.data.RecentTaskThumbnailLoader
@@ -65,7 +66,7 @@ import kotlinx.coroutines.SupervisorJob
     subcomponents = [MediaProjectionAppSelectorComponent::class],
     includes = [MediaProjectionDevicePolicyModule::class]
 )
-interface MediaProjectionModule {
+interface MediaProjectionActivitiesModule {
     @Binds
     @IntoMap
     @ClassKey(MediaProjectionAppSelectorActivity::class)
@@ -102,7 +103,7 @@ interface MediaProjectionAppSelectorModule {
 
     @Binds
     @MediaProjectionAppSelectorScope
-    fun bindAppIconLoader(impl: IconLoaderLibAppIconLoader): AppIconLoader
+    fun bindAppIconLoader(impl: BasicPackageManagerAppIconLoader): BasicAppIconLoader
 
     @Binds
     @IntoSet
@@ -122,8 +123,10 @@ interface MediaProjectionAppSelectorModule {
         @Provides
         @MediaProjectionAppSelector
         @MediaProjectionAppSelectorScope
-        fun bindConfigurationController(context: Context): ConfigurationController =
-            ConfigurationControllerImpl(context)
+        fun bindConfigurationController(
+            context: Context,
+            configurationControlleFactory: ConfigurationControllerImpl.Factory
+        ): ConfigurationController = configurationControlleFactory.create(context)
 
         @Provides fun bindIconFactory(context: Context): IconFactory = IconFactory.obtain(context)
 
@@ -131,7 +134,11 @@ interface MediaProjectionAppSelectorModule {
         @MediaProjectionAppSelector
         @MediaProjectionAppSelectorScope
         fun provideCoroutineScope(@Application applicationScope: CoroutineScope): CoroutineScope =
-            CoroutineScope(applicationScope.coroutineContext + SupervisorJob())
+            CoroutineScope(
+                applicationScope.coroutineContext +
+                    SupervisorJob() +
+                    newTracingContext("MediaProjectionAppSelectorScope")
+            )
     }
 }
 

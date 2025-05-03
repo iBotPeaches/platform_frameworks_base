@@ -16,6 +16,8 @@
 
 package android.widget;
 
+import static android.appwidget.flags.Flags.remoteAdapterConversion;
+
 import static com.android.internal.R.id.pending_intent_tag;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -50,8 +52,8 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.frameworks.coretests.R;
 
@@ -282,7 +284,10 @@ public class RemoteViewsTest {
         widget.addView(view);
 
         ListView listView = (ListView) view.findViewById(R.id.list);
-        listView.onRemoteAdapterConnected();
+
+        if (!remoteAdapterConversion()) {
+            listView.onRemoteAdapterConnected();
+        }
         assertNotNull(listView.getAdapter());
 
         top.reapply(mContext, view);
@@ -412,6 +417,58 @@ public class RemoteViewsTest {
         View view = parent.apply(mContext, mContainer);
         assertNull(view.findViewById(R.id.text));
         assertNotNull(view.findViewById(R.id.light_background_text));
+    }
+
+    @Test
+    public void remoteCollectionItemsAdapter_lightBackgroundLayoutFlagSet() {
+        AppWidgetHostView widget = new AppWidgetHostView(mContext);
+        RemoteViews container = new RemoteViews(mPackage, R.layout.remote_view_host);
+        RemoteViews listRemoteViews = new RemoteViews(mPackage, R.layout.remote_views_list);
+        RemoteViews item = new RemoteViews(mPackage, R.layout.remote_views_text);
+        item.setLightBackgroundLayoutId(R.layout.remote_views_light_background_text);
+        listRemoteViews.setRemoteAdapter(
+                R.id.list,
+                new RemoteViews.RemoteCollectionItems.Builder().addItem(0, item).build());
+        container.addView(R.id.container, listRemoteViews);
+
+        widget.setOnLightBackground(true);
+        widget.updateAppWidget(container);
+
+        // Populate the list view
+        ListView listView = (ListView) widget.findViewById(R.id.list);
+        int measureSpec = View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY);
+        listView.measure(measureSpec, measureSpec);
+        listView.layout(0, 0, 100, 100);
+
+        // Picks the light background layout id for the item
+        assertNotNull(listView.getChildAt(0).findViewById(R.id.light_background_text));
+        assertNull(listView.getChildAt(0).findViewById(R.id.text));
+    }
+
+    @Test
+    public void remoteCollectionItemsAdapter_lightBackgroundLayoutFlagNotSet() {
+        AppWidgetHostView widget = new AppWidgetHostView(mContext);
+        RemoteViews container = new RemoteViews(mPackage, R.layout.remote_view_host);
+        RemoteViews listRemoteViews = new RemoteViews(mPackage, R.layout.remote_views_list);
+        RemoteViews item = new RemoteViews(mPackage, R.layout.remote_views_text);
+        item.setLightBackgroundLayoutId(R.layout.remote_views_light_background_text);
+        listRemoteViews.setRemoteAdapter(
+                R.id.list,
+                new RemoteViews.RemoteCollectionItems.Builder().addItem(0, item).build());
+        container.addView(R.id.container, listRemoteViews);
+
+        widget.setOnLightBackground(false);
+        widget.updateAppWidget(container);
+
+        // Populate the list view
+        ListView listView = (ListView) widget.findViewById(R.id.list);
+        int measureSpec = View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY);
+        listView.measure(measureSpec, measureSpec);
+        listView.layout(0, 0, 100, 100);
+
+        // Does not pick the light background layout id for the item
+        assertNotNull(listView.getChildAt(0).findViewById(R.id.text));
+        assertNull(listView.getChildAt(0).findViewById(R.id.light_background_text));
     }
 
     private RemoteViews createViewChained(int depth, String... texts) {
@@ -831,33 +888,6 @@ public class RemoteViewsTest {
         verify(visitor, times(1)).accept(eq(icon2S.getUri()));
         verify(visitor, times(1)).accept(eq(icon3S.getUri()));
         verify(visitor, times(1)).accept(eq(icon4S.getUri()));
-    }
-
-    @Test
-    public void visitUris_intents() {
-        RemoteViews views = new RemoteViews(mPackage, R.layout.remote_views_test);
-
-        Uri fillIntentUri = Uri.parse("content://intent/fill");
-        views.setOnCheckedChangeResponse(
-                R.id.layout,
-                RemoteViews.RemoteResponse.fromFillInIntent(new Intent("action", fillIntentUri)));
-
-        Uri pendingIntentUri = Uri.parse("content://intent/pending");
-        PendingIntent pendingIntent = getPendingIntentWithUri(pendingIntentUri);
-        views.setOnClickResponse(
-                R.id.layout,
-                RemoteViews.RemoteResponse.fromPendingIntent(pendingIntent));
-
-        Consumer<Uri> visitor = (Consumer<Uri>) spy(Consumer.class);
-        views.visitUris(visitor);
-        verify(visitor, times(1)).accept(eq(fillIntentUri));
-        verify(visitor, times(1)).accept(eq(pendingIntentUri));
-    }
-
-    private PendingIntent getPendingIntentWithUri(Uri uri) {
-        return PendingIntent.getActivity(mContext, 0,
-                new Intent("action", uri),
-                PendingIntent.FLAG_IMMUTABLE);
     }
 
     @Test

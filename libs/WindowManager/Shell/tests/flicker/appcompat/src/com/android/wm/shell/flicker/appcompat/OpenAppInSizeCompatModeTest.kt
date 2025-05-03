@@ -18,11 +18,11 @@ package com.android.wm.shell.flicker.appcompat
 
 import android.platform.test.annotations.Postsubmit
 import android.tools.flicker.assertions.FlickerTest
-import android.tools.traces.component.ComponentNameMatcher
 import android.tools.flicker.junit.FlickerParametersRunnerFactory
 import android.tools.flicker.legacy.FlickerBuilder
 import android.tools.flicker.legacy.LegacyFlickerTest
 import android.tools.flicker.legacy.LegacyFlickerTestFactory
+import android.tools.traces.component.ComponentNameMatcher
 import androidx.test.filters.RequiresDevice
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,7 +31,7 @@ import org.junit.runners.Parameterized
 /**
  * Test launching app in size compat mode.
  *
- * To run this test: `atest WMShellFlickerTestsOther:OpenAppInSizeCompatModeTest`
+ * To run this test: `atest WMShellFlickerTestsAppCompat:OpenAppInSizeCompatModeTest`
  *
  * Actions:
  * ```

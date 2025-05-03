@@ -44,7 +44,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Tests for TelephonySubscriptionTracker */
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class VcnNetworkProviderTest {

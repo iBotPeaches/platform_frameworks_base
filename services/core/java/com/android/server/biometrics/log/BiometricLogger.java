@@ -16,13 +16,14 @@
 
 package com.android.server.biometrics.log;
 
+import static android.hardware.biometrics.BiometricFaceConstants.FACE_ACQUIRED_START;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.hardware.SensorManager;
 import android.hardware.biometrics.BiometricConstants;
 import android.hardware.biometrics.BiometricsProtoEnums;
-import android.hardware.face.FaceManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.util.Slog;
 
@@ -30,6 +31,8 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.biometrics.AuthenticationStatsCollector;
 import com.android.server.biometrics.Utils;
+
+import java.util.Arrays;
 
 /**
  * Logger for all reported Biometric framework events.
@@ -137,7 +140,7 @@ public class BiometricLogger {
         final boolean isFingerprint = mStatsModality == BiometricsProtoEnums.MODALITY_FINGERPRINT;
         if (isFace || isFingerprint) {
             if ((isFingerprint && acquiredInfo == FingerprintManager.FINGERPRINT_ACQUIRED_START)
-                    || (isFace && acquiredInfo == FaceManager.FACE_ACQUIRED_START)) {
+                    || (isFace && acquiredInfo == FACE_ACQUIRED_START)) {
                 mFirstAcquireTimeMs = System.currentTimeMillis();
             }
         } else if (acquiredInfo == BiometricConstants.BIOMETRIC_ACQUIRED_GOOD) {
@@ -253,7 +256,7 @@ public class BiometricLogger {
 
     /** Log enrollment outcome. */
     public void logOnEnrolled(int targetUserId, long latency, boolean enrollSuccessful,
-            int source) {
+            int source, int templateId) {
         if (!mShouldLogMetrics) {
             return;
         }
@@ -264,7 +267,8 @@ public class BiometricLogger {
                     + ", Client: " + mStatsClient
                     + ", Latency: " + latency
                     + ", Lux: " + mALSProbe.getMostRecentLux()
-                    + ", Success: " + enrollSuccessful);
+                    + ", Success: " + enrollSuccessful
+                    + ", TemplateId: " + templateId);
         } else {
             Slog.v(TAG, "Enroll latency: " + latency);
         }
@@ -274,7 +278,51 @@ public class BiometricLogger {
         }
 
         mSink.enroll(mStatsModality, mStatsAction, mStatsClient,
-                targetUserId, latency, enrollSuccessful, mALSProbe.getMostRecentLux(), source);
+                targetUserId, latency, enrollSuccessful, mALSProbe.getMostRecentLux(), source,
+                templateId);
+    }
+
+    /** Log un-enrollment. */
+    public void logOnUnEnrolled(int targetUserId, int reason, int templateId) {
+        if (!mShouldLogMetrics) {
+            return;
+        }
+
+        if (DEBUG) {
+            Slog.v(TAG, "UnEnrolled! Modality: " + mStatsModality
+                    + ", User: " + targetUserId
+                    + ", reason: " + reason
+                    + ", templateId: " + templateId);
+        }
+
+        if (shouldSkipLogging()) {
+            return;
+        }
+
+        mSink.unenrolled(mStatsModality, targetUserId, reason, templateId);
+    }
+
+    /** Log enumeration. */
+    public void logOnEnumerated(int targetUserId, int result, int[] templateIdsHal,
+            int[] templateIdsFramework) {
+        if (!mShouldLogMetrics) {
+            return;
+        }
+
+        if (DEBUG) {
+            Slog.v(TAG, "Enumerated! Modality: " + mStatsModality
+                    + ", User: " + targetUserId
+                    + ", result: " + result
+                    + ", templateIdsHal: " + Arrays.toString(templateIdsHal)
+                    + ", templateIdsFramework: " + Arrays.toString(templateIdsFramework));
+        }
+
+        if (shouldSkipLogging()) {
+            return;
+        }
+
+        mSink.enumerated(mStatsModality, targetUserId, result, templateIdsHal,
+                templateIdsFramework);
     }
 
     /** Report unexpected enrollment reported by the HAL. */
@@ -293,6 +341,15 @@ public class BiometricLogger {
         }
 
         mSink.reportUnknownTemplateEnrolledFramework(mStatsModality);
+    }
+
+    /** Report unknown enrollment in framework settings */
+    public void logFingerprintsLoe() {
+        if (shouldSkipLogging()) {
+            return;
+        }
+
+        mSink.reportFingerprintsLoe(mStatsModality);
     }
 
     /**

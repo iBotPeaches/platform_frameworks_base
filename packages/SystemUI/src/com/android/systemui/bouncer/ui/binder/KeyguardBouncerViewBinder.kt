@@ -22,12 +22,13 @@ import android.view.ViewGroup
 import android.window.OnBackAnimationCallback
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.keyguard.KeyguardMessageAreaController
 import com.android.keyguard.KeyguardSecurityContainerController
 import com.android.keyguard.KeyguardSecurityModel
 import com.android.keyguard.KeyguardSecurityView
 import com.android.keyguard.dagger.KeyguardBouncerComponent
-import com.android.systemui.biometrics.shared.SideFpsControllerRefactor
+import com.android.systemui.biometrics.plugins.AuthContextPlugins
 import com.android.systemui.bouncer.domain.interactor.BouncerMessageInteractor
 import com.android.systemui.bouncer.shared.constants.KeyguardBouncerConstants.EXPANSION_VISIBLE
 import com.android.systemui.bouncer.ui.BouncerViewDelegate
@@ -36,10 +37,10 @@ import com.android.systemui.keyguard.ui.viewmodel.PrimaryBouncerToGoneTransition
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.log.BouncerLogger
 import com.android.systemui.plugins.ActivityStarter
+import com.android.systemui.plugins.AuthContextPlugin
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 
 /** Binds the bouncer container to its view model. */
 object KeyguardBouncerViewBinder {
@@ -53,6 +54,7 @@ object KeyguardBouncerViewBinder {
         bouncerMessageInteractor: BouncerMessageInteractor,
         bouncerLogger: BouncerLogger,
         selectedUserInteractor: SelectedUserInteractor,
+        plugins: AuthContextPlugins?,
     ) {
         // Builds the KeyguardSecurityContainerController from bouncer view group.
         val securityContainerController: KeyguardSecurityContainerController =
@@ -95,7 +97,7 @@ object KeyguardBouncerViewBinder {
 
                 override fun setDismissAction(
                     onDismissAction: ActivityStarter.OnDismissAction?,
-                    cancelAction: Runnable?
+                    cancelAction: Runnable?,
                 ) {
                     securityContainerController.setOnDismissAction(onDismissAction, cancelAction)
                 }
@@ -139,7 +141,7 @@ object KeyguardBouncerViewBinder {
                                     it.bindMessageView(
                                         bouncerMessageInteractor,
                                         messageAreaControllerFactory,
-                                        bouncerLogger
+                                        bouncerLogger,
                                     )
                                 }
                             } else {
@@ -149,6 +151,13 @@ object KeyguardBouncerViewBinder {
                                 securityContainerController.cancelDismissAction()
                                 securityContainerController.reset()
                                 securityContainerController.onPause()
+                            }
+                            plugins?.apply {
+                                if (isShowing) {
+                                    notifyBouncerShowing(view)
+                                } else {
+                                    notifyBouncerGone()
+                                }
                             }
                         }
                     }
@@ -210,7 +219,7 @@ object KeyguardBouncerViewBinder {
                             securityContainerController.showMessage(
                                 it.message,
                                 it.colorStateList,
-                                /* animated= */ true
+                                /* animated= */ true,
                             )
                             viewModel.onMessageShown()
                         }
@@ -231,28 +240,22 @@ object KeyguardBouncerViewBinder {
                             .collect { view.systemUiVisibility = it }
                     }
 
-                    // TODO(b/288175061): remove with Flags.FLAG_SIDEFPS_CONTROLLER_REFACTOR
-                    if (!SideFpsControllerRefactor.isEnabled) {
-                        launch {
-                            viewModel.shouldUpdateSideFps.collect {
-                                viewModel.updateSideFpsVisibility()
-                            }
-                        }
-                    }
-
-                    // TODO(b/288175061): remove with Flags.FLAG_SIDEFPS_CONTROLLER_REFACTOR
-                    if (!SideFpsControllerRefactor.isEnabled) {
-                        launch {
-                            viewModel.sideFpsShowing.collect {
-                                securityContainerController.updateSideFpsVisibility(it)
-                            }
-                        }
-                    }
                     awaitCancellation()
                 } finally {
                     viewModel.setBouncerViewDelegate(null)
+                    plugins?.notifyBouncerGone()
                 }
             }
         }
     }
+}
+
+private suspend fun AuthContextPlugins.notifyBouncerShowing(view: View) = use { plugin ->
+    plugin.onShowingSensitiveSurface(
+        AuthContextPlugin.SensitiveSurface.LockscreenBouncer(view = view)
+    )
+}
+
+private fun AuthContextPlugins.notifyBouncerGone() = useInBackground { plugin ->
+    plugin.onHidingSensitiveSurface(AuthContextPlugin.SensitiveSurface.LockscreenBouncer())
 }

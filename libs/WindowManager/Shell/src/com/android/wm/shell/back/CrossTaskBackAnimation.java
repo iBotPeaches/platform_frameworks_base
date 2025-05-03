@@ -21,7 +21,9 @@ import static android.view.RemoteAnimationTarget.MODE_OPENING;
 import static android.window.BackEvent.EDGE_RIGHT;
 
 import static com.android.internal.jank.InteractionJankMonitor.CUJ_PREDICTIVE_BACK_CROSS_TASK;
+import static com.android.window.flags.Flags.predictiveBackTimestampApi;
 import static com.android.wm.shell.back.BackAnimationConstants.UPDATE_SYSUI_FLAGS_THRESHOLD;
+import static com.android.wm.shell.back.CrossActivityBackAnimationKt.scaleCentered;
 import static com.android.wm.shell.protolog.ShellProtoLogGroup.WM_SHELL_BACK_PREVIEW;
 
 import android.animation.Animator;
@@ -29,11 +31,15 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.annotation.NonNull;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.os.Handler;
 import android.os.RemoteException;
+import android.util.TimeUtils;
+import android.view.Choreographer;
 import android.view.IRemoteAnimationFinishedCallback;
 import android.view.IRemoteAnimationRunner;
 import android.view.RemoteAnimationTarget;
@@ -45,11 +51,15 @@ import android.window.BackMotionEvent;
 import android.window.BackProgressAnimator;
 import android.window.IOnBackInvokedCallback;
 
+import com.android.internal.dynamicanimation.animation.FloatValueHolder;
+import com.android.internal.dynamicanimation.animation.SpringAnimation;
+import com.android.internal.dynamicanimation.animation.SpringForce;
 import com.android.internal.policy.ScreenDecorationsUtils;
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.policy.SystemBarUtils;
+import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.R;
-import com.android.wm.shell.animation.Interpolators;
-import com.android.wm.shell.common.annotations.ShellMainThread;
+import com.android.wm.shell.shared.animation.Interpolators;
+import com.android.wm.shell.shared.annotations.ShellMainThread;
 
 import javax.inject.Inject;
 
@@ -66,7 +76,6 @@ import javax.inject.Inject;
  * IOnBackInvokedCallback} with WM Shell and receives back dispatches when a back navigation to
  * launcher starts.
  */
-@ShellMainThread
 public class CrossTaskBackAnimation extends ShellBackAnimation {
     private static final int BACKGROUNDCOLOR = 0x43433A;
 
@@ -78,8 +87,14 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
     /** Duration of post animation after gesture committed. */
     private static final int POST_ANIMATION_DURATION_MS = 500;
 
+    private static final float SPRING_SCALE = 100f;
+    private static final float DEFAULT_FLING_VELOCITY = 320f;
+    private static final float MAX_FLING_VELOCITY = 1000f;
+    private static final float FLING_SPRING_STIFFNESS = 320f;
+
     private final Rect mStartTaskRect = new Rect();
-    private final float mCornerRadius;
+    private float mCornerRadius;
+    private int mStatusbarHeight;
 
     // The closing window properties.
     private final Rect mClosingStartRect = new Rect();
@@ -91,7 +106,7 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
 
     private final PointF mInitialTouchPos = new PointF();
     private final Interpolator mPostAnimationInterpolator = Interpolators.EMPHASIZED;
-    private final Interpolator mProgressInterpolator = Interpolators.STANDARD_DECELERATE;
+    private final Interpolator mProgressInterpolator = Interpolators.BACK_GESTURE;
     private final Interpolator mVerticalMoveInterpolator = new DecelerateInterpolator();
     private final Matrix mTransformMatrix = new Matrix();
 
@@ -110,13 +125,31 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
     private float mInterWindowMargin;
     private float mVerticalMargin;
 
+    private final FloatValueHolder mPostCommitFlingScale = new FloatValueHolder(SPRING_SCALE);
+    private final SpringForce mPostCommitFlingSpring = new SpringForce(SPRING_SCALE)
+            .setStiffness(FLING_SPRING_STIFFNESS)
+            .setDampingRatio(1f);
+    private final ProgressVelocityTracker mVelocityTracker = new ProgressVelocityTracker();
+    private float mGestureProgress = 0f;
+
     @Inject
-    public CrossTaskBackAnimation(Context context, BackAnimationBackground background) {
-        mCornerRadius = ScreenDecorationsUtils.getWindowCornerRadius(context);
+    public CrossTaskBackAnimation(Context context, BackAnimationBackground background,
+            @ShellMainThread Handler handler) {
         mBackAnimationRunner = new BackAnimationRunner(
-                new Callback(), new Runner(), context, CUJ_PREDICTIVE_BACK_CROSS_TASK);
+                new Callback(), new Runner(), context, CUJ_PREDICTIVE_BACK_CROSS_TASK, handler);
         mBackground = background;
         mContext = context;
+        loadResources();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        loadResources();
+    }
+
+    private void loadResources() {
+        mCornerRadius = ScreenDecorationsUtils.getWindowCornerRadius(mContext);
+        mStatusbarHeight = SystemBarUtils.getStatusBarHeight(mContext);
     }
 
     private static float mapRange(float value, float min, float max) {
@@ -142,7 +175,7 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
 
         // Draw background.
         mBackground.ensureBackground(mClosingTarget.windowConfiguration.getBounds(),
-                BACKGROUNDCOLOR, mTransaction);
+                BACKGROUNDCOLOR, mTransaction, mStatusbarHeight);
         mInterWindowMargin = mContext.getResources()
                 .getDimension(R.dimen.cross_task_back_inter_window_margin);
         mVerticalMargin = mContext.getResources()
@@ -153,6 +186,7 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
         if (mEnteringTarget == null || mClosingTarget == null) {
             return;
         }
+        mGestureProgress = progress;
 
         float touchY = event.getTouchY();
 
@@ -192,9 +226,9 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
 
         applyTransform(mClosingTarget.leash, mClosingCurrentRect, mCornerRadius);
         applyTransform(mEnteringTarget.leash, mEnteringCurrentRect, mCornerRadius);
-        mTransaction.apply();
+        applyTransaction();
 
-        mBackground.onBackProgressed(progress);
+        mBackground.customizeStatusBarAppearance((int) scaledTop);
     }
 
     private void updatePostCommitClosingAnimation(float progress) {
@@ -214,6 +248,8 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
         }
 
         mClosingCurrentRect.set(left, top, left + width, top + height);
+
+        applyFlingScale(mClosingCurrentRect);
         applyTransform(mClosingTarget.leash, mClosingCurrentRect, mCornerRadius);
     }
 
@@ -224,7 +260,17 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
         float height = mapRange(progress, mEnteringStartRect.height(), mStartTaskRect.height());
 
         mEnteringCurrentRect.set(left, top, left + width, top + height);
+
+        applyFlingScale(mEnteringCurrentRect);
         applyTransform(mEnteringTarget.leash, mEnteringCurrentRect, mCornerRadius);
+    }
+
+    private void applyFlingScale(RectF rect) {
+        // apply a scale to the rect to account for fling velocity
+        final float flingScale = Math.min(mPostCommitFlingScale.getValue() / SPRING_SCALE, 1f);
+        if (flingScale >= 1f) return;
+        scaleCentered(rect, flingScale, /* pivotX */ rect.right,
+                /* pivotY */ rect.top + rect.height() / 2);
     }
 
     /** Transform the target window to match the target rect. */
@@ -242,6 +288,11 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
                 .setCornerRadius(leash, cornerRadius);
     }
 
+    private void applyTransaction() {
+        mTransaction.setFrameTimelineVsync(Choreographer.getInstance().getVsyncId());
+        mTransaction.apply();
+    }
+
     private void finishAnimation() {
         if (mEnteringTarget != null) {
             mEnteringTarget.leash.release();
@@ -255,12 +306,13 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
         if (mBackground != null) {
             mBackground.removeBackground(mTransaction);
         }
-
-        mTransaction.apply();
+        applyTransaction();
         mBackInProgress = false;
         mTransformMatrix.reset();
         mClosingCurrentRect.setEmpty();
         mInitialTouchPos.set(0, 0);
+        mGestureProgress = 0;
+        mVelocityTracker.resetTracking();
 
         if (mFinishCallback != null) {
             try {
@@ -275,19 +327,40 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
 
     private void onGestureProgress(@NonNull BackEvent backEvent) {
         if (!mBackInProgress) {
-            mIsRightEdge = backEvent.getSwipeEdge() == EDGE_RIGHT;
-            mInitialTouchPos.set(backEvent.getTouchX(), backEvent.getTouchY());
             mBackInProgress = true;
         }
         float progress = backEvent.getProgress();
         mTouchPos.set(backEvent.getTouchX(), backEvent.getTouchY());
-        updateGestureBackProgress(getInterpolatedProgress(progress), backEvent);
+        float interpolatedProgress = getInterpolatedProgress(progress);
+        if (predictiveBackTimestampApi()) {
+            mVelocityTracker.addPosition(backEvent.getFrameTimeMillis(),
+                    interpolatedProgress * SPRING_SCALE);
+        }
+        updateGestureBackProgress(interpolatedProgress, backEvent);
     }
 
     private void onGestureCommitted() {
         if (mEnteringTarget == null || mClosingTarget == null) {
             finishAnimation();
             return;
+        }
+
+        if (predictiveBackTimestampApi()) {
+            // kick off spring animation with the current velocity from the pre-commit phase, this
+            // affects the scaling of the closing and/or opening task during post-commit
+            float startVelocity = mGestureProgress < 0.1f
+                    ? -DEFAULT_FLING_VELOCITY : -mVelocityTracker.calculateVelocity();
+            SpringAnimation flingAnimation =
+                    new SpringAnimation(mPostCommitFlingScale, SPRING_SCALE)
+                    .setStartVelocity(Math.max(-MAX_FLING_VELOCITY, Math.min(0f, startVelocity)))
+                    .setStartValue(SPRING_SCALE)
+                    .setMinimumVisibleChange(0.1f)
+                    .setSpring(mPostCommitFlingSpring);
+            flingAnimation.start();
+            // do an animation-frame immediately to prevent idle frame
+            flingAnimation.doAnimationFrame(
+                    Choreographer.getInstance().getLastFrameTimeNanos() / TimeUtils.NANOS_PER_MS
+            );
         }
 
         // We enter phase 2 of the animation, the starting coordinates for phase 2 are the current
@@ -305,7 +378,7 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
             if (progress > 1 - UPDATE_SYSUI_FLAGS_THRESHOLD) {
                 mBackground.resetStatusBarCustomization();
             }
-            mTransaction.apply();
+            applyTransaction();
         });
 
         valueAnimator.addListener(new AnimatorListenerAdapter() {
@@ -326,6 +399,13 @@ public class CrossTaskBackAnimation extends ShellBackAnimation {
     private final class Callback extends IOnBackInvokedCallback.Default {
         @Override
         public void onBackStarted(BackMotionEvent backEvent) {
+            // in case we're still animating an onBackCancelled event, let's remove the finish-
+            // callback from the progress animator to prevent calling finishAnimation() before
+            // restarting a new animation
+            mProgressAnimator.removeOnBackCancelledFinishCallback();
+
+            mIsRightEdge = backEvent.getSwipeEdge() == EDGE_RIGHT;
+            mInitialTouchPos.set(backEvent.getTouchX(), backEvent.getTouchY());
             mProgressAnimator.onBackStarted(backEvent,
                     CrossTaskBackAnimation.this::onGestureProgress);
         }

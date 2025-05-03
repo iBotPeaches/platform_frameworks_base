@@ -16,7 +16,6 @@
 
 package com.android.systemui.statusbar.phone;
 
-import static com.android.systemui.Flags.centralizedStatusBarHeightFix;
 import static com.android.systemui.ScreenDecorations.DisplayCutoutView.boundsFromDirection;
 import static com.android.systemui.util.Utils.getStatusBarHeaderHeightKeyguard;
 
@@ -41,6 +40,7 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.settingslib.Utils;
@@ -48,17 +48,18 @@ import com.android.systemui.battery.BatteryMeterView;
 import com.android.systemui.plugins.DarkIconDispatcher.DarkReceiver;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.phone.SysuiDarkIconDispatcher.DarkChange;
+import com.android.systemui.statusbar.phone.ui.TintedIconManager;
 import com.android.systemui.statusbar.phone.userswitcher.StatusBarUserSwitcherContainer;
 import com.android.systemui.user.ui.binder.StatusBarUserChipViewBinder;
 import com.android.systemui.user.ui.viewmodel.StatusBarUserChipViewModel;
-
-import java.io.PrintWriter;
-import java.util.ArrayList;
 
 import kotlinx.coroutines.flow.FlowKt;
 import kotlinx.coroutines.flow.MutableStateFlow;
 import kotlinx.coroutines.flow.StateFlow;
 import kotlinx.coroutines.flow.StateFlowKt;
+
+import java.io.PrintWriter;
+import java.util.ArrayList;
 
 /**
  * The header group on Keyguard.
@@ -131,9 +132,6 @@ public class KeyguardStatusBarView extends RelativeLayout {
         mUserSwitcherContainer = findViewById(R.id.user_switcher_container);
         mIsPrivacyDotEnabled = mContext.getResources().getBoolean(R.bool.config_enablePrivacyDot);
         loadDimens();
-        if (!centralizedStatusBarHeightFix()) {
-            setGravity(Gravity.CENTER_VERTICAL);
-        }
     }
 
     /**
@@ -184,14 +182,8 @@ public class KeyguardStatusBarView extends RelativeLayout {
         mCarrierLabel.setTextSize(TypedValue.COMPLEX_UNIT_PX,
                 getResources().getDimensionPixelSize(
                         com.android.internal.R.dimen.text_size_small_material));
-        lp = (MarginLayoutParams) mCarrierLabel.getLayoutParams();
+        updateCarrierLabelMargin();
 
-        int marginStart = calculateMargin(
-                getResources().getDimensionPixelSize(R.dimen.keyguard_carrier_text_margin),
-                mPadding.left);
-        lp.setMarginStart(marginStart);
-
-        mCarrierLabel.setLayoutParams(lp);
         updateKeyguardStatusBarHeight();
     }
 
@@ -203,6 +195,15 @@ public class KeyguardStatusBarView extends RelativeLayout {
         ViewGroup.LayoutParams lp = (ViewGroup.LayoutParams) getLayoutParams();
         lp.height = getStatusBarHeaderHeightKeyguard(mContext);
         setLayoutParams(lp);
+    }
+
+    private void updateCarrierLabelMargin() {
+        MarginLayoutParams lp = (MarginLayoutParams) mCarrierLabel.getLayoutParams();
+        int marginStart = calculateMargin(
+                getResources().getDimensionPixelSize(R.dimen.keyguard_carrier_text_margin),
+                mPadding.left);
+        lp.setMarginStart(marginStart);
+        mCarrierLabel.setLayoutParams(lp);
     }
 
     void loadDimens() {
@@ -290,7 +291,16 @@ public class KeyguardStatusBarView extends RelativeLayout {
     }
 
     private boolean updateLayoutConsideringCutout(StatusBarContentInsetsProvider insetsProvider) {
-        mDisplayCutout = getRootWindowInsets().getDisplayCutout();
+        return setDisplayCutout(
+                getRootWindowInsets().getDisplayCutout(),
+                insetsProvider);
+    }
+
+    /** Sets the {@link DisplayCutout}, updating the view to render around the cutout. */
+    public boolean setDisplayCutout(
+            @Nullable DisplayCutout displayCutout,
+            StatusBarContentInsetsProvider insetsProvider) {
+        mDisplayCutout = displayCutout;
         updateKeyguardStatusBarHeight();
         updatePadding(insetsProvider);
         if (mDisplayCutout == null || insetsProvider.currentRotationHasCornerCutout()) {
@@ -311,7 +321,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
         final int minRight = (!isLayoutRtl() && mIsPrivacyDotEnabled)
                 ? Math.max(mMinDotWidth, mPadding.right) : mPadding.right;
 
-        int top = centralizedStatusBarHeightFix() ? waterfallTop + mPadding.top : waterfallTop;
+        int top = waterfallTop + mPadding.top;
         setPadding(minLeft, top, minRight, 0);
     }
 
@@ -327,6 +337,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
 
         RelativeLayout.LayoutParams lp = (LayoutParams) mCarrierLabel.getLayoutParams();
         lp.addRule(RelativeLayout.START_OF, R.id.status_icon_area);
+        updateCarrierLabelMargin();
 
         lp = (LayoutParams) mStatusIconArea.getLayoutParams();
         lp.removeRule(RelativeLayout.RIGHT_OF);
@@ -359,6 +370,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
 
         lp = (LayoutParams) mCarrierLabel.getLayoutParams();
         lp.addRule(RelativeLayout.START_OF, R.id.cutout_space_view);
+        updateCarrierLabelMargin();
 
         lp = (LayoutParams) mStatusIconArea.getLayoutParams();
         lp.addRule(RelativeLayout.RIGHT_OF, R.id.cutout_space_view);
@@ -421,24 +433,25 @@ public class KeyguardStatusBarView extends RelativeLayout {
     }
 
     /** Should only be called from {@link KeyguardStatusBarViewController}. */
-    void onThemeChanged(StatusBarIconController.TintedIconManager iconManager) {
+    void onThemeChanged(TintedIconManager iconManager) {
         mBatteryView.setColorsFromContext(mContext);
         updateIconsAndTextColors(iconManager);
     }
 
     /** Should only be called from {@link KeyguardStatusBarViewController}. */
     void onOverlayChanged() {
-        int theme = Utils.getThemeAttr(mContext, com.android.internal.R.attr.textAppearanceSmall);
-        mCarrierLabel.setTextAppearance(theme);
+        final int carrierTheme = R.style.TextAppearance_StatusBar_Clock;
+        mCarrierLabel.setTextAppearance(carrierTheme);
         mBatteryView.updatePercentView();
 
+        final int userSwitcherTheme = R.style.TextAppearance_StatusBar_UserChip;
         TextView userSwitcherName = mUserSwitcherContainer.findViewById(R.id.current_user_name);
         if (userSwitcherName != null) {
-            userSwitcherName.setTextAppearance(theme);
+            userSwitcherName.setTextAppearance(userSwitcherTheme);
         }
     }
 
-    private void updateIconsAndTextColors(StatusBarIconController.TintedIconManager iconManager) {
+    private void updateIconsAndTextColors(TintedIconManager iconManager) {
         @ColorInt int textColor = Utils.getColorAttrDefaultColor(mContext,
                 R.attr.wallpaperTextColor);
         float luminance = Color.luminance(textColor);

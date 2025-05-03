@@ -181,6 +181,7 @@ interface IActivityManager {
             in IntentFilter filter, in String requiredPermission, int userId, int flags);
     @UnsupportedAppUsage
     void unregisterReceiver(in IIntentReceiver receiver);
+    List<IntentFilter> getRegisteredIntentFilters(in IIntentReceiver receiver);
     /** @deprecated Use {@link #broadcastIntentWithFeature} instead */
     @UnsupportedAppUsage(maxTargetSdk=29, publicAlternatives="Use {@link android.content.Context#sendBroadcast(android.content.Intent)} instead")
     int broadcastIntent(in IApplicationThread caller, in Intent intent,
@@ -196,7 +197,7 @@ interface IActivityManager {
     oneway void finishReceiver(in IBinder who, int resultCode, in String resultData, in Bundle map,
             boolean abortBroadcast, int flags);
     void attachApplication(in IApplicationThread app, long startSeq);
-    void finishAttachApplication(long startSeq);
+    void finishAttachApplication(long startSeq, long timestampApplicationOnCreateNs);
     List<ActivityManager.RunningTaskInfo> getTasks(int maxNum);
     @UnsupportedAppUsage
     void moveTaskToFront(in IApplicationThread caller, in String callingPackage, int task,
@@ -320,7 +321,7 @@ interface IActivityManager {
     oneway void removeContentProvider(in IBinder connection, boolean stable);
     @UnsupportedAppUsage
     void setRequestedOrientation(in IBinder token, int requestedOrientation);
-    void unbindFinished(in IBinder token, in Intent service, boolean doRebind);
+    void unbindFinished(in IBinder token, in Intent service);
     @UnsupportedAppUsage
     void setProcessImportant(in IBinder token, int pid, boolean isForeground, String reason);
     void setServiceForeground(in ComponentName className, in IBinder token,
@@ -357,7 +358,7 @@ interface IActivityManager {
     @UnsupportedAppUsage
     void resumeAppSwitches();
     boolean bindBackupAgent(in String packageName, int backupRestoreMode, int targetUserId,
-            int backupDestination);
+            int backupDestination, boolean useRestrictedMode);
     void backupAgentCreated(in String packageName, in IBinder agent, int userId);
     void unbindBackupAgent(in ApplicationInfo appInfo);
     int handleIncomingUser(int callingPid, int callingUid, int userId, boolean allowAll,
@@ -452,12 +453,14 @@ interface IActivityManager {
             in IBinder resultTo, in String resultWho, int requestCode, int flags,
             in ProfilerInfo profilerInfo, in Bundle options, int userId);
     @UnsupportedAppUsage(maxTargetSdk = 30, trackingBug = 170729553)
-    int stopUser(int userid, boolean force, in IStopUserCallback callback);
+    int stopUser(int userid, boolean stopProfileRegardlessOfParent, in IStopUserCallback callback);
+    int stopUserWithCallback(int userid, in IStopUserCallback callback);
+    int stopUserExceptCertainProfiles(int userid, boolean stopProfileRegardlessOfParent, in IStopUserCallback callback);
     /**
-     * Check {@link com.android.server.am.ActivityManagerService#stopUserWithDelayedLocking(int, boolean, IStopUserCallback)}
+     * Check {@link com.android.server.am.ActivityManagerService#stopUserWithDelayedLocking(int, IStopUserCallback)}
      * for details.
      */
-    int stopUserWithDelayedLocking(int userid, boolean force, in IStopUserCallback callback);
+    int stopUserWithDelayedLocking(int userid, in IStopUserCallback callback);
 
     @UnsupportedAppUsage
     void registerUserSwitchObserver(in IUserSwitchObserver observer, in String name);
@@ -499,6 +502,7 @@ interface IActivityManager {
             in String shareDescription);
 
     void requestInteractiveBugReport();
+    void requestBugReportWithExtraAttachments(in List<Uri> extraAttachment);
     void requestFullBugReport();
     void requestRemoteBugReport(long nonce);
     boolean launchBugReportHandlerApp();
@@ -754,6 +758,15 @@ interface IActivityManager {
     void addStartInfoTimestamp(int key, long timestampNs, int userId);
 
     /**
+    * Reports view related timestamps to be added to the calling apps most
+    * recent {@link ApplicationStartInfo}.
+    *
+    * @param renderThreadDrawStartTimeNs Clock monotonic time in nanoseconds of RenderThread draw start
+    * @param framePresentedTimeNs        Clock monotonic time in nanoseconds of frame presented
+    */
+    oneway void reportStartInfoViewTimestamps(long renderThreadDrawStartTimeNs, long framePresentedTimeNs);
+
+    /**
      * Return a list of {@link ApplicationExitInfo} records.
      *
      * <p class="note"> Note: System stores these historical information in a ring buffer, older
@@ -851,7 +864,8 @@ interface IActivityManager {
 
     /**
      * Suppress or reenable the rate limit on foreground service notification deferral.
-     * This is for use within CTS and is protected by android.permission.WRITE_DEVICE_CONFIG.
+     * This is for use within CTS and is protected by android.permission.WRITE_DEVICE_CONFIG
+     * and WRITE_ALLOWLISTED_DEVICE_CONFIG.
      *
      * @param enable false to suppress rate-limit policy; true to reenable it.
      */
@@ -897,10 +911,6 @@ interface IActivityManager {
     /** Delays delivering broadcasts to the specified package. */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.DUMP)")
     void forceDelayBroadcastDelivery(in String targetPackage, long delayedDurationMs);
-
-    /** Checks if the modern broadcast queue is enabled. */
-    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.DUMP)")
-    boolean isModernBroadcastQueueEnabled();
 
     /** Checks if the process represented by the given pid is frozen. */
     @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.DUMP)")
@@ -966,4 +976,66 @@ interface IActivityManager {
      */
     oneway void frozenBinderTransactionDetected(int debugPid, int code, int flags, int err);
     int getBindingUidProcessState(int uid, in String callingPackage);
+
+    /**
+     * Return the timestampe (in the elapsed timebase) when the UID became idle from active
+     * last time (regardless of if the UID is still idle, or became active again).
+     * This is useful when trying to detect whether an UID has ever became idle since a certain
+     * time in the past.
+     */
+    long getUidLastIdleElapsedTime(int uid, in String callingPackage);
+
+    /**
+     * Adds permission to be overridden to the given state. Must be called from root user.
+     *
+     * @param originatingUid The UID of the instrumented app that initialized the override
+     * @param uid The UID of the app whose permission will be overridden
+     * @param permission The permission whose state will be overridden
+     * @param result The state to override the permission to
+     *
+     * @see PackageManager.PermissionResult
+     */
+    void addOverridePermissionState(int originatingUid, int uid, String permission, int result);
+
+    /**
+     * Removes overridden permission. Must be called from root user.
+     *
+     * @param originatingUid The UID of the instrumented app that initialized the override
+     * @param uid The UID of the app whose permission is overridden
+     * @param permission The permission whose state will no longer be overridden
+     */
+    void removeOverridePermissionState(int originatingUid, int uid, String permission);
+
+    /**
+     * Clears all overridden permissions for the given UID. Must be called from root user.
+     *
+     * @param originatingUid The UID of the instrumented app that initialized the override
+     * @param uid The UID of the app whose permissions will no longer be overridden
+     */
+    void clearOverridePermissionStates(int originatingUid, int uid);
+
+    /**
+     * Clears all overridden permissions on the device. Must be called from root user.
+     *
+     * @param originatingUid The UID of the instrumented app that initialized the override
+     */
+    void clearAllOverridePermissionStates(int originatingUid);
+
+    /**
+     * Request the system to log the reason for restricting / unrestricting an app.
+     * @see ActivityManager#noteAppRestrictionEnabled
+     */
+    @JavaPassthrough(annotation="@android.annotation.RequiresPermission(android.Manifest.permission.DEVICE_POWER)")
+    void noteAppRestrictionEnabled(in String packageName, int uid, int restrictionType,
+            boolean enabled, int reason, in String subReason, int source, long threshold);
+
+    /**
+     * Creates and returns a new IntentCreatorToken that keeps the creatorUid and refreshes key
+     * fields of the intent passed in.
+     *
+     * @param intent The intent with key fields out of sync of the IntentCreatorToken it contains.
+     * @hide
+     */
+    @EnforcePermission("INTERACT_ACROSS_USERS_FULL")
+    IBinder refreshIntentCreatorToken(in Intent intent);
 }

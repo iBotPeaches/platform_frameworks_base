@@ -48,7 +48,7 @@ import com.android.systemui.statusbar.pipeline.shared.ui.binder.StatusBarViewBin
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 private data class Colors(
     @ColorInt val tint: Int,
@@ -128,6 +128,8 @@ object MobileIconBinder {
                                 mobileGroupView,
                                 dotView,
                             )
+
+                            view.requestLayout()
                         }
                     }
 

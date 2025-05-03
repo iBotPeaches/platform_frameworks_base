@@ -240,6 +240,38 @@ public class TvAdView extends ViewGroup {
         }
     }
 
+    /**
+     * Controls whether the TvAdView's surface is placed on top of other regular surface views in
+     * the window (but still behind the window itself).
+     *
+     * <p>Calling this overrides any previous call to {@link #setZOrderOnTop}.
+     *
+     * @param isMediaOverlay {@code true} to be on top of another regular surface, {@code false}
+     *            otherwise.
+     */
+    @FlaggedApi(Flags.FLAG_ENABLE_AD_SERVICE_FW)
+    public void setZOrderMediaOverlay(boolean isMediaOverlay) {
+        if (mSurfaceView != null) {
+            mSurfaceView.setZOrderOnTop(false);
+            mSurfaceView.setZOrderMediaOverlay(isMediaOverlay);
+        }
+    }
+
+    /**
+     * Controls whether the TvAdView's surface is placed on top of its window.
+     *
+     * <p>Calling this overrides any previous call to {@link #setZOrderMediaOverlay}.
+     *
+     * @param onTop {@code true} to be on top of its window, {@code false} otherwise.
+     */
+    @FlaggedApi(Flags.FLAG_ENABLE_AD_SERVICE_FW)
+    public void setZOrderOnTop(boolean onTop) {
+        if (mSurfaceView != null) {
+            mSurfaceView.setZOrderMediaOverlay(false);
+            mSurfaceView.setZOrderOnTop(onTop);
+        }
+    }
+
     private void resetSurfaceView() {
         if (mSurfaceView != null) {
             mSurfaceView.getHolder().removeCallback(mSurfaceHolderCallback);
@@ -393,16 +425,12 @@ public class TvAdView extends ViewGroup {
     }
 
     /**
-     * Sets a listener to be invoked when an input event is not handled
-     * by the TV AD service.
+     * Sets a listener to be invoked when an input event is not handled by the TV AD service.
      *
      * @param listener The callback to be invoked when the unhandled input event is received.
      */
-    public void setOnUnhandledInputEventListener(
-            @NonNull @CallbackExecutor Executor executor,
-            @NonNull OnUnhandledInputEventListener listener) {
+    public void setOnUnhandledInputEventListener(@NonNull OnUnhandledInputEventListener listener) {
         mOnUnhandledInputEventListener = listener;
-        // TODO: handle CallbackExecutor
     }
 
     /**
@@ -441,6 +469,9 @@ public class TvAdView extends ViewGroup {
     /**
      * Prepares the AD service of corresponding {@link TvAdService}.
      *
+     * <p>This should be called before calling {@link #startAdService()}. Otherwise,
+     * {@link #startAdService()} is a no-op.
+     *
      * @param serviceId the AD service ID, which can be found in TvAdServiceInfo#getId().
      */
     public void prepareAdService(@NonNull String serviceId, @NonNull String type) {
@@ -455,6 +486,9 @@ public class TvAdView extends ViewGroup {
 
     /**
      * Starts the AD service.
+     *
+     * <p>This should be called after calling {@link #prepareAdService(String, String)}. Otherwise,
+     * it's a no-op.
      */
     public void startAdService() {
         if (DEBUG) {
@@ -467,6 +501,8 @@ public class TvAdView extends ViewGroup {
 
     /**
      * Stops the AD service.
+     *
+     * <p>It's a no-op if the service is not started.
      */
     public void stopAdService() {
         if (DEBUG) {
@@ -657,6 +693,11 @@ public class TvAdView extends ViewGroup {
             mCallback = null;
             mCallbackExecutor = null;
         }
+    }
+
+    /** @hide */
+    public TvAdManager.Session getAdSession() {
+        return mSession;
     }
 
     private class MySessionCallback extends TvAdManager.SessionCallback {

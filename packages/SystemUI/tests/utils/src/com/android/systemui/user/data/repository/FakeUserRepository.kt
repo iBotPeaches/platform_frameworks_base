@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.yield
@@ -37,9 +38,9 @@ import kotlinx.coroutines.yield
 class FakeUserRepository @Inject constructor() : UserRepository {
     companion object {
         // User id to represent a non system (human) user id. We presume this is the main user.
-        private const val MAIN_USER_ID = 10
+        const val MAIN_USER_ID = 10
 
-        private const val DEFAULT_SELECTED_USER = 0
+        const val DEFAULT_SELECTED_USER = 0
         private val DEFAULT_SELECTED_USER_INFO =
             UserInfo(
                 /* id= */ DEFAULT_SELECTED_USER,
@@ -67,6 +68,14 @@ class FakeUserRepository @Inject constructor() : UserRepository {
         )
     override val selectedUserInfo: Flow<UserInfo> = selectedUser.map { it.userInfo }
 
+    private val _isSecondaryUserLogoutEnabled = MutableStateFlow<Boolean>(false)
+    override val isSecondaryUserLogoutEnabled: StateFlow<Boolean> =
+        _isSecondaryUserLogoutEnabled.asStateFlow()
+
+    private val _isLogoutToSystemUserEnabled = MutableStateFlow<Boolean>(false)
+    override val isLogoutToSystemUserEnabled: StateFlow<Boolean> =
+        _isLogoutToSystemUserEnabled.asStateFlow()
+
     override var mainUserId: Int = MAIN_USER_ID
     override var lastSelectedNonGuestUserId: Int = mainUserId
 
@@ -83,6 +92,10 @@ class FakeUserRepository @Inject constructor() : UserRepository {
     override var secondaryUserId: Int = UserHandle.USER_NULL
 
     override var isRefreshUsersPaused: Boolean = false
+
+    override suspend fun getMainUserId(): Int? {
+        return MAIN_USER_ID
+    }
 
     var refreshUsersCallCount: Int = 0
         private set
@@ -101,6 +114,28 @@ class FakeUserRepository @Inject constructor() : UserRepository {
 
     override fun isUserSwitcherEnabled(): Boolean {
         return _userSwitcherSettings.value.isUserSwitcherEnabled
+    }
+
+    fun setSecondaryUserLogoutEnabled(logoutEnabled: Boolean) {
+        _isSecondaryUserLogoutEnabled.value = logoutEnabled
+    }
+
+    var logOutSecondaryUserCallCount: Int = 0
+        private set
+
+    override suspend fun logOutSecondaryUser() {
+        logOutSecondaryUserCallCount++
+    }
+
+    fun setLogoutToSystemUserEnabled(logoutEnabled: Boolean) {
+        _isLogoutToSystemUserEnabled.value = logoutEnabled
+    }
+
+    var logOutToSystemUserCallCount: Int = 0
+        private set
+
+    override suspend fun logOutToSystemUser() {
+        logOutToSystemUserCallCount++
     }
 
     fun setUserInfos(infos: List<UserInfo>) {

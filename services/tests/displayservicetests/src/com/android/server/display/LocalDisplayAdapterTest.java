@@ -29,11 +29,12 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -46,10 +47,11 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.PowerManager;
+import android.util.Spline;
 import android.view.Display;
 import android.view.DisplayAddress;
 import android.view.SurfaceControl;
+import android.view.SurfaceControl.IdleScreenRefreshRateConfig;
 import android.view.SurfaceControl.RefreshRateRange;
 import android.view.SurfaceControl.RefreshRateRanges;
 
@@ -60,6 +62,7 @@ import com.android.dx.mockito.inline.extended.StaticMockitoSession;
 import com.android.internal.R;
 import com.android.server.LocalServices;
 import com.android.server.display.LocalDisplayAdapter.BacklightAdapter;
+import com.android.server.display.color.ColorDisplayService;
 import com.android.server.display.feature.DisplayManagerFlags;
 import com.android.server.display.mode.DisplayModeDirector;
 import com.android.server.display.notifications.DisplayNotificationManager;
@@ -82,7 +85,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -120,19 +122,26 @@ public class LocalDisplayAdapterTest {
     @Mock
     private DisplayManagerFlags mFlags;
     @Mock
-    private DisplayPowerControllerInterface mMockedDisplayPowerController;
+    private DisplayPowerController mMockedDisplayPowerController;
+    @Mock
+    private ColorDisplayService.ColorDisplayServiceInternal mMockedColorDisplayServiceInternal;
 
     private Handler mHandler;
 
     private DisplayOffloadSessionImpl mDisplayOffloadSession;
 
-    private DisplayOffloader mDisplayOffloader;
+    @Mock DisplayOffloader mDisplayOffloader;
 
     private TestListener mListener = new TestListener();
 
     private LinkedList<DisplayAddress.Physical> mAddresses = new LinkedList<>();
 
     private Injector mInjector;
+
+    @Mock
+    private DisplayDeviceConfig mMockDisplayDeviceConfig;
+    @Mock
+    private BacklightAdapter mMockBacklightAdapter;
 
     @Mock
     private LocalDisplayAdapter.SurfaceControlProxy mSurfaceControlProxy;
@@ -152,6 +161,9 @@ public class LocalDisplayAdapterTest {
         doReturn(mMockedResources).when(mMockedContext).getResources();
         LocalServices.removeServiceForTest(LightsManager.class);
         LocalServices.addService(LightsManager.class, mMockedLightsManager);
+        LocalServices.removeServiceForTest(ColorDisplayService.ColorDisplayServiceInternal.class);
+        LocalServices.addService(ColorDisplayService.ColorDisplayServiceInternal.class,
+                mMockedColorDisplayServiceInternal);
         mInjector = new Injector();
         when(mSurfaceControlProxy.getBootDisplayModeSupport()).thenReturn(true);
         mAdapter = new LocalDisplayAdapter(mMockedSyncRoot, mMockedContext, mHandler,
@@ -213,7 +225,15 @@ public class LocalDisplayAdapterTest {
         when(mMockedResources.getIntArray(
                 com.android.internal.R.array.config_autoBrightnessLcdBacklightValues))
                 .thenReturn(new int[]{});
+
+        when(mMockedColorDisplayServiceInternal.fetchEvenDimmerSpline(3)).thenReturn(
+                new Spline.LinearSpline(
+                        new float[]{2f, 3.0f, 500f, 2000f},
+                        new float[]{100, 0, 0, 0}));
+        when(mMockDisplayDeviceConfig.isEvenDimmerAvailable()).thenReturn(true);
+
         doReturn(true).when(mFlags).isDisplayOffloadEnabled();
+        doReturn(true).when(mFlags).isEvenDimmerEnabled();
         initDisplayOffloadSession();
     }
 
@@ -222,6 +242,122 @@ public class LocalDisplayAdapterTest {
         if (mMockitoSession != null) {
             mMockitoSession.finishMocking();
         }
+    }
+
+    @Test
+    public void testEvenDimmer() throws InterruptedException {
+        // Set up
+        FakeDisplay display = new FakeDisplay(PORT_A);
+        setUpDisplay(display);
+        updateAvailableDisplays();
+        mAdapter.registerLocked();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        assertThat(mListener.addedDisplays.size()).isEqualTo(1);
+        DisplayDevice displayDevice = mListener.addedDisplays.get(0);
+
+        // brightness|backlight| nits | strength
+        //  0.5      |   0.45  | 600  |  0     // initial setup value
+        //  0.4      |   0.35  | 500  |  0     // normal range value
+        //  0.31     |   0.2   |   3  |  0     // transition point
+        //  0.16     |  0.125  | 2.5  |  50    // mid point of even dimmer
+        //  0.1      |   0.05  |   2  |  100   // bottom of even dimmer range
+        //  0.05     |   0.01  |   1  |  100+ // beyond strength=100 range (should still return 100)
+        when(mMockDisplayDeviceConfig.getEvenDimmerTransitionPoint()).thenReturn(0.31f);
+        when(mMockDisplayDeviceConfig.getBacklightFromBrightness(0.5f)).thenReturn(0.45f);
+        when(mMockDisplayDeviceConfig.getBacklightFromBrightness(0.4f)).thenReturn(0.35f);
+        when(mMockDisplayDeviceConfig.getBacklightFromBrightness(0.31f)).thenReturn(0.2f);
+        when(mMockDisplayDeviceConfig.getBacklightFromBrightness(0.16f)).thenReturn(0.125f);
+        when(mMockDisplayDeviceConfig.getBacklightFromBrightness(0.1f)).thenReturn(0.05f);
+        when(mMockDisplayDeviceConfig.getBacklightFromBrightness(0.05f)).thenReturn(0.01f);
+        when(mMockDisplayDeviceConfig.getNitsFromBacklight(0.45f)).thenReturn(600f);
+        when(mMockDisplayDeviceConfig.getNitsFromBacklight(0.35f)).thenReturn(500f);
+        when(mMockDisplayDeviceConfig.getNitsFromBacklight(0.2f)).thenReturn(3f);
+        when(mMockDisplayDeviceConfig.getNitsFromBacklight(0.125f)).thenReturn(2.5f);
+        when(mMockDisplayDeviceConfig.getNitsFromBacklight(0.05f)).thenReturn(2f);
+        when(mMockDisplayDeviceConfig.getNitsFromBacklight(0.01f)).thenReturn(1f);
+
+        // initialise brightness to 0.5
+        Runnable changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON,
+                0.5f, 0.5f, null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        verify(mSurfaceControlProxy).setDisplayPowerMode(any(), anyInt());
+        verify(mMockBacklightAdapter).setBacklight(anyFloat(), anyFloat(), anyFloat(), anyFloat());
+        verify(mMockedColorDisplayServiceInternal).applyEvenDimmerColorChanges(eq(false), eq(0));
+        verify(mMockedColorDisplayServiceInternal).fetchEvenDimmerSpline(eq(3.0f));
+
+        // set up normal brightness range
+        changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON, 0.4f, 0.4f,
+                null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        // verify normal brightness range
+        verify(mMockBacklightAdapter).setBacklight(0.35f, 500f, 0.35f, 500f);
+        verify(mMockedColorDisplayServiceInternal,
+                times(1)) // no more, since the strength is the same
+                .applyEvenDimmerColorChanges(eq(false), eq(0));
+        verify(mMockedColorDisplayServiceInternal, times(2)).fetchEvenDimmerSpline(eq(3.0f));
+
+        // set up even dimmer edge range
+        changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON, 0.31f,
+                0.31f, null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        // verify even dimmer edge range
+        verify(mMockBacklightAdapter).setBacklight(0.2f, 3f, 0.2f, 3f);
+        // verify no more times, since the strength and enabled-ness is the same
+        verify(mMockedColorDisplayServiceInternal, times(1)).applyEvenDimmerColorChanges(eq(false),
+                eq(0));
+        verify(mMockedColorDisplayServiceInternal, times(3)).fetchEvenDimmerSpline(eq(3.0f));
+
+        // set up mid point of even dimmer range
+        changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON, 0.16f,
+                0.16f, null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        // verify within even dimmer range
+        verify(mMockBacklightAdapter).setBacklight(0.125f, 2.5f, 0.125f, 2.5f);
+        verify(mMockedColorDisplayServiceInternal).applyEvenDimmerColorChanges(eq(true), eq(50));
+        verify(mMockedColorDisplayServiceInternal, times(4)).fetchEvenDimmerSpline(eq(3.0f));
+
+        // set up within even dimmer range
+        changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON, 0.1f, 0.1f,
+                null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        // verify within even dimmer range
+        verify(mMockBacklightAdapter).setBacklight(0.05f, 2f, 0.05f, 2f);
+        verify(mMockedColorDisplayServiceInternal).applyEvenDimmerColorChanges(eq(true), eq(100));
+        verify(mMockedColorDisplayServiceInternal, times(5)).fetchEvenDimmerSpline(eq(3.0f));
+
+        // set up below even dimmer range
+        changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON, 0.05f,
+                0.05f, null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        // verify within even dimmer range
+        verify(mMockBacklightAdapter).setBacklight(0.01f, 1f, 0.01f, 1f);
+        // ensure no greater than 100 strength is returned, therefore not called again.
+        verify(mMockedColorDisplayServiceInternal).applyEvenDimmerColorChanges(eq(true), eq(100));
+        verify(mMockedColorDisplayServiceInternal, times(6)).fetchEvenDimmerSpline(eq(3.0f));
+
+        // set up return to normal range
+        changeStateRunnable = displayDevice.requestDisplayStateLocked(Display.STATE_ON, 0.4f, 0.4f,
+                null);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        changeStateRunnable.run();
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        // verify return to normal range
+        verify(mMockBacklightAdapter, times(2)).setBacklight(0.35f, 500f, 0.35f, 500f);
+        verify(mMockedColorDisplayServiceInternal, times(2)).applyEvenDimmerColorChanges(eq(false),
+                anyInt());
+        verify(mMockedColorDisplayServiceInternal, times(7)).fetchEvenDimmerSpline(eq(3.0f));
     }
 
     /**
@@ -249,6 +385,34 @@ public class LocalDisplayAdapterTest {
                 PORT_B, true);
         // This should be public
         assertDisplayPrivateFlag(mListener.addedDisplays.get(2).getDisplayDeviceInfoLocked(),
+                PORT_C, false);
+    }
+
+    /**
+     * Confirm that display is marked as trusted, has own focus, disables steal top focus when it
+     * is listed in com.android.internal.R.array.config_localNotStealTopFocusDisplayPorts.
+     */
+    @Test
+    public void testStealTopFocusDisabledDisplay() throws Exception {
+        setUpDisplay(new FakeDisplay(PORT_A));
+        setUpDisplay(new FakeDisplay(PORT_B));
+        setUpDisplay(new FakeDisplay(PORT_C));
+        updateAvailableDisplays();
+
+        doReturn(new int[]{ PORT_B }).when(mMockedResources).getIntArray(
+                com.android.internal.R.array.config_localNotStealTopFocusDisplayPorts);
+        mAdapter.registerLocked();
+
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // This should not have the flags
+        assertNotStealTopFocusFlag(mListener.addedDisplays.get(0).getDisplayDeviceInfoLocked(),
+                PORT_A, false);
+        // This should have the flags
+        assertNotStealTopFocusFlag(mListener.addedDisplays.get(1).getDisplayDeviceInfoLocked(),
+                PORT_B, true);
+        // This should not have the flags
+        assertNotStealTopFocusFlag(mListener.addedDisplays.get(2).getDisplayDeviceInfoLocked(),
                 PORT_C, false);
     }
 
@@ -313,6 +477,42 @@ public class LocalDisplayAdapterTest {
         assertEquals(expectedPort, address.getPort());
         assertEquals(DISPLAY_MODEL, address.getModel());
         assertEquals(shouldBePrivate, (info.flags & DisplayDeviceInfo.FLAG_PRIVATE) != 0);
+    }
+
+    /**
+     * Confirm that all local displays are not trusted, do not have their own focus, and do not
+     * steal top focus when config_localNotStealTopFocusDisplayPorts is empty:
+     */
+    @Test
+    public void testDisplayFlagsForNoConfigLocalNotStealTopFocusDisplayPorts() throws Exception {
+        setUpDisplay(new FakeDisplay(PORT_A));
+        setUpDisplay(new FakeDisplay(PORT_C));
+        updateAvailableDisplays();
+
+        // config_localNotStealTopFocusDisplayPorts is null
+        mAdapter.registerLocked();
+
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+
+        // This should not have the flags
+        assertNotStealTopFocusFlag(mListener.addedDisplays.get(0).getDisplayDeviceInfoLocked(),
+                PORT_A, false);
+        // This should not have the flags
+        assertNotStealTopFocusFlag(mListener.addedDisplays.get(1).getDisplayDeviceInfoLocked(),
+                PORT_C, false);
+    }
+
+    private static void assertNotStealTopFocusFlag(
+            DisplayDeviceInfo info, int expectedPort, boolean shouldHaveFlags) {
+        final DisplayAddress.Physical address = (DisplayAddress.Physical) info.address;
+        assertNotNull(address);
+        assertEquals(expectedPort, address.getPort());
+        assertEquals(DISPLAY_MODEL, address.getModel());
+        assertEquals(shouldHaveFlags,
+                (info.flags & DisplayDeviceInfo.FLAG_STEAL_TOP_FOCUS_DISABLED) != 0);
+        assertEquals(shouldHaveFlags, (info.flags & DisplayDeviceInfo.FLAG_OWN_FOCUS) != 0);
+        // display is always trusted since it is created by the system
+        assertEquals(true, (info.flags & DisplayDeviceInfo.FLAG_TRUSTED) != 0);
     }
 
     /**
@@ -831,18 +1031,20 @@ public class LocalDisplayAdapterTest {
                 .get()
                 .getModeId();
 
+        IdleScreenRefreshRateConfig
+                idleScreenRefreshRateConfig = new SurfaceControl.IdleScreenRefreshRateConfig(500);
         displayDevice.setDesiredDisplayModeSpecsLocked(
                 new DisplayModeDirector.DesiredDisplayModeSpecs(
                         /*baseModeId*/ baseModeId,
                         /*allowGroupSwitching*/ false,
-                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES
+                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES, idleScreenRefreshRateConfig
                 ));
         waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
         verify(mSurfaceControlProxy).setDesiredDisplayModeSpecs(display.token,
                 new SurfaceControl.DesiredDisplayModeSpecs(
                         /* baseModeId */ 0,
                         /* allowGroupSwitching */ false,
-                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES
+                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES, idleScreenRefreshRateConfig
                 ));
 
         // Change the display
@@ -863,12 +1065,13 @@ public class LocalDisplayAdapterTest {
 
         baseModeId = displayDevice.getDisplayDeviceInfoLocked().supportedModes[0].getModeId();
 
+        idleScreenRefreshRateConfig = new SurfaceControl.IdleScreenRefreshRateConfig(600);
         // The traversal request will call setDesiredDisplayModeSpecsLocked on the display device
         displayDevice.setDesiredDisplayModeSpecsLocked(
                 new DisplayModeDirector.DesiredDisplayModeSpecs(
                         /*baseModeId*/ baseModeId,
                         /*allowGroupSwitching*/ false,
-                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES
+                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES, idleScreenRefreshRateConfig
                 ));
 
         waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
@@ -878,7 +1081,7 @@ public class LocalDisplayAdapterTest {
                 new SurfaceControl.DesiredDisplayModeSpecs(
                         /* baseModeId */ 2,
                         /* allowGroupSwitching */ false,
-                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES
+                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES, idleScreenRefreshRateConfig
                 ));
     }
 
@@ -1139,6 +1342,20 @@ public class LocalDisplayAdapterTest {
     }
 
     @Test
+    public void test_createLocalExternalDisplay_displayManagementEnabled_doesNotCrash()
+            throws Exception {
+        FakeDisplay display = new FakeDisplay(PORT_A);
+        display.info.isInternal = false;
+        setUpDisplay(display);
+        updateAvailableDisplays();
+        mAdapter.registerLocked();
+        when(mSurfaceControlProxy.getDesiredDisplayModeSpecs(display.token)).thenReturn(null);
+        mInjector.getTransmitter().sendHotplug(display, /* connected */ true);
+        waitForHandlerToComplete(mHandler, HANDLER_WAIT_MS);
+        assertThat(mListener.addedDisplays.size()).isEqualTo(1);
+    }
+
+    @Test
     public void test_createLocalExternalDisplay_displayManagementEnabled_shouldHaveDefaultGroup()
             throws Exception {
         FakeDisplay display = new FakeDisplay(PORT_A);
@@ -1229,24 +1446,11 @@ public class LocalDisplayAdapterTest {
 
         verify(mDisplayOffloader).stopOffload();
         assertFalse(mDisplayOffloadSession.isActive());
-        verify(mMockedDisplayPowerController).setBrightnessFromOffload(
-                PowerManager.BRIGHTNESS_INVALID_FLOAT);
     }
 
     private void initDisplayOffloadSession() {
-        mDisplayOffloader = spy(new DisplayOffloader() {
-            @Override
-            public boolean startOffload() {
-                return true;
-            }
-
-            @Override
-            public void stopOffload() {}
-
-            @Override
-            public void onBlockingScreenOn(Runnable unblocker) {}
-        });
-
+        when(mDisplayOffloader.startOffload()).thenReturn(true);
+        when(mDisplayOffloader.allowAutoBrightnessInDoze()).thenReturn(true);
         mDisplayOffloadSession = new DisplayOffloadSessionImpl(mDisplayOffloader,
                 mMockedDisplayPowerController);
     }
@@ -1322,7 +1526,8 @@ public class LocalDisplayAdapterTest {
                 new SurfaceControl.DesiredDisplayModeSpecs(
                         /* defaultMode */ 0,
                         /* allowGroupSwitching */ false,
-                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES
+                        REFRESH_RATE_RANGES, REFRESH_RATE_RANGES,
+                        new IdleScreenRefreshRateConfig(100)
                 );
 
         private FakeDisplay(int port) {
@@ -1458,15 +1663,16 @@ public class LocalDisplayAdapterTest {
             return mSurfaceControlProxy;
         }
 
-        // Instead of using DisplayDeviceConfig.create(context, physicalDisplayId, isFirstDisplay)
-        // we should use DisplayDeviceConfig.create(context, isFirstDisplay) for the test to ensure
-        // that real device DisplayDeviceConfig is not loaded for FakeDisplay and we are getting
-        // consistent behaviour. Please also note that context passed to this method, is
-        // mMockContext and values will be loaded from mMockResources.
         @Override
         public DisplayDeviceConfig createDisplayDeviceConfig(Context context,
                 long physicalDisplayId, boolean isFirstDisplay, DisplayManagerFlags flags) {
-            return DisplayDeviceConfig.create(context, isFirstDisplay, flags);
+            return mMockDisplayDeviceConfig;
+        }
+
+        @Override
+        public BacklightAdapter getBacklightAdapter(IBinder displayToken, boolean isFirstDisplay,
+                LocalDisplayAdapter.SurfaceControlProxy surfaceControlProxy) {
+            return mMockBacklightAdapter;
         }
     }
 

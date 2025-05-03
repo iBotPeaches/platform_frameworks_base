@@ -17,7 +17,6 @@
 package android.app;
 
 import android.app.ActivityManager;
-import android.app.ICompatCameraControlCallback;
 import android.app.IRequestFinishCallback;
 import android.app.PictureInPictureParams;
 import android.content.ComponentName;
@@ -113,8 +112,8 @@ interface IActivityClientController {
     oneway void requestMultiwindowFullscreen(in IBinder token, in int request,
             in IRemoteCallback callback);
 
-    oneway void startLockTaskModeByToken(in IBinder token);
-    oneway void stopLockTaskModeByToken(in IBinder token);
+    void startLockTaskModeByToken(in IBinder token);
+    void stopLockTaskModeByToken(in IBinder token);
     oneway void showLockTaskEscapeMessage(in IBinder token);
     void setTaskDescription(in IBinder token, in ActivityManager.TaskDescription values);
 
@@ -170,17 +169,6 @@ interface IActivityClientController {
 
     /** Reports that the splash screen view has attached to activity.  */
     oneway void splashScreenAttached(in IBinder token);
-
-    /**
-     * Shows or hides a Camera app compat toggle for stretched issues with the requested state.
-     *
-     * @param token The token for the window that needs a control.
-     * @param showControl Whether the control should be shown or hidden.
-     * @param transformationApplied Whether the treatment is already applied.
-     * @param callback The callback executed when the user clicks on a control.
-     */
-    oneway void requestCompatCameraControl(in IBinder token, boolean showControl,
-            boolean transformationApplied, in ICompatCameraControlCallback callback);
 
     /**
      * If set, any activity launch in the same task will be overridden to the locale of activity

@@ -24,12 +24,24 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.lifecycleScope
+import com.android.systemui.coroutines.newTracingContext
 import com.android.systemui.util.Assert
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
+import com.android.systemui.utils.coroutines.flow.flatMapLatestConflated
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.DisposableHandle
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 /**
  * Runs the given [block] every time the [View] becomes attached (or immediately after calling this
@@ -66,19 +78,14 @@ fun View.repeatWhenAttached(
     // dispatcher to use. We don't want it to run on the Dispatchers.Default thread pool as
     // default behavior. Instead, we want it to run on the view's UI thread since the user will
     // presumably want to call view methods that require being called from said UI thread.
-    val lifecycleCoroutineContext = Dispatchers.Main + coroutineContext
+    val lifecycleCoroutineContext = MAIN_DISPATCHER_SINGLETON + coroutineContext
     var lifecycleOwner: ViewLifecycleOwner? = null
     val onAttachListener =
         object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) {
                 Assert.isMainThread()
                 lifecycleOwner?.onDestroy()
-                lifecycleOwner =
-                    createLifecycleOwnerAndRun(
-                        view,
-                        lifecycleCoroutineContext,
-                        block,
-                    )
+                lifecycleOwner = createLifecycleOwnerAndRun(view, lifecycleCoroutineContext, block)
             }
 
             override fun onViewDetachedFromWindow(v: View) {
@@ -89,22 +96,15 @@ fun View.repeatWhenAttached(
 
     addOnAttachStateChangeListener(onAttachListener)
     if (view.isAttachedToWindow) {
-        lifecycleOwner =
-            createLifecycleOwnerAndRun(
-                view,
-                lifecycleCoroutineContext,
-                block,
-            )
+        lifecycleOwner = createLifecycleOwnerAndRun(view, lifecycleCoroutineContext, block)
     }
 
-    return object : DisposableHandle {
-        override fun dispose() {
-            Assert.isMainThread()
+    return DisposableHandle {
+        Assert.isMainThread()
 
-            lifecycleOwner?.onDestroy()
-            lifecycleOwner = null
-            view.removeOnAttachStateChangeListener(onAttachListener)
-        }
+        lifecycleOwner?.onDestroy()
+        lifecycleOwner = null
+        view.removeOnAttachStateChangeListener(onAttachListener)
     }
 }
 
@@ -115,7 +115,9 @@ private fun createLifecycleOwnerAndRun(
 ): ViewLifecycleOwner {
     return ViewLifecycleOwner(view).apply {
         onCreate()
-        lifecycleScope.launch(coroutineContext) { block(view) }
+        // TODO(b/370595466): Refactor to support installing CoroutineTracingContext on the
+        //                    top-level CoroutineScope used as the lifecycleScope
+        lifecycleScope.launch(context = coroutineContext) { block(view) }
     }
 }
 
@@ -144,9 +146,7 @@ private fun createLifecycleOwnerAndRun(
  * └───────────────┴───────────────────┴──────────────┴─────────────────┘
  * ```
  */
-class ViewLifecycleOwner(
-    private val view: View,
-) : LifecycleOwner {
+class ViewLifecycleOwner(private val view: View) : LifecycleOwner {
 
     private val windowVisibleListener =
         ViewTreeObserver.OnWindowVisibilityChangeListener { updateState() }
@@ -181,3 +181,149 @@ class ViewLifecycleOwner(
             }
     }
 }
+
+/**
+ * Runs the given [block] in a new coroutine when `this` [View]'s Window's [WindowLifecycleState] is
+ * at least at [state] (or immediately after calling this function if the window is already at least
+ * at [state]), automatically canceling the work when the window is no longer at least at that
+ * state.
+ *
+ * [block] may be run multiple times, running once per every time this` [View]'s Window's
+ * [WindowLifecycleState] becomes at least at [state].
+ */
+suspend fun View.repeatOnWindowLifecycle(
+    state: WindowLifecycleState,
+    block: suspend CoroutineScope.() -> Unit,
+): Nothing {
+    when (state) {
+        WindowLifecycleState.ATTACHED -> repeatWhenAttachedToWindow(block)
+        WindowLifecycleState.VISIBLE -> repeatWhenWindowIsVisible(block)
+        WindowLifecycleState.FOCUSED -> repeatWhenWindowHasFocus(block)
+    }
+}
+
+/**
+ * Runs the given [block] every time the [View] becomes attached (or immediately after calling this
+ * function, if the view was already attached), automatically canceling the work when the view
+ * becomes detached.
+ *
+ * Only use from the main thread.
+ *
+ * [block] may be run multiple times, running once per every time the view is attached.
+ */
+@MainThread
+suspend fun View.repeatWhenAttachedToWindow(block: suspend CoroutineScope.() -> Unit): Nothing {
+    Assert.isMainThread()
+    isAttached.collectLatest { if (it) coroutineScope { block() } }
+    awaitCancellation() // satisfies return type of Nothing
+}
+
+/**
+ * Runs the given [block] every time the [Window] this [View] is attached to becomes visible (or
+ * immediately after calling this function, if the window is already visible), automatically
+ * canceling the work when the window becomes invisible.
+ *
+ * Only use from the main thread.
+ *
+ * [block] may be run multiple times, running once per every time the window becomes visible.
+ */
+@MainThread
+suspend fun View.repeatWhenWindowIsVisible(block: suspend CoroutineScope.() -> Unit): Nothing {
+    Assert.isMainThread()
+    isWindowVisible.collectLatest { if (it) coroutineScope { block() } }
+    awaitCancellation() // satisfies return type of Nothing
+}
+
+/**
+ * Runs the given [block] every time the [Window] this [View] is attached to has focus (or
+ * immediately after calling this function, if the window is already focused), automatically
+ * canceling the work when the window loses focus.
+ *
+ * Only use from the main thread.
+ *
+ * [block] may be run multiple times, running once per every time the window is focused.
+ */
+@MainThread
+suspend fun View.repeatWhenWindowHasFocus(block: suspend CoroutineScope.() -> Unit): Nothing {
+    Assert.isMainThread()
+    isWindowFocused.collectLatest { if (it) coroutineScope { block() } }
+    awaitCancellation() // satisfies return type of Nothing
+}
+
+/** Lifecycle states for a [View]'s interaction with a [android.view.Window]. */
+enum class WindowLifecycleState {
+    /** Indicates that the [View] is attached to a [android.view.Window]. */
+    ATTACHED,
+    /**
+     * Indicates that the [View] is attached to a [android.view.Window], and the window is visible.
+     */
+    VISIBLE,
+    /**
+     * Indicates that the [View] is attached to a [android.view.Window], and the window is visible
+     * and focused.
+     */
+    FOCUSED
+}
+
+private val View.isAttached
+    get() = conflatedCallbackFlow {
+        val onAttachListener =
+            object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    Assert.isMainThread()
+                    trySend(true)
+                }
+
+                override fun onViewDetachedFromWindow(v: View) {
+                    trySend(false)
+                }
+            }
+        addOnAttachStateChangeListener(onAttachListener)
+        trySend(isAttachedToWindow)
+        awaitClose { removeOnAttachStateChangeListener(onAttachListener) }
+    }
+
+private val View.currentViewTreeObserver: Flow<ViewTreeObserver?>
+    get() = isAttached.map { if (it) viewTreeObserver else null }
+
+private val View.isWindowVisible
+    get() =
+        currentViewTreeObserver.flatMapLatestConflated { vto ->
+            vto?.isWindowVisible?.onStart { emit(windowVisibility == View.VISIBLE) } ?: emptyFlow()
+        }
+
+private val View.isWindowFocused
+    get() =
+        currentViewTreeObserver.flatMapLatestConflated { vto ->
+            vto?.isWindowFocused?.onStart { emit(hasWindowFocus()) } ?: emptyFlow()
+        }
+
+private val ViewTreeObserver.isWindowFocused
+    get() = conflatedCallbackFlow {
+        val listener = ViewTreeObserver.OnWindowFocusChangeListener { trySend(it) }
+        addOnWindowFocusChangeListener(listener)
+        awaitClose { removeOnWindowFocusChangeListener(listener) }
+    }
+
+private val ViewTreeObserver.isWindowVisible
+    get() = conflatedCallbackFlow {
+        val listener =
+            ViewTreeObserver.OnWindowVisibilityChangeListener { v -> trySend(v == View.VISIBLE) }
+        addOnWindowVisibilityChangeListener(listener)
+        awaitClose { removeOnWindowVisibilityChangeListener(listener) }
+    }
+
+/**
+ * Even though there is only has one usage of `Dispatchers.Main` in this file, we cache it in a
+ * top-level property so that we do not unnecessarily create new `CoroutineContext` objects for
+ * tracing on each call to [repeatWhenAttached]. It is okay to reuse a single instance of the
+ * tracing context because it is copied for its children.
+ *
+ * Also, ideally, we would use the injected `@Main CoroutineDispatcher`, but [repeatWhenAttached] is
+ * an extension function, and plumbing dagger-injected instances for static usage has little
+ * benefit.
+ */
+private val MAIN_DISPATCHER_SINGLETON = Dispatchers.Main + newTracingContext("RepeatWhenAttached")
+private const val DEFAULT_TRACE_NAME = "repeatWhenAttached"
+private const val CURRENT_CLASS_NAME = "com.android.systemui.lifecycle.RepeatWhenAttachedKt"
+private const val JAVA_ADAPTER_CLASS_NAME = "com.android.systemui.util.kotlin.JavaAdapterKt"

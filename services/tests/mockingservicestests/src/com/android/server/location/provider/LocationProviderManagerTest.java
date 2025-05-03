@@ -16,6 +16,9 @@
 
 package com.android.server.location.provider;
 
+import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
+import static android.Manifest.permission.ACCESS_FINE_LOCATION;
+import static android.Manifest.permission.LOCATION_BYPASS;
 import static android.app.AppOpsManager.OP_FINE_LOCATION;
 import static android.app.AppOpsManager.OP_MONITOR_HIGH_POWER_LOCATION;
 import static android.app.AppOpsManager.OP_MONITOR_LOCATION;
@@ -37,6 +40,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -69,6 +73,7 @@ import android.location.LocationRequest;
 import android.location.LocationResult;
 import android.location.flags.Flags;
 import android.location.provider.IProviderRequestListener;
+import android.location.provider.IS2LevelCallback;
 import android.location.provider.ProviderProperties;
 import android.location.provider.ProviderRequest;
 import android.location.util.identity.CallerIdentity;
@@ -95,8 +100,10 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.internal.R;
 import com.android.server.FgThread;
 import com.android.server.LocalServices;
+import com.android.server.location.fudger.LocationFudgerCache;
 import com.android.server.location.injector.FakeUserInfoHelper;
 import com.android.server.location.injector.TestInjector;
+import com.android.server.location.provider.proxy.ProxyPopulationDensityProvider;
 
 import org.junit.After;
 import org.junit.Before;
@@ -1170,6 +1177,63 @@ public class LocationProviderManagerTest {
     }
 
     @Test
+    public void testProviderRequest_IgnoreLocationSettings_LocationBypass() {
+        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LOCATION_BYPASS);
+
+        doReturn(PackageManager.PERMISSION_GRANTED)
+                .when(mContext)
+                .checkPermission(LOCATION_BYPASS, IDENTITY.getPid(), IDENTITY.getUid());
+        mInjector.getLocationPermissionsHelper()
+                .revokePermission(IDENTITY.getPackageName(), ACCESS_FINE_LOCATION);
+        mInjector.getLocationPermissionsHelper()
+                .revokePermission(IDENTITY.getPackageName(), ACCESS_COARSE_LOCATION);
+        mInjector
+                .getSettingsHelper()
+                .setIgnoreSettingsAllowlist(
+                        new PackageTagsList.Builder().add(IDENTITY.getPackageName()).build());
+
+        ILocationListener listener = createMockLocationListener();
+        LocationRequest request =
+                new LocationRequest.Builder(1)
+                        .setLocationSettingsIgnored(true)
+                        .setWorkSource(WORK_SOURCE)
+                        .build();
+        mManager.registerLocationRequest(request, IDENTITY, PERMISSION_FINE, listener);
+
+        assertThat(mProvider.getRequest().isActive()).isFalse();
+    }
+
+    @Test
+    public void testProviderRequest_IgnoreLocationSettings_LocationBypass_EmergencyCall() {
+        mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_LOCATION_BYPASS);
+
+        doReturn(PackageManager.PERMISSION_GRANTED)
+                .when(mContext)
+                .checkPermission(LOCATION_BYPASS, IDENTITY.getPid(), IDENTITY.getUid());
+        mInjector.getLocationPermissionsHelper()
+                .revokePermission(IDENTITY.getPackageName(), ACCESS_FINE_LOCATION);
+        mInjector.getLocationPermissionsHelper()
+                .revokePermission(IDENTITY.getPackageName(), ACCESS_COARSE_LOCATION);
+        mInjector.getEmergencyHelper().setInEmergency(true);
+        mInjector
+                .getSettingsHelper()
+                .setIgnoreSettingsAllowlist(
+                        new PackageTagsList.Builder().add(IDENTITY.getPackageName()).build());
+
+        ILocationListener listener = createMockLocationListener();
+        LocationRequest request =
+                new LocationRequest.Builder(1)
+                        .setLocationSettingsIgnored(true)
+                        .setWorkSource(WORK_SOURCE)
+                        .build();
+        mManager.registerLocationRequest(request, IDENTITY, PERMISSION_FINE, listener);
+
+        assertThat(mProvider.getRequest().isActive()).isTrue();
+        assertThat(mProvider.getRequest().getIntervalMillis()).isEqualTo(1);
+        assertThat(mProvider.getRequest().isLocationSettingsIgnored()).isTrue();
+    }
+
+    @Test
     public void testProviderRequest_BackgroundThrottle_IgnoreLocationSettings() {
         mInjector.getSettingsHelper().setIgnoreSettingsAllowlist(
                 new PackageTagsList.Builder().add(
@@ -1370,6 +1434,72 @@ public class LocationProviderManagerTest {
 
         assertThat(mPassive.getLastLocation(new LastLocationRequest.Builder().build(), IDENTITY,
                 PERMISSION_FINE)).isEqualTo(location);
+    }
+
+    @Test
+    public void testLocationFudger_withFlagDisabled_cacheIsNotSetAndOldAlgoIsUsed() {
+        mSetFlagsRule.disableFlags(Flags.FLAG_DENSITY_BASED_COARSE_LOCATIONS);
+        createManager("some-name");
+        ProxyPopulationDensityProvider provider = mock(ProxyPopulationDensityProvider.class);
+        LocationFudgerCache cache = new LocationFudgerCache(provider);
+
+        mManager.setLocationFudgerCache(cache);
+
+        Location test = new Location("any-provider");
+        mManager.getPermittedLocation(test, PERMISSION_COARSE);
+
+        verify(provider, never()).getCoarsenedS2Cells(anyDouble(), anyDouble(), anyInt(), any());
+    }
+
+    @Test
+    public void testLocationFudger_withFlagEnabledButNoDefaults_oldAlgoIsUsed()
+            throws RemoteException {
+        mSetFlagsRule.enableFlags(Flags.FLAG_DENSITY_BASED_COARSE_LOCATIONS);
+        createManager("some-other-name");
+        ProxyPopulationDensityProvider provider = mock(ProxyPopulationDensityProvider.class);
+        LocationFudgerCache cache = new LocationFudgerCache(provider);
+
+        mManager.setLocationFudgerCache(cache);
+
+        ArgumentCaptor<IS2LevelCallback> captor = ArgumentCaptor.forClass(IS2LevelCallback.class);
+        verify(provider).getDefaultCoarseningLevel(captor.capture());
+
+        IS2LevelCallback cb = captor.getValue();
+
+        // Act: the provider didn't provide a default
+        cb.onError();
+
+        Location test = new Location("any-provider");
+        mManager.getPermittedLocation(test, PERMISSION_COARSE);
+
+        verify(provider, never()).getCoarsenedS2Cells(anyDouble(), anyDouble(), anyInt(), any());
+    }
+
+    @Test
+    public void testLocationFudger_withFlagEnabled_cacheIsSetAndNewAlgoIsUsed()
+            throws RemoteException {
+        mSetFlagsRule.enableFlags(Flags.FLAG_DENSITY_BASED_COARSE_LOCATIONS);
+        createManager("some-other-name");
+        ProxyPopulationDensityProvider provider = mock(ProxyPopulationDensityProvider.class);
+        LocationFudgerCache cache = new LocationFudgerCache(provider);
+        int defaultLevel = 2;
+
+        mManager.setLocationFudgerCache(cache);
+
+        ArgumentCaptor<IS2LevelCallback> captor = ArgumentCaptor.forClass(IS2LevelCallback.class);
+        verify(provider).getDefaultCoarseningLevel(captor.capture());
+
+        IS2LevelCallback cb = captor.getValue();
+        cb.onResult(defaultLevel);
+
+        Location test = new Location("any-provider");
+        test.setLatitude(10.0);
+        test.setLongitude(20.0);
+        mManager.getPermittedLocation(test, PERMISSION_COARSE);
+
+        // We can't test that 10.0, 20.0 was passed due to the offset. We only test that a call
+        // happened.
+        verify(provider).getCoarsenedS2Cells(anyDouble(), anyDouble(), anyInt(), any());
     }
 
     @MediumTest

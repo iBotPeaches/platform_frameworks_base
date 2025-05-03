@@ -18,7 +18,7 @@ package com.android.server.wm;
 
 import static android.content.Context.MEDIA_PROJECTION_SERVICE;
 
-import static com.android.internal.protolog.ProtoLogGroup.WM_ERROR;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_ERROR;
 
 import android.media.projection.IMediaProjectionManager;
 import android.media.projection.IMediaProjectionWatcherCallback;
@@ -33,7 +33,7 @@ import android.view.ContentRecordingSession;
 import android.window.IScreenRecordingCallback;
 
 import com.android.internal.annotations.GuardedBy;
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -95,8 +95,9 @@ public class ScreenRecordingCallbackController {
         if (mediaProjectionInfo.getLaunchCookie() == null) {
             mRecordedWC = (WindowContainer) mWms.mRoot.getDefaultDisplay();
         } else {
-            mRecordedWC = mWms.mRoot.getActivity(activity -> activity.mLaunchCookie
-                    == mediaProjectionInfo.getLaunchCookie().binder).getTask();
+            final ActivityRecord matchingActivity = mWms.mRoot.getActivity(activity ->
+                    activity.mLaunchCookie == mediaProjectionInfo.getLaunchCookie().binder);
+            mRecordedWC = matchingActivity != null ? matchingActivity.getTask() : null;
         }
     }
 

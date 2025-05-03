@@ -465,6 +465,7 @@ message WindowStateProto {
     repeated .android.graphics.RectProto unrestricted_keep_clear_areas = 46;
     repeated .android.view.InsetsSourceProto mergedLocalInsetsSources = 47;
     optional int32 requested_visible_types = 48;
+    optional .android.graphics.RectProto dim_bounds = 49;
 }
 
 message IdentifierProto {
@@ -607,7 +608,7 @@ message ImeInsetsSourceProviderProto {
 
     optional InsetsSourceProviderProto insets_source_provider = 1;
     optional WindowStateProto ime_target_from_ime = 2;
-    optional bool is_ime_layout_drawn = 3;
+    optional bool is_ime_layout_drawn = 3 [deprecated=true];
 }
 
 message BackNavigationProto {

@@ -59,6 +59,8 @@ import com.android.server.utils.EventLogger;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -88,6 +90,10 @@ public class SpatializerHelper {
     /*package*/ static final SparseIntArray SPAT_MODE_FOR_DEVICE_TYPE = new SparseIntArray(14) {
         {
             append(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, Spatialization.Mode.TRANSAURAL);
+            // Speaker safe is considered compatible with spatial audio because routing media usage
+            // to speaker safe only happens in transient situations and should not affect app
+            // decisions to play spatial audio content.
+            append(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE, Spatialization.Mode.TRANSAURAL);
             append(AudioDeviceInfo.TYPE_WIRED_HEADSET, Spatialization.Mode.BINAURAL);
             append(AudioDeviceInfo.TYPE_WIRED_HEADPHONES, Spatialization.Mode.BINAURAL);
             // assumption for A2DP: mostly headsets
@@ -123,6 +129,8 @@ public class SpatializerHelper {
     /** current level as reported by native Spatializer in callback */
     private int mSpatLevel = Spatializer.SPATIALIZER_IMMERSIVE_LEVEL_NONE;
     private int mCapableSpatLevel = Spatializer.SPATIALIZER_IMMERSIVE_LEVEL_NONE;
+    /** cached version of Spatializer.getSpatializedChannelMasks */
+    private List<Integer> mSpatializedChannelMasks = Collections.emptyList();
 
     private boolean mTransauralSupported = false;
     private boolean mBinauralSupported = false;
@@ -295,11 +303,11 @@ public class SpatializerHelper {
             // could have been called another time after boot in case of audioserver restart
             addCompatibleAudioDevice(
                     new AudioDeviceAttributes(AudioSystem.DEVICE_OUT_SPEAKER, ""),
-                            false /*forceEnable*/);
+                            false /*forceEnable*/, false /*forceInit*/);
             // not force-enabling as this device might already be in the device list
             addCompatibleAudioDevice(
                     new AudioDeviceAttributes(AudioSystem.DEVICE_OUT_WIRED_HEADPHONE, ""),
-                            false /*forceEnable*/);
+                            false /*forceEnable*/, false /*forceInit*/);
         } catch (RemoteException e) {
             resetCapabilities();
         } finally {
@@ -523,7 +531,7 @@ public class SpatializerHelper {
     }
 
     synchronized void addCompatibleAudioDevice(@NonNull AudioDeviceAttributes ada) {
-        addCompatibleAudioDevice(ada, true /*forceEnable*/);
+        addCompatibleAudioDevice(ada, true /*forceEnable*/, false /*forceInit*/);
     }
 
     /**
@@ -537,7 +545,7 @@ public class SpatializerHelper {
      */
     @GuardedBy("this")
     private void addCompatibleAudioDevice(@NonNull AudioDeviceAttributes ada,
-            boolean forceEnable) {
+            boolean forceEnable, boolean forceInit) {
         if (!isDeviceCompatibleWithSpatializationModes(ada)) {
             return;
         }
@@ -545,6 +553,9 @@ public class SpatializerHelper {
         final AdiDeviceState deviceState = findSACompatibleDeviceStateForAudioDeviceAttributes(ada);
         AdiDeviceState updatedDevice = null; // non-null on update.
         if (deviceState != null) {
+            if (forceInit) {
+                initSAState(deviceState);
+            }
             if (forceEnable && !deviceState.isSAEnabled()) {
                 updatedDevice = deviceState;
                 updatedDevice.setSAEnabled(true);
@@ -561,7 +572,8 @@ public class SpatializerHelper {
             updatedDevice = new AdiDeviceState(canonicalDeviceType, ada.getInternalType(),
                     ada.getAddress());
             initSAState(updatedDevice);
-            mDeviceBroker.addOrUpdateDeviceSAStateInInventory(updatedDevice);
+            mDeviceBroker.addOrUpdateDeviceSAStateInInventory(
+                    updatedDevice, true /*syncInventory*/);
         }
         if (updatedDevice != null) {
             onRoutingUpdated();
@@ -716,7 +728,7 @@ public class SpatializerHelper {
                     new AdiDeviceState(canonicalDeviceType, ada.getInternalType(),
                             ada.getAddress());
             initSAState(deviceState);
-            mDeviceBroker.addOrUpdateDeviceSAStateInInventory(deviceState);
+            mDeviceBroker.addOrUpdateDeviceSAStateInInventory(deviceState, true /*syncInventory*/);
             mDeviceBroker.postPersistAudioDeviceSettings();
             logDeviceState(deviceState, "addWirelessDeviceIfNew"); // may be updated later.
         }
@@ -753,10 +765,10 @@ public class SpatializerHelper {
         }
     }
 
-    synchronized void refreshDevice(@NonNull AudioDeviceAttributes ada) {
+    synchronized void refreshDevice(@NonNull AudioDeviceAttributes ada, boolean initState) {
         final AdiDeviceState deviceState = findSACompatibleDeviceStateForAudioDeviceAttributes(ada);
         if (isAvailableForAdiDeviceState(deviceState)) {
-            addCompatibleAudioDevice(ada, /*forceEnable=*/deviceState.isSAEnabled());
+            addCompatibleAudioDevice(ada, /*forceEnable=*/deviceState.isSAEnabled(), initState);
             setHeadTrackerEnabled(deviceState.isHeadTrackerEnabled(), ada);
         } else {
             removeCompatibleAudioDevice(ada);
@@ -799,7 +811,7 @@ public class SpatializerHelper {
 
     private boolean isDeviceCompatibleWithSpatializationModes(@NonNull AudioDeviceAttributes ada) {
         // modeForDevice will be neither transaural or binaural for devices that do not support
-        // spatial audio. For instance mono devices like earpiece, speaker safe or sco must
+        // spatial audio. For instance mono devices like earpiece or sco must
         // not be included.
         final byte modeForDevice = (byte) SPAT_MODE_FOR_DEVICE_TYPE.get(ada.getType(),
                 /*default when type not found*/ -1);
@@ -1020,6 +1032,17 @@ public class SpatializerHelper {
                 return;
             }
             try {
+                final int[] nativeMasks = mSpat.getSpatializedChannelMasks();
+                for (int i = 0; i < nativeMasks.length; i++) {
+                    nativeMasks[i] = AudioFormat.convertNativeChannelMaskToOutMask(nativeMasks[i]);
+                }
+                mSpatializedChannelMasks = Arrays.stream(nativeMasks).boxed().toList();
+
+            } catch (Exception e) { // just catch Exception in case nativeMasks is null
+                Log.e(TAG, "Error calling getSpatializedChannelMasks", e);
+                mSpatializedChannelMasks = Collections.emptyList();
+            }
+            try {
                 //TODO: register heatracking callback only when sensors are registered
                 if (mIsHeadTrackingSupported) {
                     mActualHeadTrackingMode =
@@ -1090,6 +1113,10 @@ public class SpatializerHelper {
         logd("canBeSpatialized usage:" + attributes.getUsage()
                 + " format:" + format.toLogFriendlyString() + " returning " + able);
         return able;
+    }
+
+    synchronized @NonNull List<Integer> getSpatializedChannelMasks() {
+        return mSpatializedChannelMasks;
     }
 
     //------------------------------------------------------
@@ -1595,6 +1622,14 @@ public class SpatializerHelper {
         pw.println("\tmState:" + mState);
         pw.println("\tmSpatLevel:" + mSpatLevel);
         pw.println("\tmCapableSpatLevel:" + mCapableSpatLevel);
+        List<Integer> speakerMasks = getSpatializedChannelMasks();
+        StringBuilder masks = speakerMasks.isEmpty()
+                ? new StringBuilder("none") : new StringBuilder("");
+        for (Integer mask : speakerMasks) {
+            masks.append(AudioFormat.javaChannelOutMaskToString(mask)).append(" ");
+        }
+        pw.println("\tspatialized speaker masks: " + masks);
+
         pw.println("\tmIsHeadTrackingSupported:" + mIsHeadTrackingSupported);
         StringBuilder modesString = new StringBuilder();
         for (int mode : mSupportedHeadTrackingModes) {

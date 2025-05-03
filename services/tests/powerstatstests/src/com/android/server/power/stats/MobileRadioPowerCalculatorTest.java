@@ -26,6 +26,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.annotation.Nullable;
 import android.app.usage.NetworkStatsManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkStats;
@@ -34,6 +35,7 @@ import android.os.BatteryStats;
 import android.os.BatteryUsageStatsQuery;
 import android.os.Process;
 import android.os.UidBatteryConsumer;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.ActivityStatsTechSpecificInfo;
 import android.telephony.CellSignalStrength;
@@ -46,8 +48,6 @@ import android.telephony.TelephonyManager;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.frameworks.powerstatstests.R;
-
 import com.google.common.collect.Range;
 
 import org.junit.Rule;
@@ -56,23 +56,29 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import java.util.ArrayList;
+import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 @SuppressWarnings("GuardedBy")
 public class MobileRadioPowerCalculatorTest {
+    @Rule(order = 0)
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
+            .setProvideMainThread(true)
+            .build();
+
     private static final double PRECISION = 0.00001;
     private static final int APP_UID = Process.FIRST_APPLICATION_UID + 42;
     private static final int APP_UID2 = Process.FIRST_APPLICATION_UID + 101;
     @Mock
     NetworkStatsManager mNetworkStatsManager;
 
-    @Rule
+    @Rule(order = 1)
     public final BatteryUsageStatsRule mStatsRule = new BatteryUsageStatsRule();
 
     @Test
     public void testCounterBasedModel() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_modem_calculator)
+        mStatsRule.setTestPowerProfile("power_profile_test_modem_calculator")
                 .initMeasuredEnergyStatsLocked();
         BatteryStatsImpl stats = mStatsRule.getBatteryStats();
 
@@ -126,10 +132,10 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneSignalStrengthLocked(signalStrength, 9665, 9665);
 
         // Note application network activity
-        NetworkStats networkStats = new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
-                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 2000, 30, 100))
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID2, 0, 0,
+        NetworkStats networkStats = mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
+                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 2000, 30, 100),
+                mockNetworkStatsEntry("cellular", APP_UID2, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 500, 50, 300, 10, 111));
         mStatsRule.setNetworkStats(networkStats);
 
@@ -158,8 +164,6 @@ public class MobileRadioPowerCalculatorTest {
         // =    4604000 mA-ms or 1.27888 mA-h
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.27888);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         //    720 mA * 100 ms  (level 0 TX drain rate * level 0 TX duration)
         // + 1080 mA * 200 ms  (level 1 TX drain rate * level 1 TX duration)
@@ -172,27 +176,21 @@ public class MobileRadioPowerCalculatorTest {
         BatteryConsumer appsConsumer = mStatsRule.getAppsBatteryConsumer();
         assertThat(appsConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.94);
-        assertThat(appsConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         // 3/4 of total packets were sent by APP_UID so 75% of total
         UidBatteryConsumer uidConsumer = mStatsRule.getUidBatteryConsumer(APP_UID);
         assertThat(uidConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.705);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         // Rest should go to the other app
         UidBatteryConsumer uidConsumer2 = mStatsRule.getUidBatteryConsumer(APP_UID2);
         assertThat(uidConsumer2.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.235);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
     }
 
     @Test
     public void testCounterBasedModel_multipleDefinedRat() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_modem_calculator_multiactive)
+        mStatsRule.setTestPowerProfile("power_profile_test_modem_calculator_multiactive")
                 .initMeasuredEnergyStatsLocked();
         BatteryStatsImpl stats = mStatsRule.getBatteryStats();
 
@@ -246,10 +244,10 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneSignalStrengthLocked(signalStrength, 9665, 9665);
 
         // Note application network activity
-        NetworkStats networkStats = new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
-                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 2000, 30, 100))
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID2, 0, 0,
+        NetworkStats networkStats = mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
+                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 2000, 30, 100),
+                mockNetworkStatsEntry("cellular", APP_UID2, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 500, 50, 300, 10, 111));
         mStatsRule.setNetworkStats(networkStats);
 
@@ -315,8 +313,6 @@ public class MobileRadioPowerCalculatorTest {
         // =    5177753 mA-ms or 1.43826 mA-h total consumption
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.43826);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         //    720 mA * 100 ms  (level 0 TX drain rate * level 0 TX duration)
         // + 1080 mA * 200 ms  (level 1 TX drain rate * level 1 TX duration)
@@ -329,27 +325,21 @@ public class MobileRadioPowerCalculatorTest {
         BatteryConsumer appsConsumer = mStatsRule.getAppsBatteryConsumer();
         assertThat(appsConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.09938);
-        assertThat(appsConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         // 3/4 of total packets were sent by APP_UID so 75% of total
         UidBatteryConsumer uidConsumer = mStatsRule.getUidBatteryConsumer(APP_UID);
         assertThat(uidConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.82453);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         // Rest should go to the other app
         UidBatteryConsumer uidConsumer2 = mStatsRule.getUidBatteryConsumer(APP_UID2);
         assertThat(uidConsumer2.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.27484);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
     }
 
     @Test
     public void testCounterBasedModel_legacyPowerProfile() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_legacy_modem)
+        mStatsRule.setTestPowerProfile("power_profile_test_legacy_modem")
                 .initMeasuredEnergyStatsLocked();
         BatteryStatsImpl stats = mStatsRule.getBatteryStats();
 
@@ -403,10 +393,10 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneSignalStrengthLocked(signalStrength, 9665, 9665);
 
         // Note application network activity
-        NetworkStats networkStats = new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
-                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 2000, 30, 100))
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID2, 0, 0,
+        NetworkStats networkStats = mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
+                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 2000, 30, 100),
+                mockNetworkStatsEntry("cellular", APP_UID2, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 500, 50, 300, 10, 111));
         mStatsRule.setNetworkStats(networkStats);
 
@@ -435,8 +425,6 @@ public class MobileRadioPowerCalculatorTest {
         // =    4604000 mA-ms or 1.27888 mA-h
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.27888);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         //    720 mA * 100 ms  (level 0 TX drain rate * level 0 TX duration)
         // + 1080 mA * 200 ms  (level 1 TX drain rate * level 1 TX duration)
@@ -449,27 +437,21 @@ public class MobileRadioPowerCalculatorTest {
         BatteryConsumer appsConsumer = mStatsRule.getAppsBatteryConsumer();
         assertThat(appsConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.94);
-        assertThat(appsConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         // 3/4 of total packets were sent by APP_UID so 75% of total
         UidBatteryConsumer uidConsumer = mStatsRule.getUidBatteryConsumer(APP_UID);
         assertThat(uidConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.705);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
 
         // Rest should go to the other app
         UidBatteryConsumer uidConsumer2 = mStatsRule.getUidBatteryConsumer(APP_UID2);
         assertThat(uidConsumer2.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.235);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_POWER_PROFILE);
     }
 
     @Test
     public void testTimerBasedModel_byProcessState() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_legacy_modem)
+        mStatsRule.setTestPowerProfile("power_profile_test_legacy_modem")
                 .initMeasuredEnergyStatsLocked();
         BatteryStatsImpl stats = mStatsRule.getBatteryStats();
         BatteryStatsImpl.Uid uid = stats.getUidStatsLocked(APP_UID);
@@ -521,8 +503,8 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneSignalStrengthLocked(signalStrength, 9665, 9665);
 
         // Note application network activity
-        mStatsRule.setNetworkStats(new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
+        mStatsRule.setNetworkStats(mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 100, 2000, 20, 100)));
 
         stats.noteModemControllerActivity(null, POWER_DATA_UNAVAILABLE, 10000, 10000,
@@ -531,8 +513,8 @@ public class MobileRadioPowerCalculatorTest {
         uid.setProcessStateForTest(
                 BatteryStats.Uid.PROCESS_STATE_BACKGROUND, 11000);
 
-        mStatsRule.setNetworkStats(new NetworkStats(12000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
+        mStatsRule.setNetworkStats(mockNetworkStats(12000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 250, 2000, 80, 200)));
 
         stats.noteModemControllerActivity(null, POWER_DATA_UNAVAILABLE, 12000, 12000,
@@ -586,7 +568,7 @@ public class MobileRadioPowerCalculatorTest {
 
     @Test
     public void testMeasuredEnergyBasedModel_mobileRadioActiveTimeModel() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_legacy_modem)
+        mStatsRule.setTestPowerProfile("power_profile_test_legacy_modem")
                 .setPerUidModemModel(
                         BatteryStatsImpl.PER_UID_MODEM_POWER_MODEL_MOBILE_RADIO_ACTIVE_TIME)
                 .initMeasuredEnergyStatsLocked();
@@ -619,8 +601,8 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneOnLocked(9800, 9800);
 
         // Note application network activity
-        NetworkStats networkStats = new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
+        NetworkStats networkStats = mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 100, 2000, 20, 100));
         mStatsRule.setNetworkStats(networkStats);
 
@@ -642,31 +624,21 @@ public class MobileRadioPowerCalculatorTest {
         // 200ms phone on duration / 2000 total duration *  2.77778 mAh = 0.27777
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(2.5);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_PHONE))
                 .isWithin(PRECISION).of(0.27778);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_PHONE))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         BatteryConsumer appsConsumer = mStatsRule.getAppsBatteryConsumer();
         assertThat(appsConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.38541);
-        assertThat(appsConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         UidBatteryConsumer uidConsumer = mStatsRule.getUidBatteryConsumer(APP_UID);
         assertThat(uidConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.38541);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
     }
-
-
 
     @Test
     public void testMeasuredEnergyBasedModel_modemActivityInfoRxTxModel() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_modem_calculator_multiactive)
+        mStatsRule.setTestPowerProfile("power_profile_test_modem_calculator_multiactive")
                 .setPerUidModemModel(
                         BatteryStatsImpl.PER_UID_MODEM_POWER_MODEL_MODEM_ACTIVITY_INFO_RX_TX)
                 .initMeasuredEnergyStatsLocked();
@@ -728,10 +700,10 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneSignalStrengthLocked(signalStrength, 9665, 9665);
 
         // Note application network activity
-        NetworkStats networkStats = new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
-                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 300, 10, 100))
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID2, 0, 0,
+        NetworkStats networkStats = mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
+                        METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 150, 300, 10, 100),
+                mockNetworkStatsEntry("cellular", APP_UID2, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 500, 50, 2000, 30, 111));
         mStatsRule.setNetworkStats(networkStats);
 
@@ -778,12 +750,8 @@ public class MobileRadioPowerCalculatorTest {
         // 1000ms phone on duration / 10000 total duration *  2.77778 mAh = 0.27777
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(2.5);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_PHONE))
                 .isWithin(PRECISION).of(0.27778);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_PHONE))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         // CDMA2000 [Tx0, Tx1, Tx2, Tx3, Tx4, Rx] drain * duration
         //   [720, 1080, 1440, 1800, 2160, 1440] mA . [10, 11, 12, 13, 14, 15] ms = 111600 mA-ms
@@ -813,8 +781,6 @@ public class MobileRadioPowerCalculatorTest {
         BatteryConsumer appsConsumer = mStatsRule.getAppsBatteryConsumer();
         assertThat(appsConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.91094);
-        assertThat(appsConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         // 240 ms Rx Time, 1110 ms Tx Time, 1350 ms active time
         // 150 App 1 Rx Packets, 10 App 1 Tx packets
@@ -837,20 +803,16 @@ public class MobileRadioPowerCalculatorTest {
         UidBatteryConsumer uidConsumer = mStatsRule.getUidBatteryConsumer(APP_UID);
         assertThat(uidConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.27574);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         // Rest should go to the other app
         UidBatteryConsumer uidConsumer2 = mStatsRule.getUidBatteryConsumer(APP_UID2);
         assertThat(uidConsumer2.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(0.63520);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
     }
 
     @Test
     public void testMeasuredEnergyBasedModel_modemActivityInfoRxTxModel_legacyPowerProfile() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_legacy_modem)
+        mStatsRule.setTestPowerProfile("power_profile_test_legacy_modem")
                 .setPerUidModemModel(
                         BatteryStatsImpl.PER_UID_MODEM_POWER_MODEL_MODEM_ACTIVITY_INFO_RX_TX)
                 .initMeasuredEnergyStatsLocked();
@@ -908,8 +870,8 @@ public class MobileRadioPowerCalculatorTest {
         stats.notePhoneSignalStrengthLocked(signalStrength, 9665, 9665);
 
         // Note application network activity
-        NetworkStats networkStats = new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
+        NetworkStats networkStats = mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 100, 2000, 20, 100));
         mStatsRule.setNetworkStats(networkStats);
 
@@ -932,12 +894,8 @@ public class MobileRadioPowerCalculatorTest {
         // 1000ms phone on duration / 10000 total duration *  2.77778 mAh = 0.27777
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(2.5);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
         assertThat(deviceConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_PHONE))
                 .isWithin(PRECISION).of(0.27778);
-        assertThat(deviceConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_PHONE))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         BatteryConsumer appsConsumer = mStatsRule.getAppsBatteryConsumer();
         // Estimated Rx/Tx modem consumption = 0.94 mAh
@@ -945,19 +903,15 @@ public class MobileRadioPowerCalculatorTest {
         // 2.5 * 0.94 / 1.27888 = 1.83754 mAh
         assertThat(appsConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.83754);
-        assertThat(appsConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
 
         UidBatteryConsumer uidConsumer = mStatsRule.getUidBatteryConsumer(APP_UID);
         assertThat(uidConsumer.getConsumedPower(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
                 .isWithin(PRECISION).of(1.83754);
-        assertThat(uidConsumer.getPowerModel(BatteryConsumer.POWER_COMPONENT_MOBILE_RADIO))
-                .isEqualTo(BatteryConsumer.POWER_MODEL_ENERGY_CONSUMPTION);
     }
 
     @Test
     public void testMeasuredEnergyBasedModel_byProcessState() {
-        mStatsRule.setTestPowerProfile(R.xml.power_profile_test_legacy_modem)
+        mStatsRule.setTestPowerProfile("power_profile_test_legacy_modem")
                 .initMeasuredEnergyStatsLocked();
         BatteryStatsImpl stats = mStatsRule.getBatteryStats();
         BatteryStatsImpl.Uid uid = stats.getUidStatsLocked(APP_UID);
@@ -988,8 +942,8 @@ public class MobileRadioPowerCalculatorTest {
                 new int[]{NetworkCapabilities.TRANSPORT_CELLULAR});
 
         // Note application network activity
-        mStatsRule.setNetworkStats(new NetworkStats(10000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
+        mStatsRule.setNetworkStats(mockNetworkStats(10000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 100, 2000, 20, 100)));
 
         stats.noteModemControllerActivity(null, 10_000_000, 10000, 10000, mNetworkStatsManager);
@@ -997,8 +951,8 @@ public class MobileRadioPowerCalculatorTest {
         uid.setProcessStateForTest(
                 BatteryStats.Uid.PROCESS_STATE_BACKGROUND, 11000);
 
-        mStatsRule.setNetworkStats(new NetworkStats(12000, 1)
-                .addEntry(new NetworkStats.Entry("cellular", APP_UID, 0, 0,
+        mStatsRule.setNetworkStats(mockNetworkStats(12000, 1,
+                mockNetworkStatsEntry("cellular", APP_UID, 0, 0,
                         METERED_NO, ROAMING_NO, DEFAULT_NETWORK_NO, 1000, 250, 2000, 80, 200)));
 
         stats.noteModemControllerActivity(null, 15_000_000, 12000, 12000, mNetworkStatsManager);
@@ -1046,5 +1000,41 @@ public class MobileRadioPowerCalculatorTest {
         // Initial empty ModemActivityInfo.
         final ModemActivityInfo emptyMai = new ModemActivityInfo(0L, 0L, 0L, new int[5], 0L);
         stats.noteModemControllerActivity(emptyMai, 0, 0, 0, mNetworkStatsManager);
+    }
+
+    private NetworkStats mockNetworkStats(int elapsedTime, int initialSize,
+            NetworkStats.Entry... entries) {
+        NetworkStats stats;
+        if (RavenwoodRule.isOnRavenwood()) {
+            stats = mock(NetworkStats.class);
+            when(stats.iterator()).thenAnswer(inv -> List.of(entries).iterator());
+        } else {
+            stats = new NetworkStats(elapsedTime, initialSize);
+            for (NetworkStats.Entry entry : entries) {
+                stats = stats.addEntry(entry);
+            }
+        }
+        return stats;
+    }
+
+    private static NetworkStats.Entry mockNetworkStatsEntry(@Nullable String iface, int uid,
+            int set, int tag, int metered, int roaming, int defaultNetwork, long rxBytes,
+            long rxPackets, long txBytes, long txPackets, long operations) {
+        if (RavenwoodRule.isOnRavenwood()) {
+            NetworkStats.Entry entry = mock(NetworkStats.Entry.class);
+            when(entry.getUid()).thenReturn(uid);
+            when(entry.getMetered()).thenReturn(metered);
+            when(entry.getRoaming()).thenReturn(roaming);
+            when(entry.getDefaultNetwork()).thenReturn(defaultNetwork);
+            when(entry.getRxBytes()).thenReturn(rxBytes);
+            when(entry.getRxPackets()).thenReturn(rxPackets);
+            when(entry.getTxBytes()).thenReturn(txBytes);
+            when(entry.getTxPackets()).thenReturn(txPackets);
+            when(entry.getOperations()).thenReturn(operations);
+            return entry;
+        } else {
+            return new NetworkStats.Entry(iface, uid, set, tag, metered,
+                    roaming, defaultNetwork, rxBytes, rxPackets, txBytes, txPackets, operations);
+        }
     }
 }

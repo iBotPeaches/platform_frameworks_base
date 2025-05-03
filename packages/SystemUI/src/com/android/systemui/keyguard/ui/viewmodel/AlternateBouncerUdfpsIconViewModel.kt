@@ -23,6 +23,9 @@ import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryUdfpsInteractor
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.shared.recents.utilities.Utilities.clamp
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -38,14 +41,20 @@ import kotlinx.coroutines.flow.onStart
 class AlternateBouncerUdfpsIconViewModel
 @Inject
 constructor(
-    val context: Context,
-    configurationInteractor: ConfigurationInteractor,
+    @ShadeDisplayAware val context: Context,
+    @ShadeDisplayAware configurationInteractor: ConfigurationInteractor,
     deviceEntryUdfpsInteractor: DeviceEntryUdfpsInteractor,
     deviceEntryBackgroundViewModel: DeviceEntryBackgroundViewModel,
     fingerprintPropertyInteractor: FingerprintPropertyInteractor,
     udfpsOverlayInteractor: UdfpsOverlayInteractor,
+    alternateBouncerViewModel: AlternateBouncerViewModel,
 ) {
     private val isSupported: Flow<Boolean> = deviceEntryUdfpsInteractor.isUdfpsSupported
+    val alpha: Flow<Float> =
+        alternateBouncerViewModel.transitionToAlternateBouncerProgress.map {
+            SceneContainerFlag.assertInLegacyMode()
+            clamp(it * 2f, 0f, 1f)
+        }
 
     /**
      * UDFPS icon location in pixels for the current display and screen resolution, in natural
@@ -54,12 +63,12 @@ constructor(
     val iconLocation: Flow<IconLocation> =
         isSupported.flatMapLatest { supportsUI ->
             if (supportsUI) {
-                fingerprintPropertyInteractor.sensorLocation.map { sensorLocation ->
+                fingerprintPropertyInteractor.udfpsSensorBounds.map { bounds ->
                     IconLocation(
-                        left = (sensorLocation.centerX - sensorLocation.radius).toInt(),
-                        top = (sensorLocation.centerY - sensorLocation.radius).toInt(),
-                        right = (sensorLocation.centerX + sensorLocation.radius).toInt(),
-                        bottom = (sensorLocation.centerY + sensorLocation.radius).toInt(),
+                        left = bounds.left,
+                        top = bounds.top,
+                        right = bounds.right,
+                        bottom = bounds.bottom,
                     )
                 }
             } else {
@@ -77,10 +86,7 @@ constructor(
             }
     private val fgIconPadding: Flow<Int> = udfpsOverlayInteractor.iconPadding
     val fgViewModel: Flow<DeviceEntryForegroundViewModel.ForegroundIconViewModel> =
-        combine(
-            fgIconColor,
-            fgIconPadding,
-        ) { color, padding ->
+        combine(fgIconColor, fgIconPadding) { color, padding ->
             DeviceEntryForegroundViewModel.ForegroundIconViewModel(
                 type = DeviceEntryIconView.IconType.FINGERPRINT,
                 useAodVariant = false,
@@ -92,12 +98,7 @@ constructor(
     val bgColor: Flow<Int> = deviceEntryBackgroundViewModel.color
     val bgAlpha: Flow<Float> = flowOf(1f)
 
-    data class IconLocation(
-        val left: Int,
-        val top: Int,
-        val right: Int,
-        val bottom: Int,
-    ) {
+    data class IconLocation(val left: Int, val top: Int, val right: Int, val bottom: Int) {
         val width = right - left
         val height = bottom - top
     }

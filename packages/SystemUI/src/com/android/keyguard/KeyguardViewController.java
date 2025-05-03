@@ -24,10 +24,9 @@ import androidx.annotation.Nullable;
 
 import com.android.systemui.keyguard.KeyguardViewMediator;
 import com.android.systemui.shade.ShadeExpansionStateManager;
-import com.android.systemui.shade.ShadeLockscreenInteractor;
+import com.android.systemui.shade.domain.interactor.ShadeLockscreenInteractor;
 import com.android.systemui.statusbar.phone.BiometricUnlockController;
 import com.android.systemui.statusbar.phone.CentralSurfaces;
-import com.android.systemui.statusbar.phone.KeyguardBypassController;
 
 /**
  *  Interface to control Keyguard View. It should be implemented by KeyguardViewManagers, which
@@ -175,8 +174,19 @@ public interface KeyguardViewController {
 
     /**
      * Stop showing the alternate bouncer, if showing.
+     *
+     * <p>Should be like calling {@link #hideAlternateBouncer(boolean, boolean)} with a {@code true}
+     * {@code clearDismissAction} parameter.
      */
     void hideAlternateBouncer(boolean updateScrim);
+
+    /**
+     * Stop showing the alternate bouncer, if showing.
+     *
+     * @param updateScrim Whether to update the scrim
+     * @param clearDismissAction Whether the pending dismiss action should be cleared
+     */
+    void hideAlternateBouncer(boolean updateScrim, boolean clearDismissAction);
 
     // TODO: Deprecate registerStatusBar in KeyguardViewController interface. It is currently
     //  only used for testing purposes in StatusBarKeyguardViewManager, and it prevents us from
@@ -189,6 +199,5 @@ public interface KeyguardViewController {
             ShadeLockscreenInteractor shadeLockscreenInteractor,
             @Nullable ShadeExpansionStateManager shadeExpansionStateManager,
             BiometricUnlockController biometricUnlockController,
-            View notificationContainer,
-            KeyguardBypassController bypassController);
+            View notificationContainer);
 }

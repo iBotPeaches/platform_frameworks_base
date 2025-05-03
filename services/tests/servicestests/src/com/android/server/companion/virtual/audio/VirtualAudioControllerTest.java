@@ -83,14 +83,10 @@ public class VirtualAudioControllerTest {
                         /* allowedUsers= */ new ArraySet<>(),
                         /* activityLaunchAllowedByDefault= */ true,
                         /* activityPolicyExemptions= */ new ArraySet<>(),
+                        /* activityPolicyPackageExemptions= */ new ArraySet<>(),
                         /* crossTaskNavigationAllowedByDefault= */ true,
                         /* crossTaskNavigationExemptions= */ new ArraySet<>(),
-                        /* permissionDialogComponent */ null,
                         /* activityListener= */ null,
-                        /* pipBlockedCallback= */ null,
-                        /* activityBlockedCallback= */ null,
-                        /* secureWindowCallback= */ null,
-                        /* intentListenerCallback= */ null,
                         /* displayCategories= */ new ArraySet<>(),
                         /* showTasksInHostDeviceRecents= */ true,
                         /* customHomeComponent= */ null);
@@ -204,7 +200,9 @@ public class VirtualAudioControllerTest {
             AudioPlaybackConfiguration audioPlaybackConfiguration =
                     new AudioPlaybackConfiguration(
                             playerIdCard, /* piid= */ 1000, appUid, /* pid= */ 1000);
-            audioPlaybackConfiguration.handleStateEvent(PLAYER_STATE_STARTED, /* deviceId= */1);
+            int[] deviceIds = new int[1];
+            deviceIds[0] = 1;
+            audioPlaybackConfiguration.handleStateEvent(PLAYER_STATE_STARTED, deviceIds);
             configs.add(audioPlaybackConfiguration);
         }
         return configs;

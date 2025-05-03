@@ -17,6 +17,7 @@
 package com.android.wm.shell;
 
 import static android.view.Display.DEFAULT_DISPLAY;
+
 import static org.junit.Assume.assumeTrue;
 
 import android.content.Context;
@@ -26,7 +27,7 @@ import android.testing.TestableContext;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 
 import org.junit.After;
 import org.junit.Before;
@@ -44,6 +45,9 @@ public abstract class ShellTestCase {
     public void shellSetup() {
         // Disable protolog tool when running the tests from studio
         ProtoLog.REQUIRE_PROTOLOGTOOL = false;
+
+        // Make sure ProtoLog is initialized before any logging occurs.
+        ProtoLog.init();
 
         MockitoAnnotations.initMocks(this);
         final Context context =

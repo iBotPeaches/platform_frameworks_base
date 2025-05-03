@@ -14,6 +14,7 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 // #define LOG_NDEBUG 0
 #include <memory>
@@ -336,7 +337,7 @@ static void CameraMetadata_swap(JNIEnv *env, jclass thiz, jlong ptr, jlong other
 static jbyteArray CameraMetadata_readValues(JNIEnv *env, jclass thiz, jint tag, jlong ptr) {
     ALOGV("%s (tag = %d)", __FUNCTION__, tag);
 
-    CameraMetadata* metadata = CameraMetadata_getPointerThrow(env, ptr);
+    const CameraMetadata *metadata = CameraMetadata_getPointerThrow(env, ptr);
     if (metadata == NULL) return NULL;
 
     const camera_metadata_t *metaBuffer = metadata->getAndLock();
@@ -349,16 +350,15 @@ static jbyteArray CameraMetadata_readValues(JNIEnv *env, jclass thiz, jint tag, 
     }
     size_t tagSize = Helpers::getTypeSize(tagType);
 
-    camera_metadata_entry entry = metadata->find(tag);
+    camera_metadata_ro_entry entry = metadata->find(tag);
     if (entry.count == 0) {
-         if (!metadata->exists(tag)) {
-             ALOGV("%s: Tag %d does not have any entries", __FUNCTION__, tag);
-             return NULL;
-         } else {
-             // OK: we will return a 0-sized array.
-             ALOGV("%s: Tag %d had an entry, but it had 0 data", __FUNCTION__,
-                   tag);
-         }
+        if (!metadata->exists(tag)) {
+            ALOGV("%s: Tag %d does not have any entries", __FUNCTION__, tag);
+            return NULL;
+        } else {
+            // OK: we will return a 0-sized array.
+            ALOGV("%s: Tag %d had an entry, but it had 0 data", __FUNCTION__, tag);
+        }
     }
 
     jsize byteCount = entry.count * tagSize;

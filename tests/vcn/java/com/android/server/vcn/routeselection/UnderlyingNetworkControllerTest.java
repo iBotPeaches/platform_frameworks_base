@@ -65,6 +65,9 @@ import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 import android.util.ArraySet;
 
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
 import com.android.server.vcn.TelephonySubscriptionTracker.TelephonySubscriptionSnapshot;
 import com.android.server.vcn.VcnContext;
 import com.android.server.vcn.VcnNetworkProvider;
@@ -76,6 +79,7 @@ import com.android.server.vcn.routeselection.UnderlyingNetworkEvaluator.NetworkE
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -89,6 +93,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class UnderlyingNetworkControllerTest {
     private static final ParcelUuid SUB_GROUP = new ParcelUuid(new UUID(0, 0));
     private static final int INITIAL_SUB_ID_1 = 1;
@@ -226,8 +232,6 @@ public class UnderlyingNetworkControllerTest {
     private void resetVcnContext(VcnContext vcnContext) {
         reset(vcnContext);
         doNothing().when(vcnContext).ensureRunningOnLooperThread();
-        doReturn(true).when(vcnContext).isFlagNetworkMetricMonitorEnabled();
-        doReturn(true).when(vcnContext).isFlagIpSecTransformStateEnabled();
     }
 
     // Package private for use in NetworkPriorityClassifierTest

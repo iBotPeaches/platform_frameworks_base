@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -44,9 +44,8 @@ constructor(
     @Background private val bgDispatcher: CoroutineDispatcher,
 ) {
 
-    private val changeEvents = MutableSharedFlow<ChangeAction>(
-        extraBufferCapacity = CHANGES_BUFFER_SIZE
-    )
+    private val changeEvents =
+        MutableSharedFlow<ChangeAction>(extraBufferCapacity = CHANGES_BUFFER_SIZE)
 
     private lateinit var _autoAdded: StateFlow<Set<TileSpec>>
 
@@ -71,7 +70,7 @@ constructor(
     }
 
     private fun startFlowCollections(autoAdded: StateFlow<Set<TileSpec>>) {
-        applicationScope.launch(bgDispatcher) {
+        applicationScope.launch(context = bgDispatcher) {
             launch { autoAdded.collect { store(it) } }
             launch {
                 // As Settings is not the source of truth, once we started tracking tiles for a
@@ -85,8 +84,8 @@ constructor(
                                     trySend(Unit)
                                 }
                             }
-                        secureSettings.registerContentObserverForUser(SETTING, observer, userId)
-                        awaitClose { secureSettings.unregisterContentObserver(observer) }
+                        secureSettings.registerContentObserverForUserSync(SETTING, observer, userId)
+                        awaitClose { secureSettings.unregisterContentObserverSync(observer) }
                     }
                     .map { load() }
                     .flowOn(bgDispatcher)

@@ -1,59 +1,86 @@
 # Ravenwood "policy" file for framework-minus-apex.
 
-# Keep all AIDL interfaces
-class :aidl stubclass
+# The "no-pta" marker is used to exclude the lines from "ravenhelper pta",
+# which tries to convert policies to annotations.
 
-# Keep all feature flag implementations
-class :feature_flags stubclass
+# To avoid VerifyError on nano proto files (b/324063814), we rename nano proto classes.
+# Note: The "rename" directive must use slashes (/) as a package name separator.
+rename com/.*/nano/   devicenano/
+rename android/.*/nano/   devicenano/
 
-# Keep all sysprops generated code implementations
-class :sysprops stubclass
+# StatsD auto-generated
+class com.android.internal.util.FrameworkStatsLog keepclass  # no-pta
 
 # Exported to Mainline modules; cannot use annotations
-class com.android.internal.util.FastXmlSerializer stubclass
-class com.android.internal.util.FileRotator stubclass
-class com.android.internal.util.HexDump stubclass
-class com.android.internal.util.IndentingPrintWriter stubclass
-class com.android.internal.util.LocalLog stubclass
-class com.android.internal.util.MessageUtils stubclass
-class com.android.internal.util.TokenBucket stubclass
-class android.os.HandlerExecutor stubclass
-class android.util.BackupUtils stubclass
-class android.util.IndentingPrintWriter stubclass
-class android.util.LocalLog stubclass
-class android.util.Pair stubclass
-class android.util.Rational stubclass
+class com.android.internal.util.FastXmlSerializer keepclass  # no-pta
+class com.android.internal.util.FileRotator keepclass  # no-pta
+class com.android.internal.util.HexDump keepclass  # no-pta
+class com.android.internal.util.IndentingPrintWriter keepclass  # no-pta
+class com.android.internal.util.LocalLog keepclass  # no-pta
+class com.android.internal.util.MessageUtils keepclass  # no-pta
+class com.android.internal.util.TokenBucket keepclass  # no-pta
+class android.os.HandlerExecutor keepclass  # no-pta
+class android.util.BackupUtils keepclass  # no-pta
+class android.util.IndentingPrintWriter keepclass  # no-pta
+class android.util.LocalLog keepclass  # no-pta
+class android.util.Pair keepclass  # no-pta
+class android.util.Rational keepclass  # no-pta
 
 # From modules-utils; cannot use annotations
-class com.android.internal.util.Preconditions stubclass
-class com.android.internal.logging.InstanceId stubclass
-class com.android.internal.logging.InstanceIdSequence stubclass
-class com.android.internal.logging.UiEvent stubclass
-class com.android.internal.logging.UiEventLogger stubclass
+class com.android.internal.util.Preconditions keepclass  # no-pta
+class com.android.internal.logging.InstanceId keepclass  # no-pta
+class com.android.internal.logging.InstanceIdSequence keepclass  # no-pta
+class com.android.internal.logging.UiEvent keepclass  # no-pta
+class com.android.internal.logging.UiEventLogger keepclass  # no-pta
 
 # From modules-utils; cannot use annotations
-class com.android.modules.utils.BinaryXmlPullParser stubclass
-class com.android.modules.utils.BinaryXmlSerializer stubclass
-class com.android.modules.utils.FastDataInput stubclass
-class com.android.modules.utils.FastDataOutput stubclass
-class com.android.modules.utils.ModifiedUtf8 stubclass
-class com.android.modules.utils.TypedXmlPullParser stubclass
-class com.android.modules.utils.TypedXmlSerializer stubclass
+class com.android.modules.utils.BinaryXmlPullParser keepclass  # no-pta
+class com.android.modules.utils.BinaryXmlSerializer keepclass  # no-pta
+class com.android.modules.utils.FastDataInput keepclass  # no-pta
+class com.android.modules.utils.FastDataOutput keepclass  # no-pta
+class com.android.modules.utils.ModifiedUtf8 keepclass  # no-pta
+class com.android.modules.utils.TypedXmlPullParser keepclass  # no-pta
+class com.android.modules.utils.TypedXmlSerializer keepclass  # no-pta
 
 # Uri
-class android.net.Uri stubclass
-class android.net.UriCodec stubclass
+class android.net.Uri keepclass  # no-pta
+class android.net.UriCodec keepclass  # no-pta
 
 # Telephony
-class android.telephony.PinResult stubclass
+class android.telephony.PinResult keepclass  # no-pta
 
 # Just enough to support mocking, no further functionality
-class android.content.BroadcastReceiver stub
-    method <init> ()V stub
-class android.content.Context stub
-    method <init> ()V stub
-    method getSystemService (Ljava/lang/Class;)Ljava/lang/Object; stub
-class android.content.pm.PackageManager stub
-    method <init> ()V stub
-class android.text.ClipboardManager stub
-    method <init> ()V stub
+class android.content.BroadcastReceiver allow-annotation
+    method <init> ()V allow-annotation
+
+# TODO: Convert the following policies to "allow-annotation".
+class android.content.Context keep  # no-pta
+    method <init> ()V keep
+    method getSystemService (Ljava/lang/Class;)Ljava/lang/Object; keep  # no-pta
+class android.content.pm.PackageManager  # no-pta
+    method <init> ()V keep
+class android.text.ClipboardManager keep  # no-pta
+    method <init> ()V keep
+
+# Just enough to allow ResourcesManager to run
+class android.hardware.display.DisplayManagerGlobal keep # no-pta
+    method getInstance ()Landroid/hardware/display/DisplayManagerGlobal; ignore # no-pta
+
+# Bare minimum to support running ImageDecoderTest
+class android.graphics.drawable.Drawable$ConstantState keepclass # no-pta
+class android.graphics.drawable.BitmapDrawable$BitmapState keepclass # no-pta
+class android.graphics.drawable.BitmapDrawable keep # no-pta
+    method <init> (Landroid/content/res/Resources;Landroid/graphics/Bitmap;)V keep
+    method init * keep
+    method updateLocalState * keep
+    method computeBitmapSize * keep
+    method getIntrinsicWidth * keep
+    method getIntrinsicHeight * keep
+    method getBitmap * keep
+class android.graphics.drawable.Drawable keep # no-pta
+    method <init> ()V keep
+    method resolveDensity * keep
+    method updateBlendModeFilter * ignore
+
+class android.os.StrictMode keep # no-pta
+    method noteSlowCall (Ljava/lang/String;)V ignore

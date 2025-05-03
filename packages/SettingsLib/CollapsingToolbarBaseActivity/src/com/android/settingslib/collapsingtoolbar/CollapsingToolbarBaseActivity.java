@@ -18,6 +18,7 @@ package com.android.settingslib.collapsingtoolbar;
 
 import android.app.ActionBar;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,7 +28,7 @@ import android.widget.Toolbar;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentActivity;
 
-import com.android.settingslib.utils.BuildCompatUtils;
+import com.android.settingslib.widget.SettingsThemeHelper;
 
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
@@ -58,14 +59,21 @@ public class CollapsingToolbarBaseActivity extends FragmentActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        EdgeToEdgeUtils.enable(this);
         super.onCreate(savedInstanceState);
+
+        if (SettingsThemeHelper.isExpressiveTheme(this)) {
+            setTheme(com.android.settingslib.widget.theme.R.style.Theme_SubSettingsBase_Expressive);
+        }
+
         // for backward compatibility on R devices or wearable devices due to small device size.
-        if (mCustomizeLayoutResId > 0 && (!BuildCompatUtils.isAtLeastS() || isWatch())) {
+        if (mCustomizeLayoutResId > 0 && (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || isWatch())) {
             super.setContentView(mCustomizeLayoutResId);
             return;
         }
 
-        View view = getToolbarDelegate().onCreateView(getLayoutInflater(), null);
+        View view = getToolbarDelegate().onCreateView(getLayoutInflater(), null, this);
         super.setContentView(view);
     }
 
@@ -168,7 +176,7 @@ public class CollapsingToolbarBaseActivity extends FragmentActivity {
 
     private CollapsingToolbarDelegate getToolbarDelegate() {
         if (mToolbardelegate == null) {
-            mToolbardelegate = new CollapsingToolbarDelegate(new DelegateCallback());
+            mToolbardelegate = new CollapsingToolbarDelegate(new DelegateCallback(), true);
         }
         return mToolbardelegate;
     }

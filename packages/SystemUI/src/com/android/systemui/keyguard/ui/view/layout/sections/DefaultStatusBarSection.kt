@@ -27,11 +27,11 @@ import androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
 import androidx.constraintlayout.widget.ConstraintSet.START
 import androidx.constraintlayout.widget.ConstraintSet.TOP
 import com.android.keyguard.dagger.KeyguardStatusBarViewComponent
-import com.android.systemui.res.R
-import com.android.systemui.flags.FeatureFlags
-import com.android.systemui.flags.Flags
 import com.android.systemui.keyguard.shared.model.KeyguardSection
+import com.android.systemui.res.R
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.NotificationPanelView
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.ShadeViewStateProvider
 import com.android.systemui.statusbar.phone.KeyguardStatusBarView
 import com.android.systemui.util.Utils
@@ -41,8 +41,7 @@ import javax.inject.Inject
 class DefaultStatusBarSection
 @Inject
 constructor(
-    private val context: Context,
-    private val featureFlags: FeatureFlags,
+    @ShadeDisplayAware private val context: Context,
     private val notificationPanelView: NotificationPanelView,
     private val keyguardStatusBarViewComponentFactory: KeyguardStatusBarViewComponent.Factory,
 ) : KeyguardSection() {
@@ -50,7 +49,7 @@ constructor(
     private val statusBarViewId = R.id.keyguard_header
 
     override fun addViews(constraintLayout: ConstraintLayout) {
-        if (!featureFlags.isEnabled(Flags.MIGRATE_KEYGUARD_STATUS_BAR_VIEW)) {
+        if (!SceneContainerFlag.isEnabled) {
             return
         }
 
@@ -67,7 +66,7 @@ constructor(
     }
 
     override fun bindData(constraintLayout: ConstraintLayout) {
-        if (!featureFlags.isEnabled(Flags.MIGRATE_KEYGUARD_STATUS_BAR_VIEW)) {
+        if (!SceneContainerFlag.isEnabled) {
             return
         }
 

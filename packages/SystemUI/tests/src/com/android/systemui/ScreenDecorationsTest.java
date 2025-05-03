@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -60,7 +61,6 @@ import android.graphics.drawable.Drawable;
 import android.hardware.display.DisplayManager;
 import android.hardware.graphics.common.DisplayDecorationSupport;
 import android.os.Handler;
-import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.testing.TestableLooper.RunWithLooper;
 import android.util.PathParser;
@@ -77,8 +77,11 @@ import android.view.WindowMetrics;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.app.viewcapture.ViewCapture;
+import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.data.repository.FakeFacePropertyRepository;
@@ -101,12 +104,15 @@ import com.android.systemui.settings.FakeDisplayTracker;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.commandline.CommandRegistry;
 import com.android.systemui.statusbar.events.PrivacyDotViewController;
+import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.concurrency.FakeExecutor;
 import com.android.systemui.util.concurrency.FakeThreadFactory;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.settings.FakeSettings;
 import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.time.FakeSystemClock;
+
+import kotlin.Lazy;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -120,12 +126,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RunWithLooper
-@RunWith(AndroidTestingRunner.class)
+@RunWith(AndroidJUnit4.class)
 @SmallTest
 public class ScreenDecorationsTest extends SysuiTestCase {
 
     private ScreenDecorations mScreenDecorations;
     private WindowManager mWindowManager;
+    private ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
     private DisplayManager mDisplayManager;
     private SecureSettings mSecureSettings;
     private FakeExecutor mExecutor;
@@ -172,22 +179,25 @@ public class ScreenDecorationsTest extends SysuiTestCase {
     private CutoutDecorProviderFactory mCutoutFactory;
     @Mock
     private JavaAdapter mJavaAdapter;
+    @Mock
+    private Lazy<ViewCapture> mLazyViewCapture;
 
     private FakeFacePropertyRepository mFakeFacePropertyRepository =
             new FakeFacePropertyRepository();
     private List<DecorProvider> mMockCutoutList;
     private final CameraProtectionLoader mCameraProtectionLoader =
             new CameraProtectionLoaderImpl(mContext);
+    private Handler mMainHandler;
 
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
 
-        Handler mainHandler = new Handler(TestableLooper.get(this).getLooper());
+        mMainHandler = new Handler(TestableLooper.get(this).getLooper());
         mSecureSettings = new FakeSettings();
         mExecutor = new FakeExecutor(new FakeSystemClock());
         mThreadFactory = new FakeThreadFactory(mExecutor);
-        mThreadFactory.setHandler(mainHandler);
+        mThreadFactory.setHandler(mMainHandler);
 
         mWindowManager = mock(WindowManager.class);
         WindowMetrics metrics = mContext.getSystemService(WindowManager.class)
@@ -206,26 +216,26 @@ public class ScreenDecorationsTest extends SysuiTestCase {
         when(mMockTypedArray.length()).thenReturn(0);
         mPrivacyDotTopLeftDecorProvider = spy(new PrivacyDotCornerDecorProviderImpl(
                 R.id.privacy_dot_top_left_container,
-                DisplayCutout.BOUNDS_POSITION_TOP,
-                DisplayCutout.BOUNDS_POSITION_LEFT,
+                BOUNDS_POSITION_TOP,
+                BOUNDS_POSITION_LEFT,
                 R.layout.privacy_dot_top_left));
 
         mPrivacyDotTopRightDecorProvider = spy(new PrivacyDotCornerDecorProviderImpl(
                 R.id.privacy_dot_top_right_container,
-                DisplayCutout.BOUNDS_POSITION_TOP,
-                DisplayCutout.BOUNDS_POSITION_RIGHT,
+                BOUNDS_POSITION_TOP,
+                BOUNDS_POSITION_RIGHT,
                 R.layout.privacy_dot_top_right));
 
         mPrivacyDotBottomLeftDecorProvider = spy(new PrivacyDotCornerDecorProviderImpl(
                 R.id.privacy_dot_bottom_left_container,
-                DisplayCutout.BOUNDS_POSITION_BOTTOM,
-                DisplayCutout.BOUNDS_POSITION_LEFT,
+                BOUNDS_POSITION_BOTTOM,
+                BOUNDS_POSITION_LEFT,
                 R.layout.privacy_dot_bottom_left));
 
         mPrivacyDotBottomRightDecorProvider = spy(new PrivacyDotCornerDecorProviderImpl(
                 R.id.privacy_dot_bottom_right_container,
-                DisplayCutout.BOUNDS_POSITION_BOTTOM,
-                DisplayCutout.BOUNDS_POSITION_RIGHT,
+                BOUNDS_POSITION_BOTTOM,
+                BOUNDS_POSITION_RIGHT,
                 R.layout.privacy_dot_bottom_right));
 
         // Default no cutout
@@ -244,12 +254,14 @@ public class ScreenDecorationsTest extends SysuiTestCase {
                 new ScreenDecorationsLogger(logcatLogBuffer("TestLogBuffer")),
                 mFakeFacePropertyRepository));
 
+        mViewCaptureAwareWindowManager = new ViewCaptureAwareWindowManager(mWindowManager,
+                mLazyViewCapture, false);
         mScreenDecorations = spy(new ScreenDecorations(mContext, mSecureSettings,
                 mCommandRegistry, mUserTracker, mDisplayTracker, mDotViewController,
-                mThreadFactory,
                 mPrivacyDotDecorProviderFactory, mFaceScanningProviderFactory,
                 new ScreenDecorationsLogger(logcatLogBuffer("TestLogBuffer")),
-                mFakeFacePropertyRepository, mJavaAdapter, mCameraProtectionLoader) {
+                mFakeFacePropertyRepository, mJavaAdapter, mCameraProtectionLoader,
+                mViewCaptureAwareWindowManager, mMainHandler, mExecutor) {
             @Override
             public void start() {
                 super.start();
@@ -1182,6 +1194,24 @@ public class ScreenDecorationsTest extends SysuiTestCase {
     }
 
     @Test
+    public void testUpdateOverlayProviderViews_PendingConfigChange() {
+        final DecorProvider cutout = new CutoutDecorProviderImpl(BOUNDS_POSITION_TOP);
+        spyOn(cutout);
+        doNothing().when(cutout).onReloadResAndMeasure(any(), anyInt(), anyInt(), anyInt(), any());
+        mMockCutoutList.add(cutout);
+        mScreenDecorations.start();
+        doCallRealMethod().when(mScreenDecorations).updateOverlayProviderViews(any());
+
+        mScreenDecorations.mPendingConfigChange = true;
+        mScreenDecorations.updateOverlayProviderViews(null /* filterIds */);
+        verify(cutout, never()).onReloadResAndMeasure(any(), anyInt(), anyInt(), anyInt(), any());
+
+        mScreenDecorations.mPendingConfigChange = false;
+        mScreenDecorations.updateOverlayProviderViews(null /* filterIds */);
+        verify(cutout).onReloadResAndMeasure(any(), anyInt(), anyInt(), anyInt(), any());
+    }
+
+    @Test
     public void testSupportHwcLayer_SwitchFrom_NotSupport() {
         setupResources(0 /* radius */, 10 /* radiusTop */, 20 /* radiusBottom */,
                 null /* roundedTopDrawable */, null /* roundedBottomDrawable */,
@@ -1243,9 +1273,10 @@ public class ScreenDecorationsTest extends SysuiTestCase {
         ScreenDecorations screenDecorations = new ScreenDecorations(mContext,
                 mSecureSettings, mCommandRegistry, mUserTracker, mDisplayTracker,
                 mDotViewController,
-                mThreadFactory, mPrivacyDotDecorProviderFactory, mFaceScanningProviderFactory,
+                mPrivacyDotDecorProviderFactory, mFaceScanningProviderFactory,
                 new ScreenDecorationsLogger(logcatLogBuffer("TestLogBuffer")),
-                mFakeFacePropertyRepository, mJavaAdapter, mCameraProtectionLoader);
+                mFakeFacePropertyRepository, mJavaAdapter, mCameraProtectionLoader,
+                mViewCaptureAwareWindowManager, mMainHandler, mExecutor);
         screenDecorations.start();
         when(mContext.getDisplay()).thenReturn(mDisplay);
         when(mDisplay.getDisplayInfo(any())).thenAnswer(new Answer<Boolean>() {
@@ -1271,6 +1302,28 @@ public class ScreenDecorationsTest extends SysuiTestCase {
                 anyInt(),
                 anyInt(),
                 any());
+    }
+
+    @Test
+    public void delayedFaceSensorLocationChangesAddsFaceScanningOverlay() {
+        setupResources(0 /* radius */, 0 /* radiusTop */, 0 /* radiusBottom */,
+                null /* roundedTopDrawable */, null /* roundedBottomDrawable */,
+                0 /* roundedPadding */, true /* privacyDot */, false /* faceScanning */);
+        mScreenDecorations.start();
+        verifyFaceScanningViewExists(false); // face scanning view not added yet
+
+        // WHEN the sensor location is updated
+        mFaceScanningProviders = new ArrayList<>();
+        mFaceScanningProviders.add(mFaceScanningDecorProvider);
+        when(mFaceScanningProviderFactory.getProviders()).thenReturn(mFaceScanningProviders);
+        when(mFaceScanningProviderFactory.getHasProviders()).thenReturn(true);
+        final Point location = new Point();
+        mFakeFacePropertyRepository.setSensorLocation(location);
+        mScreenDecorations.onFaceSensorLocationChanged(location);
+        mExecutor.runAllReady();
+
+        // THEN the face scanning view is added
+        verifyFaceScanningViewExists(true);
     }
 
     @Test

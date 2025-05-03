@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -32,42 +33,56 @@ import static org.mockito.Mockito.when;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.view.SurfaceControl;
 
 import androidx.test.filters.SmallTest;
 
 import com.android.server.testutils.StubTransaction;
+import com.android.window.flags.Flags;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 
 import java.util.function.Supplier;
 
+/**
+ * Test class for {@link Letterbox}.
+ * <p>
+ * Build/Install/Run:
+ * atest WmTests:LetterboxTest
+ */
 @SmallTest
 @Presubmit
 public class LetterboxTest {
 
-    Letterbox mLetterbox;
-    SurfaceControlMocker mSurfaces;
-    SurfaceControl.Transaction mTransaction;
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
-    private boolean mAreCornersRounded = false;
-    private int mColor = Color.BLACK;
-    private boolean mHasWallpaperBackground = false;
-    private int mBlurRadius = 0;
-    private float mDarkScrimAlpha = 0.5f;
+    private Letterbox mLetterbox;
+    private SurfaceControlMocker mSurfaces;
+    private SurfaceControl.Transaction mTransaction;
+
     private SurfaceControl mParentSurface = mock(SurfaceControl.class);
+    private AppCompatLetterboxOverrides mLetterboxOverrides;
 
     @Before
     public void setUp() throws Exception {
         mSurfaces = new SurfaceControlMocker();
+        mLetterboxOverrides =  mock(AppCompatLetterboxOverrides.class);
+        doReturn(false).when(mLetterboxOverrides).shouldLetterboxHaveRoundedCorners();
+        doReturn(Color.valueOf(Color.BLACK)).when(mLetterboxOverrides)
+                .getLetterboxBackgroundColor();
+        doReturn(false).when(mLetterboxOverrides).hasWallpaperBackgroundForLetterbox();
+        doReturn(0).when(mLetterboxOverrides).getLetterboxWallpaperBlurRadiusPx();
+        doReturn(0.5f).when(mLetterboxOverrides).getLetterboxWallpaperDarkScrimAlpha();
         mLetterbox = new Letterbox(mSurfaces, StubTransaction::new,
-                () -> mAreCornersRounded, () -> Color.valueOf(mColor),
-                () -> mHasWallpaperBackground, () -> mBlurRadius, () -> mDarkScrimAlpha,
-                /* doubleTapCallbackX= */ x -> {}, /* doubleTapCallbackY= */ y -> {},
-                () -> mParentSurface);
+                mock(AppCompatReachabilityPolicy.class), mLetterboxOverrides, () -> mParentSurface);
         mTransaction = spy(StubTransaction.class);
     }
 
@@ -172,22 +187,55 @@ public class LetterboxTest {
     @Test
     public void testSurfaceOrigin_applied() {
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
         verify(mTransaction).setPosition(mSurfaces.top, -1000, -2000);
+    }
+
+    @DisableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testSurface_created_scrollingFromLetterboxDisabled() {
+        mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
+        applySurfaceChanges();
+        assertNotNull(mSurfaces.top);
+    }
+
+    @DisableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testInputSurface_notCreated_scrollingFromLetterboxDisabled() {
+        mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
+        applySurfaceChanges();
+        assertNull(mSurfaces.topInput);
+    }
+
+    @EnableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testSurface_created_scrollingFromLetterboxEnabled() {
+        mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
+        applySurfaceChanges();
+        assertNotNull(mSurfaces.top);
+    }
+
+    @EnableFlags(Flags.FLAG_SCROLLING_FROM_LETTERBOX)
+    @Test
+    public void testInputSurface_notCreated_notAttachedInputAndScrollingFromLetterboxEnabled() {
+        mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
+        applySurfaceChanges();
+        assertNull(mSurfaces.topInput);
     }
 
     @Test
     public void testApplySurfaceChanges_setColor() {
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         verify(mTransaction).setColor(mSurfaces.top, new float[]{0, 0, 0});
 
-        mColor = Color.GREEN;
+        doReturn(Color.valueOf(Color.GREEN)).when(mLetterboxOverrides)
+                .getLetterboxBackgroundColor();
 
         assertTrue(mLetterbox.needsApplySurfaceChanges());
 
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         verify(mTransaction).setColor(mSurfaces.top, new float[]{0, 1, 0});
     }
@@ -195,23 +243,23 @@ public class LetterboxTest {
     @Test
     public void testNeedsApplySurfaceChanges_wallpaperBackgroundRequested() {
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         verify(mTransaction).setAlpha(mSurfaces.top, 1.0f);
         assertFalse(mLetterbox.needsApplySurfaceChanges());
 
-        mHasWallpaperBackground = true;
+        doReturn(true).when(mLetterboxOverrides).hasWallpaperBackgroundForLetterbox();
 
         assertTrue(mLetterbox.needsApplySurfaceChanges());
 
-        mLetterbox.applySurfaceChanges(mTransaction);
-        verify(mTransaction).setAlpha(mSurfaces.fullWindowSurface, mDarkScrimAlpha);
+        applySurfaceChanges();
+        verify(mTransaction).setAlpha(mSurfaces.fullWindowSurface, /* alpha */ 0.5f);
     }
 
     @Test
     public void testNeedsApplySurfaceChanges_setParentSurface() {
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         verify(mTransaction).reparent(mSurfaces.top, mParentSurface);
         assertFalse(mLetterbox.needsApplySurfaceChanges());
@@ -220,41 +268,41 @@ public class LetterboxTest {
 
         assertTrue(mLetterbox.needsApplySurfaceChanges());
 
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
         verify(mTransaction).reparent(mSurfaces.top, mParentSurface);
     }
 
     @Test
     public void testApplySurfaceChanges_cornersNotRounded_surfaceFullWindowSurfaceNotCreated() {
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         assertNull(mSurfaces.fullWindowSurface);
     }
 
     @Test
     public void testApplySurfaceChanges_cornersRounded_surfaceFullWindowSurfaceCreated() {
-        mAreCornersRounded = true;
+        doReturn(true).when(mLetterboxOverrides).shouldLetterboxHaveRoundedCorners();
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         assertNotNull(mSurfaces.fullWindowSurface);
     }
 
     @Test
     public void testApplySurfaceChanges_wallpaperBackground_surfaceFullWindowSurfaceCreated() {
-        mHasWallpaperBackground = true;
+        doReturn(true).when(mLetterboxOverrides).hasWallpaperBackgroundForLetterbox();
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         assertNotNull(mSurfaces.fullWindowSurface);
     }
 
     @Test
     public void testNotIntersectsOrFullyContains_cornersRounded() {
-        mAreCornersRounded = true;
+        doReturn(true).when(mLetterboxOverrides).shouldLetterboxHaveRoundedCorners();
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(0, 0));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
 
         assertTrue(mLetterbox.notIntersectsOrFullyContains(new Rect(1, 2, 9, 9)));
     }
@@ -262,23 +310,24 @@ public class LetterboxTest {
     @Test
     public void testSurfaceOrigin_changeCausesReapply() {
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(1000, 2000));
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
         clearInvocations(mTransaction);
         mLetterbox.layout(new Rect(0, 0, 10, 10), new Rect(0, 1, 10, 10), new Point(0, 0));
         assertTrue(mLetterbox.needsApplySurfaceChanges());
-        mLetterbox.applySurfaceChanges(mTransaction);
+        applySurfaceChanges();
         verify(mTransaction).setPosition(mSurfaces.top, 0, 0);
     }
 
-    class SurfaceControlMocker implements Supplier<SurfaceControl.Builder> {
-        private SurfaceControl.Builder mLeftBuilder;
-        public SurfaceControl left;
+    private void applySurfaceChanges() {
+        mLetterbox.applySurfaceChanges(/* syncTransaction */ mTransaction,
+                /* pendingTransaction */ mTransaction);
+    }
+
+    static class SurfaceControlMocker implements Supplier<SurfaceControl.Builder> {
         private SurfaceControl.Builder mTopBuilder;
         public SurfaceControl top;
-        private SurfaceControl.Builder mRightBuilder;
-        public SurfaceControl right;
-        private SurfaceControl.Builder mBottomBuilder;
-        public SurfaceControl bottom;
+        private SurfaceControl.Builder mTopInputBuilder;
+        public SurfaceControl topInput;
         private SurfaceControl.Builder mFullWindowSurfaceBuilder;
         public SurfaceControl fullWindowSurface;
 
@@ -287,32 +336,24 @@ public class LetterboxTest {
             final SurfaceControl.Builder builder = mock(SurfaceControl.Builder.class,
                     InvocationOnMock::getMock);
             when(builder.setName(anyString())).then((i) -> {
-                if (((String) i.getArgument(0)).contains("left")) {
-                    mLeftBuilder = (SurfaceControl.Builder) i.getMock();
-                } else if (((String) i.getArgument(0)).contains("top")) {
+                if (((String) i.getArgument(0)).contains("Letterbox - top")) {
                     mTopBuilder = (SurfaceControl.Builder) i.getMock();
-                } else if (((String) i.getArgument(0)).contains("right")) {
-                    mRightBuilder = (SurfaceControl.Builder) i.getMock();
-                } else if (((String) i.getArgument(0)).contains("bottom")) {
-                    mBottomBuilder = (SurfaceControl.Builder) i.getMock();
-                } else if (((String) i.getArgument(0)).contains("fullWindow")) {
+                } else if (((String) i.getArgument(0)).contains("Letterbox - fullWindow")) {
                     mFullWindowSurfaceBuilder = (SurfaceControl.Builder) i.getMock();
+                } else if (((String) i.getArgument(0)).contains("LetterboxInput - top")) {
+                    mTopInputBuilder = (SurfaceControl.Builder) i.getMock();
                 }
                 return i.getMock();
             });
 
             doAnswer((i) -> {
                 final SurfaceControl control = mock(SurfaceControl.class);
-                if (i.getMock() == mLeftBuilder) {
-                    left = control;
-                } else if (i.getMock() == mTopBuilder) {
+                if (i.getMock() == mTopBuilder) {
                     top = control;
-                } else if (i.getMock() == mRightBuilder) {
-                    right = control;
-                } else if (i.getMock() == mBottomBuilder) {
-                    bottom = control;
                 } else if (i.getMock() == mFullWindowSurfaceBuilder) {
                     fullWindowSurface = control;
+                } else if (i.getMock() == mTopInputBuilder) {
+                    topInput = control;
                 }
                 return control;
             }).when(builder).build();

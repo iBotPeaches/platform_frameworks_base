@@ -1,0 +1,121 @@
+<!--
+    Copyright (C) 2024 The Android Open Source Project
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    style="@style/Widget.SliceView.Panel"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/device_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/pair_new_device_button"
+        style="@style/BluetoothTileDialog.Device"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/device_list"
+        android:layout_height="@dimen/bluetooth_dialog_device_height"
+        android:contentDescription="@string/accessibility_hearing_device_pair_new_device"
+        android:drawableStart="@drawable/ic_add"
+        android:drawablePadding="20dp"
+        android:drawableTint="?android:attr/textColorPrimary"
+        android:text="@string/quick_settings_pair_hearing_devices"
+        android:textSize="14sp"
+        android:textAppearance="@style/TextAppearance.Dialog.Title"
+        android:textDirection="locale"
+        android:textAlignment="viewStart"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:background="@drawable/bluetooth_tile_dialog_bg_off" />
+
+    <LinearLayout
+        android:id="@+id/preset_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/pair_new_device_button"
+        android:layout_marginTop="@dimen/hearing_devices_layout_margin"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/preset_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/bluetooth_dialog_layout_margin"
+            android:layout_marginEnd="@dimen/bluetooth_dialog_layout_margin"
+            android:paddingStart="@dimen/hearing_devices_small_title_padding_horizontal"
+            android:text="@string/hearing_devices_preset_label"
+            android:textAppearance="@style/TextAppearance.Dialog.Title"
+            android:textSize="14sp"
+            android:gravity="center_vertical"
+            android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
+            android:textDirection="locale"/>
+        <Spinner
+            android:id="@+id/preset_spinner"
+            style="@style/BluetoothTileDialog.Device"
+            android:layout_height="@dimen/bluetooth_dialog_device_height"
+            android:layout_marginTop="4dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:background="@drawable/hearing_devices_spinner_background"
+            android:popupBackground="@drawable/hearing_devices_spinner_popup_background"
+            android:dropDownWidth="match_parent"
+            android:longClickable="false"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/tools_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/preset_layout"
+        android:layout_marginTop="@dimen/hearing_devices_layout_margin"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/tools_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/bluetooth_dialog_layout_margin"
+            android:layout_marginEnd="@dimen/bluetooth_dialog_layout_margin"
+            android:paddingStart="@dimen/hearing_devices_small_title_padding_horizontal"
+            android:text="@string/hearing_devices_tools_label"
+            android:textAppearance="@style/TextAppearance.Dialog.Title"
+            android:textSize="14sp"
+            android:gravity="center_vertical"
+            android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
+            android:textDirection="locale"/>
+        <LinearLayout
+            android:id="@+id/tools_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/bluetooth_dialog_layout_margin"
+            android:layout_marginEnd="@dimen/bluetooth_dialog_layout_margin"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal"/>
+    </LinearLayout>
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -22,6 +22,7 @@ import android.app.StatusBarManager
 import android.content.Context
 import android.content.res.Resources
 import android.content.res.XmlResourceParser
+import android.graphics.Insets
 import android.graphics.Rect
 import android.testing.AndroidTestingRunner
 import android.view.Display
@@ -35,7 +36,6 @@ import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.test.filters.SmallTest
 import com.android.app.animation.Interpolators
-import com.android.systemui.res.R
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.ShadeInterpolation
 import com.android.systemui.battery.BatteryMeterView
@@ -46,21 +46,24 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.qs.ChipVisibilityListener
 import com.android.systemui.qs.HeaderPrivacyIconsController
+import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeHeaderController.Companion.DEFAULT_CLOCK_INTENT
 import com.android.systemui.shade.ShadeHeaderController.Companion.LARGE_SCREEN_HEADER_CONSTRAINT
 import com.android.systemui.shade.ShadeHeaderController.Companion.QQS_HEADER_CONSTRAINT
 import com.android.systemui.shade.ShadeHeaderController.Companion.QS_HEADER_CONSTRAINT
 import com.android.systemui.shade.carrier.ShadeCarrierGroup
 import com.android.systemui.shade.carrier.ShadeCarrierGroupController
-import com.android.systemui.statusbar.phone.StatusBarContentInsetsProvider
-import com.android.systemui.statusbar.phone.StatusBarIconController
+import com.android.systemui.statusbar.data.repository.fakeStatusBarContentInsetsProviderStore
 import com.android.systemui.statusbar.phone.StatusIconContainer
 import com.android.systemui.statusbar.phone.StatusOverlayHoverListenerFactory
+import com.android.systemui.statusbar.phone.ui.StatusBarIconController
+import com.android.systemui.statusbar.phone.ui.TintedIconManager
 import com.android.systemui.statusbar.policy.Clock
 import com.android.systemui.statusbar.policy.FakeConfigurationController
 import com.android.systemui.statusbar.policy.NextAlarmController
 import com.android.systemui.statusbar.policy.VariableDateView
 import com.android.systemui.statusbar.policy.VariableDateViewController
+import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.capture
@@ -83,7 +86,6 @@ import org.mockito.Mockito.reset
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when` as whenever
-import android.graphics.Insets
 import org.mockito.junit.MockitoJUnit
 
 private val EMPTY_CHANGES = ConstraintsChanges()
@@ -92,11 +94,15 @@ private val EMPTY_CHANGES = ConstraintsChanges()
 @RunWith(AndroidTestingRunner::class)
 class ShadeHeaderControllerTest : SysuiTestCase() {
 
+    private val kosmos = testKosmos()
+    private val insetsProviderStore = kosmos.fakeStatusBarContentInsetsProviderStore
+    private val insetsProvider = insetsProviderStore.defaultDisplay
+
     @Mock(answer = Answers.RETURNS_MOCKS) private lateinit var view: MotionLayout
     @Mock private lateinit var statusIcons: StatusIconContainer
     @Mock private lateinit var statusBarIconController: StatusBarIconController
-    @Mock private lateinit var iconManagerFactory: StatusBarIconController.TintedIconManager.Factory
-    @Mock private lateinit var iconManager: StatusBarIconController.TintedIconManager
+    @Mock private lateinit var iconManagerFactory: TintedIconManager.Factory
+    @Mock private lateinit var iconManager: TintedIconManager
     @Mock private lateinit var mShadeCarrierGroupController: ShadeCarrierGroupController
     @Mock
     private lateinit var mShadeCarrierGroupControllerBuilder: ShadeCarrierGroupController.Builder
@@ -106,7 +112,6 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
     @Mock private lateinit var batteryMeterView: BatteryMeterView
     @Mock private lateinit var batteryMeterViewController: BatteryMeterViewController
     @Mock private lateinit var privacyIconsController: HeaderPrivacyIconsController
-    @Mock private lateinit var insetsProvider: StatusBarContentInsetsProvider
     @Mock private lateinit var variableDateViewControllerFactory: VariableDateViewController.Factory
     @Mock private lateinit var variableDateViewController: VariableDateViewController
     @Mock private lateinit var dumpManager: DumpManager
@@ -145,12 +150,14 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
         whenever<TextView>(view.requireViewById(R.id.date)).thenReturn(date)
         whenever(date.context).thenReturn(mockedContext)
 
-        whenever<ShadeCarrierGroup>(view.requireViewById(R.id.carrier_group)).thenReturn(carrierGroup)
+        whenever<ShadeCarrierGroup>(view.requireViewById(R.id.carrier_group))
+            .thenReturn(carrierGroup)
 
         whenever<BatteryMeterView>(view.requireViewById(R.id.batteryRemainingIcon))
             .thenReturn(batteryMeterView)
 
-        whenever<StatusIconContainer>(view.requireViewById(R.id.statusIcons)).thenReturn(statusIcons)
+        whenever<StatusIconContainer>(view.requireViewById(R.id.statusIcons))
+            .thenReturn(statusIcons)
         whenever<View>(view.requireViewById(R.id.hover_system_icons_container))
             .thenReturn(systemIconsHoverContainer)
 
@@ -187,7 +194,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
                 statusBarIconController,
                 iconManagerFactory,
                 privacyIconsController,
-                insetsProvider,
+                insetsProviderStore,
                 configurationController,
                 variableDateViewControllerFactory,
                 batteryMeterViewController,
@@ -198,7 +205,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
                 qsBatteryModeController,
                 nextAlarmController,
                 activityStarter,
-                mStatusOverlayHoverListenerFactory
+                mStatusOverlayHoverListenerFactory,
             )
         whenever(view.isAttachedToWindow).thenReturn(true)
         shadeHeaderController.init()
@@ -241,23 +248,23 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
     }
 
     @Test
-    fun dualCarrier_disablesCarrierIconsInStatusIcons() {
+    fun dualCarrier_disablesCarrierIconsInStatusIcons_qs() {
         whenever(mShadeCarrierGroupController.isSingleCarrier).thenReturn(false)
 
         makeShadeVisible()
         shadeHeaderController.qsExpandedFraction = 1.0f
 
-        verify(statusIcons).addIgnoredSlots(carrierIconSlots)
+        verify(statusIcons, times(2)).addIgnoredSlots(carrierIconSlots)
     }
 
     @Test
-    fun dualCarrier_enablesCarrierIconsInStatusIcons_qsExpanded() {
+    fun dualCarrier_disablesCarrierIconsInStatusIcons_qqs() {
         whenever(mShadeCarrierGroupController.isSingleCarrier).thenReturn(false)
 
         makeShadeVisible()
         shadeHeaderController.qsExpandedFraction = 0.0f
 
-        verify(statusIcons, times(2)).removeIgnoredSlots(carrierIconSlots)
+        verify(statusIcons, times(2)).addIgnoredSlots(carrierIconSlots)
     }
 
     @Test
@@ -594,7 +601,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
                     anyInt(),
                     anyInt(),
                     anyInt(),
-                    anyInt()
+                    anyInt(),
                 )
             )
             .thenReturn(mockConstraintsChanges)
@@ -628,7 +635,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
                     anyInt(),
                     anyInt(),
                     anyInt(),
-                    anyInt()
+                    anyInt(),
                 )
             )
             .thenReturn(mockConstraintsChanges)
@@ -748,7 +755,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
         whenever(
                 combinedShadeHeadersConstraintManager.centerCutoutConstraints(
                     Mockito.anyBoolean(),
-                    anyInt()
+                    anyInt(),
                 )
             )
             .thenReturn(mockConstraintsChanges)
@@ -785,7 +792,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
         whenever(
                 combinedShadeHeadersConstraintManager.centerCutoutConstraints(
                     Mockito.anyBoolean(),
-                    anyInt()
+                    anyInt(),
                 )
             )
             .thenReturn(mockConstraintsChanges)
@@ -896,7 +903,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
         top: Int,
         right: Int,
         bottom: Int,
-        listener: View.OnLayoutChangeListener
+        listener: View.OnLayoutChangeListener,
     ) {
         val oldLeft = this.left
         val oldTop = this.top
@@ -917,7 +924,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
             left,
             top,
             right,
-            bottom
+            bottom,
         )
     }
 
@@ -933,14 +940,14 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
 
     private fun mockInsetsProvider(insets: Pair<Int, Int> = 0 to 0, cornerCutout: Boolean = false) {
         whenever(insetsProvider.getStatusBarContentInsetsForCurrentRotation())
-                .thenReturn(
-                        Insets.of(
-                                /* left= */ insets.first,
-                                /* top= */ 0,
-                                /* right= */ insets.second,
-                                /* bottom= */ 0
-                        )
+            .thenReturn(
+                Insets.of(
+                    /* left= */ insets.first,
+                    /* top= */ 0,
+                    /* right= */ insets.second,
+                    /* bottom= */ 0,
                 )
+            )
         whenever(insetsProvider.currentRotationHasCornerCutout()).thenReturn(cornerCutout)
     }
 
@@ -965,7 +972,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
                     anyInt(),
                     anyInt(),
                     anyInt(),
-                    anyInt()
+                    anyInt(),
                 )
             )
             .thenReturn(EMPTY_CHANGES)
@@ -974,7 +981,7 @@ class ShadeHeaderControllerTest : SysuiTestCase() {
         whenever(
                 combinedShadeHeadersConstraintManager.centerCutoutConstraints(
                     Mockito.anyBoolean(),
-                    anyInt()
+                    anyInt(),
                 )
             )
             .thenReturn(EMPTY_CHANGES)

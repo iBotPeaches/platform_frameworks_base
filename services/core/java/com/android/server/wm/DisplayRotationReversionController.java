@@ -19,14 +19,14 @@ package com.android.server.wm;
 import static android.app.WindowConfiguration.ROTATION_UNDEFINED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 
-import static com.android.internal.protolog.ProtoLogGroup.WM_DEBUG_ORIENTATION;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_ORIENTATION;
 import static com.android.server.policy.WindowManagerPolicy.USER_ROTATION_LOCKED;
 
 import android.annotation.Nullable;
 import android.content.ActivityInfoProto;
 import android.view.Surface;
 
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 
 /**
  * Defines the behavior of reversion from device rotation overrides.
@@ -61,7 +61,7 @@ final class DisplayRotationReversionController {
     }
 
     boolean isRotationReversionEnabled() {
-        return mDisplayContent.mDisplayRotationCompatPolicy != null
+        return mDisplayContent.mAppCompatCameraPolicy.hasDisplayRotationCompatPolicy()
                 || mDisplayContent.getDisplayRotation().mFoldController != null
                 || mDisplayContent.getIgnoreOrientationRequest();
     }

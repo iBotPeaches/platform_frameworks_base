@@ -21,32 +21,35 @@ import android.content.res.ColorStateList
 import android.view.View
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.android.systemui.deviceentry.shared.DeviceEntryUdfpsRefactor
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.keyguard.ui.viewmodel.AlternateBouncerUdfpsIconViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 
 @ExperimentalCoroutinesApi
 object AlternateBouncerUdfpsViewBinder {
 
     /** Updates UI for the UDFPS icon on the alternate bouncer. */
     @JvmStatic
-    fun bind(
-        view: DeviceEntryIconView,
-        viewModel: AlternateBouncerUdfpsIconViewModel,
-    ) {
-        if (DeviceEntryUdfpsRefactor.isUnexpectedlyInLegacyMode()) {
-            return
-        }
+    fun bind(view: DeviceEntryIconView, viewModel: AlternateBouncerUdfpsIconViewModel) {
         val fgIconView = view.iconView
         val bgView = view.bgView
 
         view.repeatWhenAttached {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.accessibilityDelegateHint.collect { hint ->
-                    view.accessibilityHintType = hint
+                view.alpha = 0f
+                launch("$TAG#viewModel.accessibilityDelegateHint") {
+                    viewModel.accessibilityDelegateHint.collect { hint ->
+                        view.accessibilityHintType = hint
+                    }
+                }
+
+                if (SceneContainerFlag.isEnabled) {
+                    view.alpha = 1f
+                } else {
+                    launch("$TAG#viewModel.alpha") { viewModel.alpha.collect { view.alpha = it } }
                 }
             }
         }
@@ -56,7 +59,7 @@ object AlternateBouncerUdfpsViewBinder {
                 viewModel.fgViewModel.collect { fgViewModel ->
                     fgIconView.setImageState(
                         view.getIconState(fgViewModel.type, fgViewModel.useAodVariant),
-                        /* merge */ false
+                        /* merge */ false,
                     )
                     fgIconView.imageTintList = ColorStateList.valueOf(fgViewModel.tint)
                     fgIconView.setPadding(
@@ -72,13 +75,17 @@ object AlternateBouncerUdfpsViewBinder {
         bgView.visibility = View.VISIBLE
         bgView.repeatWhenAttached {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
+                launch("$TAG#viewModel.bgColor") {
                     viewModel.bgColor.collect { color ->
                         bgView.imageTintList = ColorStateList.valueOf(color)
                     }
                 }
-                launch { viewModel.bgAlpha.collect { alpha -> bgView.alpha = alpha } }
+                launch("$TAG#viewModel.bgAlpha") {
+                    viewModel.bgAlpha.collect { alpha -> bgView.alpha = alpha }
+                }
             }
         }
     }
+
+    private const val TAG = "AlternateBouncerUdfpsViewBinder"
 }

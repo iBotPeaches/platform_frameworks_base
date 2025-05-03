@@ -547,13 +547,14 @@ public class AudioSystemAdapter implements AudioSystem.RoutingUpdateCallback,
      * @param device
      * @return
      */
-    public int setStreamVolumeIndexAS(int stream, int index, int device) {
-        return AudioSystem.setStreamVolumeIndexAS(stream, index, device);
+    public int setStreamVolumeIndexAS(int stream, int index, boolean muted, int device) {
+        return AudioSystem.setStreamVolumeIndexAS(stream, index, muted, device);
     }
 
     /** Same as {@link AudioSystem#setVolumeIndexForAttributes(AudioAttributes, int, int)} */
-    public int setVolumeIndexForAttributes(AudioAttributes attributes, int index, int device) {
-        return AudioSystem.setVolumeIndexForAttributes(attributes, index, device);
+    public int setVolumeIndexForAttributes(AudioAttributes attributes, int index, boolean muted,
+            int device) {
+        return AudioSystem.setVolumeIndexForAttributes(attributes, index, muted, device);
     }
 
     /**
@@ -595,6 +596,21 @@ public class AudioSystemAdapter implements AudioSystem.RoutingUpdateCallback,
      */
     public int getForceUse(int usage) {
         return AudioSystem.getForceUse(usage);
+    }
+
+    /**
+     * Same as {@link AudioSystem#setDeviceAbsoluteVolumeEnabled(int, String, boolean, int)}
+     * @param nativeDeviceType the internal device type for which absolute volume is
+     *                         enabled/disabled
+     * @param address the address of the device for which absolute volume is enabled/disabled
+     * @param enabled whether the absolute volume is enabled/disabled
+     * @param streamToDriveAbs the stream that is controlling the absolute volume
+     * @return status of indicating the success of this operation
+     */
+    public int setDeviceAbsoluteVolumeEnabled(int nativeDeviceType, @NonNull String address,
+            boolean enabled, int streamToDriveAbs) {
+        return AudioSystem.setDeviceAbsoluteVolumeEnabled(nativeDeviceType, address, enabled,
+                streamToDriveAbs);
     }
 
     /**
@@ -731,6 +747,14 @@ public class AudioSystemAdapter implements AudioSystem.RoutingUpdateCallback,
      */
     public int setMasterMute(boolean mute) {
         return AudioSystem.setMasterMute(mute);
+    }
+
+    public long listenForSystemPropertyChange(String systemPropertyName, Runnable callback) {
+        return AudioSystem.listenForSystemPropertyChange(systemPropertyName, callback);
+    }
+
+    public void triggerSystemPropertyUpdate(long handle) {
+        AudioSystem.triggerSystemPropertyUpdate(handle);
     }
 
     /**

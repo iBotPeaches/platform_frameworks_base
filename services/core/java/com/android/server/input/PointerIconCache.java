@@ -16,18 +16,26 @@
 
 package com.android.server.input;
 
+import static android.view.PointerIcon.DEFAULT_POINTER_SCALE;
+import static android.view.PointerIcon.POINTER_ICON_VECTOR_STYLE_FILL_BLACK;
+import static android.view.PointerIcon.POINTER_ICON_VECTOR_STYLE_STROKE_WHITE;
+
 import android.annotation.NonNull;
 import android.content.Context;
+import android.content.res.Resources;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.util.Slog;
 import android.util.SparseArray;
+import android.util.SparseDoubleArray;
 import android.util.SparseIntArray;
+import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.DisplayInfo;
 import android.view.PointerIcon;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.UiThread;
 
 import java.util.Objects;
@@ -45,7 +53,7 @@ final class PointerIconCache {
     private final NativeInputManagerService mNative;
 
     // We use the UI thread for loading pointer icons.
-    private final Handler mUiThreadHandler = UiThread.getHandler();
+    private final Handler mUiThreadHandler;
 
     @GuardedBy("mLoadedPointerIconsByDisplayAndType")
     private final SparseArray<SparseArray<PointerIcon>> mLoadedPointerIconsByDisplayAndType =
@@ -56,6 +64,17 @@ final class PointerIconCache {
     private final SparseArray<Context> mDisplayContexts = new SparseArray<>();
     @GuardedBy("mLoadedPointerIconsByDisplayAndType")
     private final SparseIntArray mDisplayDensities = new SparseIntArray();
+    @GuardedBy("mLoadedPointerIconsByDisplayAndType")
+    private @PointerIcon.PointerIconVectorStyleFill int mPointerIconFillStyle =
+            POINTER_ICON_VECTOR_STYLE_FILL_BLACK;
+    @GuardedBy("mLoadedPointerIconsByDisplayAndType")
+    private @PointerIcon.PointerIconVectorStyleStroke int mPointerIconStrokeStyle =
+            POINTER_ICON_VECTOR_STYLE_STROKE_WHITE;
+    @GuardedBy("mLoadedPointerIconsByDisplayAndType")
+    private float mPointerIconScale = DEFAULT_POINTER_SCALE;
+    // Note that android doesn't have SparseFloatArray, so this falls back to use double instead.
+    @GuardedBy("mLoadedPointerIconsByDisplayAndType")
+    private final SparseDoubleArray mAccessibilityScaleFactorPerDisplay = new SparseDoubleArray();
 
     private final DisplayManager.DisplayListener mDisplayListener =
             new DisplayManager.DisplayListener() {
@@ -72,6 +91,7 @@ final class PointerIconCache {
                         mLoadedPointerIconsByDisplayAndType.remove(displayId);
                         mDisplayContexts.remove(displayId);
                         mDisplayDensities.delete(displayId);
+                        mAccessibilityScaleFactorPerDisplay.delete(displayId);
                     }
                 }
 
@@ -82,8 +102,15 @@ final class PointerIconCache {
             };
 
     /* package */ PointerIconCache(Context context, NativeInputManagerService nativeService) {
+        this(context, nativeService, UiThread.getHandler());
+    }
+
+    @VisibleForTesting
+    /* package */ PointerIconCache(Context context, NativeInputManagerService nativeService,
+            Handler handler) {
         mContext = context;
         mNative = nativeService;
+        mUiThreadHandler = handler;
     }
 
     public void systemRunning() {
@@ -105,6 +132,26 @@ final class PointerIconCache {
         mUiThreadHandler.post(() -> handleSetUseLargePointerIcons(useLargeIcons));
     }
 
+    /** Set the fill style for vector pointer icons. */
+    public void setPointerFillStyle(@PointerIcon.PointerIconVectorStyleFill int fillStyle) {
+        mUiThreadHandler.post(() -> handleSetPointerFillStyle(fillStyle));
+    }
+
+    /** Set the stroke style for vector pointer icons. */
+    public void setPointerStrokeStyle(@PointerIcon.PointerIconVectorStyleStroke int strokeStyle) {
+        mUiThreadHandler.post(() -> handleSetPointerStrokeStyle(strokeStyle));
+    }
+
+    /** Set the scale for vector pointer icons. */
+    public void setPointerScale(float scale) {
+        mUiThreadHandler.post(() -> handleSetPointerScale(scale));
+    }
+
+    /** Set the scale for accessibility (magnification) for vector pointer icons. */
+    public void setAccessibilityScaleFactor(int displayId, float scaleFactor) {
+        mUiThreadHandler.post(() -> handleAccessibilityScaleFactor(displayId, scaleFactor));
+    }
+
     /**
      * Get a loaded system pointer icon. This will fetch the icon from the cache, or load it if
      * it isn't already cached.
@@ -119,8 +166,17 @@ final class PointerIconCache {
             }
             PointerIcon icon = iconsByType.get(type);
             if (icon == null) {
-                icon = PointerIcon.getLoadedSystemIcon(getContextForDisplayLocked(displayId), type,
-                        mUseLargePointerIcons);
+                Context context = getContextForDisplayLocked(displayId);
+                Resources.Theme theme = context.getResources().newTheme();
+                theme.setTo(context.getTheme());
+                theme.applyStyle(PointerIcon.vectorFillStyleToResource(mPointerIconFillStyle),
+                        /* force= */ true);
+                theme.applyStyle(PointerIcon.vectorStrokeStyleToResource(mPointerIconStrokeStyle),
+                        /* force= */ true);
+                final float scale = mPointerIconScale
+                        * (float) mAccessibilityScaleFactorPerDisplay.get(displayId, 1f);
+                icon = PointerIcon.getLoadedSystemIcon(new ContextThemeWrapper(context, theme),
+                        type, mUseLargePointerIcons, scale);
                 iconsByType.put(type, icon);
             }
             return Objects.requireNonNull(icon);
@@ -181,6 +237,59 @@ final class PointerIconCache {
             mUseLargePointerIcons = useLargeIcons;
             // Clear all cached icons on all displays.
             mLoadedPointerIconsByDisplayAndType.clear();
+        }
+        mNative.reloadPointerIcons();
+    }
+
+    @android.annotation.UiThread
+    private void handleSetPointerFillStyle(@PointerIcon.PointerIconVectorStyleFill int fillStyle) {
+        synchronized (mLoadedPointerIconsByDisplayAndType) {
+            if (mPointerIconFillStyle == fillStyle) {
+                return;
+            }
+            mPointerIconFillStyle = fillStyle;
+            // Clear all cached icons on all displays.
+            mLoadedPointerIconsByDisplayAndType.clear();
+        }
+        mNative.reloadPointerIcons();
+    }
+
+    @android.annotation.UiThread
+    private void handleSetPointerStrokeStyle(
+            @PointerIcon.PointerIconVectorStyleStroke int strokeStyle) {
+        synchronized (mLoadedPointerIconsByDisplayAndType) {
+            if (mPointerIconStrokeStyle == strokeStyle) {
+                return;
+            }
+            mPointerIconStrokeStyle = strokeStyle;
+            // Clear all cached icons on all displays.
+            mLoadedPointerIconsByDisplayAndType.clear();
+        }
+        mNative.reloadPointerIcons();
+    }
+
+    @android.annotation.UiThread
+    private void handleSetPointerScale(float scale) {
+        synchronized (mLoadedPointerIconsByDisplayAndType) {
+            if (mPointerIconScale == scale) {
+                return;
+            }
+            mPointerIconScale = scale;
+            // Clear all cached icons on all displays.
+            mLoadedPointerIconsByDisplayAndType.clear();
+        }
+        mNative.reloadPointerIcons();
+    }
+
+    @android.annotation.UiThread
+    private void handleAccessibilityScaleFactor(int displayId, float scale) {
+        synchronized (mLoadedPointerIconsByDisplayAndType) {
+            if (mAccessibilityScaleFactorPerDisplay.get(displayId, 1f) == scale) {
+                return;
+            }
+            mAccessibilityScaleFactorPerDisplay.put(displayId, scale);
+            // Clear cached icons on the display.
+            mLoadedPointerIconsByDisplayAndType.remove(displayId);
         }
         mNative.reloadPointerIcons();
     }

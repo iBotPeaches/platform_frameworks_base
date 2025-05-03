@@ -111,6 +111,10 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC_INTERNAL" />
     <uses-permission android:name="android.permission.MANAGE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.MANAGE_ROLE_HOLDERS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.CREATE_VIRTUAL_DEVICE" />
+    <uses-permission android:name="android.permission.MANAGE_KEY_GESTURES" />
 
     <queries>
         <package android:name="com.android.servicestests.apps.suspendtestapp" />

@@ -18,6 +18,7 @@ package com.android.wm.shell.transition;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.os.Trace.TRACE_TAG_WINDOW_MANAGER;
 import static android.view.WindowManager.TRANSIT_CHANGE;
 import static android.view.WindowManager.TRANSIT_CLOSE;
 import static android.view.WindowManager.TRANSIT_FIRST_CUSTOM;
@@ -28,58 +29,72 @@ import static android.view.WindowManager.TRANSIT_SLEEP;
 import static android.view.WindowManager.TRANSIT_TO_BACK;
 import static android.view.WindowManager.TRANSIT_TO_FRONT;
 import static android.view.WindowManager.fixScale;
+import static android.window.TransitionInfo.FLAGS_IS_NON_APP_WINDOW;
 import static android.window.TransitionInfo.FLAG_BACK_GESTURE_ANIMATED;
+import static android.window.TransitionInfo.FLAG_IN_TASK_WITH_EMBEDDED_ACTIVITY;
 import static android.window.TransitionInfo.FLAG_IS_BEHIND_STARTING_WINDOW;
 import static android.window.TransitionInfo.FLAG_IS_OCCLUDED;
-import static android.window.TransitionInfo.FLAG_MOVED_TO_TOP;
+import static android.window.TransitionInfo.FLAG_IS_WALLPAPER;
 import static android.window.TransitionInfo.FLAG_NO_ANIMATION;
 import static android.window.TransitionInfo.FLAG_STARTING_WINDOW_TRANSFER_RECIPIENT;
 
-import static com.android.wm.shell.common.ExecutorUtils.executeRemoteCallWithTaskPermission;
+import static com.android.systemui.shared.Flags.returnAnimationFrameworkLongLived;
+import static com.android.window.flags.Flags.ensureWallpaperInTransitions;
+import static com.android.window.flags.Flags.migratePredictiveBackTransition;
 import static com.android.wm.shell.shared.TransitionUtil.isClosingType;
 import static com.android.wm.shell.shared.TransitionUtil.isOpeningType;
-import static com.android.wm.shell.sysui.ShellSharedConstants.KEY_EXTRA_SHELL_SHELL_TRANSITIONS;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityTaskManager;
+import android.app.AppGlobals;
 import android.app.IApplicationThread;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.SystemProperties;
+import android.os.Trace;
 import android.provider.Settings;
+import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Pair;
 import android.view.SurfaceControl;
 import android.view.WindowManager;
 import android.window.ITransitionPlayer;
 import android.window.RemoteTransition;
+import android.window.TaskFragmentOrganizer;
 import android.window.TransitionFilter;
 import android.window.TransitionInfo;
 import android.window.TransitionMetrics;
 import android.window.TransitionRequestInfo;
+import android.window.WindowAnimationState;
 import android.window.WindowContainerTransaction;
 
 import androidx.annotation.BinderThread;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.ExternalInterfaceBinder;
 import com.android.wm.shell.common.RemoteCallable;
 import com.android.wm.shell.common.ShellExecutor;
-import com.android.wm.shell.common.TransactionPool;
-import com.android.wm.shell.common.annotations.ExternalThread;
 import com.android.wm.shell.keyguard.KeyguardTransitionHandler;
 import com.android.wm.shell.protolog.ShellProtoLogGroup;
+import com.android.wm.shell.shared.FocusTransitionListener;
+import com.android.wm.shell.shared.IFocusTransitionListener;
+import com.android.wm.shell.shared.IHomeTransitionListener;
+import com.android.wm.shell.shared.IShellTransitions;
+import com.android.wm.shell.shared.ShellTransitions;
+import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.shared.TransitionUtil;
+import com.android.wm.shell.shared.annotations.ExternalThread;
 import com.android.wm.shell.sysui.ShellCommandHandler;
 import com.android.wm.shell.sysui.ShellController;
 import com.android.wm.shell.sysui.ShellInit;
@@ -90,6 +105,7 @@ import com.android.wm.shell.transition.tracing.TransitionTracer;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.Executor;
 
 /**
  * Plays transition animations. Within this player, each transition has a lifecycle.
@@ -121,8 +137,7 @@ public class Transitions implements RemoteCallable<Transitions>,
     static final String TAG = "ShellTransitions";
 
     /** Set to {@code true} to enable shell transitions. */
-    public static final boolean ENABLE_SHELL_TRANSITIONS =
-            SystemProperties.getBoolean("persist.wm.debug.shell_transit", true);
+    public static final boolean ENABLE_SHELL_TRANSITIONS = getShellTransitEnabled();
     public static final boolean SHELL_TRANSITIONS_ROTATION = ENABLE_SHELL_TRANSITIONS
             && SystemProperties.getBoolean("persist.wm.debug.shell_transit_rotate", false);
 
@@ -160,9 +175,6 @@ public class Transitions implements RemoteCallable<Transitions>,
     public static final int TRANSIT_DESKTOP_MODE_END_DRAG_TO_DESKTOP =
             WindowManager.TRANSIT_FIRST_CUSTOM + 11;
 
-    /** Transition type to fullscreen from desktop mode. */
-    public static final int TRANSIT_EXIT_DESKTOP_MODE = WindowManager.TRANSIT_FIRST_CUSTOM + 12;
-
     /** Transition type to cancel the drag to desktop mode. */
     public static final int TRANSIT_DESKTOP_MODE_CANCEL_DRAG_TO_DESKTOP =
             WindowManager.TRANSIT_FIRST_CUSTOM + 13;
@@ -171,11 +183,34 @@ public class Transitions implements RemoteCallable<Transitions>,
     public static final int TRANSIT_DESKTOP_MODE_TOGGLE_RESIZE =
             WindowManager.TRANSIT_FIRST_CUSTOM + 14;
 
-    /** Transition to animate task to desktop. */
-    public static final int TRANSIT_MOVE_TO_DESKTOP = WindowManager.TRANSIT_FIRST_CUSTOM + 15;
-
     /** Transition to resize PiP task. */
     public static final int TRANSIT_RESIZE_PIP = TRANSIT_FIRST_CUSTOM + 16;
+
+    /**
+     * The task fragment drag resize transition used by activity embedding.
+     */
+    public static final int TRANSIT_TASK_FRAGMENT_DRAG_RESIZE =
+            // TRANSIT_FIRST_CUSTOM + 17
+            TaskFragmentOrganizer.TASK_FRAGMENT_TRANSIT_DRAG_RESIZE;
+
+    /** Remote Transition that split accepts but ultimately needs to be animated by the remote. */
+    public static final int TRANSIT_SPLIT_PASSTHROUGH = TRANSIT_FIRST_CUSTOM + 18;
+
+    /** Transition to set windowing mode after exit pip transition is finished animating. */
+    public static final int TRANSIT_CLEANUP_PIP_EXIT = WindowManager.TRANSIT_FIRST_CUSTOM + 19;
+
+    /** Transition type to minimize a task. */
+    public static final int TRANSIT_MINIMIZE = WindowManager.TRANSIT_FIRST_CUSTOM + 20;
+
+    /** Transition to start the recents transition */
+    public static final int TRANSIT_START_RECENTS_TRANSITION = TRANSIT_FIRST_CUSTOM + 21;
+
+    /** Transition to end the recents transition */
+    public static final int TRANSIT_END_RECENTS_TRANSITION = TRANSIT_FIRST_CUSTOM + 22;
+
+    /** Transition type for desktop mode transitions. */
+    public static final int TRANSIT_DESKTOP_MODE_TYPES =
+            WindowManager.TRANSIT_FIRST_CUSTOM + 100;
 
     private final ShellTaskOrganizer mOrganizer;
     private final Context mContext;
@@ -198,6 +233,7 @@ public class Transitions implements RemoteCallable<Transitions>,
     private final ArrayList<TransitionObserver> mObservers = new ArrayList<>();
 
     private HomeTransitionObserver mHomeTransitionObserver;
+    private FocusTransitionObserver mFocusTransitionObserver;
 
     /** List of {@link Runnable} instances to run when the last active transition has finished.  */
     private final ArrayList<Runnable> mRunWhenIdleQueue = new ArrayList<>();
@@ -216,7 +252,8 @@ public class Transitions implements RemoteCallable<Transitions>,
     private boolean mDisableForceSync = false;
 
     private static final class ActiveTransition {
-        IBinder mToken;
+        final IBinder mToken;
+
         TransitionHandler mHandler;
         boolean mAborted;
         TransitionInfo mInfo;
@@ -225,6 +262,10 @@ public class Transitions implements RemoteCallable<Transitions>,
 
         /** Ordered list of transitions which have been merged into this one. */
         private ArrayList<ActiveTransition> mMerged;
+
+        ActiveTransition(IBinder token) {
+            mToken = token;
+        }
 
         boolean isSync() {
             return (mInfo.getFlags() & TransitionInfo.FLAG_SYNC) != 0;
@@ -255,6 +296,9 @@ public class Transitions implements RemoteCallable<Transitions>,
         }
     }
 
+    /** All transitions that we have created, but not yet finished. */
+    private final ArrayMap<IBinder, ActiveTransition> mKnownTransitions = new ArrayMap<>();
+
     /** Keeps track of transitions which have been started, but aren't ready yet. */
     private final ArrayList<ActiveTransition> mPendingTransitions = new ArrayList<>();
 
@@ -275,10 +319,12 @@ public class Transitions implements RemoteCallable<Transitions>,
             @NonNull ShellExecutor mainExecutor,
             @NonNull Handler mainHandler,
             @NonNull ShellExecutor animExecutor,
-            @NonNull HomeTransitionObserver observer) {
+            @NonNull HomeTransitionObserver homeTransitionObserver,
+            @NonNull FocusTransitionObserver focusTransitionObserver) {
         this(context, shellInit, new ShellCommandHandler(), shellController, organizer, pool,
                 displayController, mainExecutor, mainHandler, animExecutor,
-                new RootTaskDisplayAreaOrganizer(mainExecutor, context, shellInit), observer);
+                new RootTaskDisplayAreaOrganizer(mainExecutor, context, shellInit),
+                homeTransitionObserver, focusTransitionObserver);
     }
 
     public Transitions(@NonNull Context context,
@@ -292,7 +338,8 @@ public class Transitions implements RemoteCallable<Transitions>,
             @NonNull Handler mainHandler,
             @NonNull ShellExecutor animExecutor,
             @NonNull RootTaskDisplayAreaOrganizer rootTDAOrganizer,
-            @NonNull HomeTransitionObserver observer) {
+            @NonNull HomeTransitionObserver homeTransitionObserver,
+            @NonNull FocusTransitionObserver focusTransitionObserver) {
         mOrganizer = organizer;
         mContext = context;
         mMainExecutor = mainExecutor;
@@ -311,7 +358,8 @@ public class Transitions implements RemoteCallable<Transitions>,
         mHandlers.add(mRemoteTransitionHandler);
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "addHandler: Remote");
         shellInit.addInitCallback(this::onInit, this);
-        mHomeTransitionObserver = observer;
+        mHomeTransitionObserver = homeTransitionObserver;
+        mFocusTransitionObserver = focusTransitionObserver;
 
         if (android.tracing.Flags.perfettoTransitionTracing()) {
             mTransitionTracer = new PerfettoTransitionTracer();
@@ -324,7 +372,7 @@ public class Transitions implements RemoteCallable<Transitions>,
         if (Transitions.ENABLE_SHELL_TRANSITIONS) {
             mOrganizer.shareTransactionQueue();
         }
-        mShellController.addExternalInterface(KEY_EXTRA_SHELL_SHELL_TRANSITIONS,
+        mShellController.addExternalInterface(IShellTransitions.DESCRIPTOR,
                 this::createExternalInterface, this);
 
         ContentResolver resolver = mContext.getContentResolver();
@@ -416,10 +464,22 @@ public class Transitions implements RemoteCallable<Transitions>,
         mHandlers.set(0, handler);
     }
 
-    /** Register a remote transition to be used when `filter` matches an incoming transition */
+    /**
+     * Register a remote transition to be used for all operations except takeovers when `filter`
+     * matches an incoming transition.
+     */
     public void registerRemote(@NonNull TransitionFilter filter,
             @NonNull RemoteTransition remoteTransition) {
         mRemoteTransitionHandler.addFiltered(filter, remoteTransition);
+    }
+
+    /**
+     * Register a remote transition to be used for all operations except takeovers when `filter`
+     * matches an incoming transition.
+     */
+    public void registerRemoteForTakeover(@NonNull TransitionFilter filter,
+            @NonNull RemoteTransition remoteTransition) {
+        mRemoteTransitionHandler.addFilteredForTakeover(filter, remoteTransition);
     }
 
     /** Unregisters a remote transition and all associated filters */
@@ -481,12 +541,17 @@ public class Transitions implements RemoteCallable<Transitions>,
         boolean isOpening = isOpeningType(info.getType());
         for (int i = info.getChanges().size() - 1; i >= 0; --i) {
             final TransitionInfo.Change change = info.getChanges().get(i);
-            if (change.hasFlags(TransitionInfo.FLAGS_IS_NON_APP_WINDOW)) {
+            if (change.hasFlags(FLAGS_IS_NON_APP_WINDOW & ~FLAG_IS_WALLPAPER)) {
                 // Currently system windows are controlled by WindowState, so don't change their
                 // surfaces. Otherwise their surfaces could be hidden or cropped unexpectedly.
-                // This includes Wallpaper (always z-ordered at bottom) and IME (associated with
-                // app), because there may not be a transition associated with their visibility
-                // changes, and currently they don't need transition animation.
+                // This includes IME (associated with app), because there may not be a transition
+                // associated with their visibility changes, and currently they don't need a
+                // transition animation.
+                continue;
+            }
+            if (change.hasFlags(FLAG_IS_WALLPAPER) && !ensureWallpaperInTransitions()) {
+                // Wallpaper is always z-ordered at bottom, and historically is not animated by
+                // transition handlers.
                 continue;
             }
             final SurfaceControl leash = change.getLeash();
@@ -495,6 +560,7 @@ public class Transitions implements RemoteCallable<Transitions>,
             if (mode == TRANSIT_TO_FRONT) {
                 // When the window is moved to front, make sure the crop is updated to prevent it
                 // from using the old crop.
+                t.setPosition(leash, change.getEndRelOffset().x, change.getEndRelOffset().y);
                 t.setWindowCrop(leash, change.getEndAbsBounds().width(),
                         change.getEndAbsBounds().height());
             }
@@ -506,6 +572,8 @@ public class Transitions implements RemoteCallable<Transitions>,
                     t.setMatrix(leash, 1, 0, 0, 1);
                     t.setAlpha(leash, 1.f);
                     t.setPosition(leash, change.getEndRelOffset().x, change.getEndRelOffset().y);
+                    t.setWindowCrop(leash, change.getEndAbsBounds().width(),
+                            change.getEndAbsBounds().height());
                 }
                 continue;
             }
@@ -538,15 +606,15 @@ public class Transitions implements RemoteCallable<Transitions>,
         final int mode = change.getMode();
         // Put all the OPEN/SHOW on top
         if (mode == TRANSIT_OPEN || mode == TRANSIT_TO_FRONT) {
-            if (isOpening
-                    // This is for when an activity launches while a different transition is
-                    // collecting.
-                    || change.hasFlags(FLAG_MOVED_TO_TOP)) {
+            if (isOpening) {
                 // put on top
                 return zSplitLine + numChanges - i;
-            } else {
+            } else if (isClosing) {
                 // put on bottom
                 return zSplitLine - i;
+            } else {
+                // maintain relative ordering (put all changes in the animating layer)
+                return zSplitLine + numChanges - i;
             }
         } else if (mode == TRANSIT_CLOSE || mode == TRANSIT_TO_BACK) {
             if (isOpening) {
@@ -629,8 +697,10 @@ public class Transitions implements RemoteCallable<Transitions>,
             }
             if (change.hasFlags(FLAG_NO_ANIMATION)) {
                 hasNoAnimation = true;
-            } else {
-                // at-least one relevant participant *is* animated, so we need to animate.
+            } else if (!TransitionUtil.isOrderOnly(change) && !change.hasFlags(FLAG_IS_OCCLUDED)) {
+                // Ignore the order only or occluded changes since they shouldn't be visible during
+                // animation. For anything else, we need to animate if at-least one relevant
+                // participant *is* animated,
                 return false;
             }
         }
@@ -659,15 +729,19 @@ public class Transitions implements RemoteCallable<Transitions>,
             @NonNull SurfaceControl.Transaction t, @NonNull SurfaceControl.Transaction finishT) {
         info.setUnreleasedWarningCallSiteForAllSurfaces("Transitions.onTransitionReady");
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "onTransitionReady (#%d) %s: %s",
-                info.getDebugId(), transitionToken, info);
+                info.getDebugId(), transitionToken, info.toString("    " /* prefix */));
         int activeIdx = findByToken(mPendingTransitions, transitionToken);
         if (activeIdx < 0) {
-            final ActiveTransition existing = getKnownTransition(transitionToken);
+            final ActiveTransition existing = mKnownTransitions.get(transitionToken);
             if (existing != null) {
                 Log.e(TAG, "Got duplicate transitionReady for " + transitionToken);
                 // The transition is already somewhere else in the pipeline, so just return here.
                 t.apply();
-                existing.mFinishT.merge(finishT);
+                if (existing.mFinishT != null) {
+                    existing.mFinishT.merge(finishT);
+                } else {
+                    existing.mFinishT = finishT;
+                }
                 return;
             }
             // This usually means the system is in a bad state and may not recover; however,
@@ -677,8 +751,8 @@ public class Transitions implements RemoteCallable<Transitions>,
                     + transitionToken + ". expecting one of "
                     + Arrays.toString(mPendingTransitions.stream().map(
                             activeTransition -> activeTransition.mToken).toArray()));
-            final ActiveTransition fallback = new ActiveTransition();
-            fallback.mToken = transitionToken;
+            final ActiveTransition fallback = new ActiveTransition(transitionToken);
+            mKnownTransitions.put(transitionToken, fallback);
             mPendingTransitions.add(fallback);
             activeIdx = mPendingTransitions.size() - 1;
         }
@@ -718,7 +792,7 @@ public class Transitions implements RemoteCallable<Transitions>,
                 // Sleep starts a process of forcing all prior transitions to finish immediately
                 ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS,
                         "Start finish-for-sync track %d", i);
-                finishForSync(active, i, null /* forceFinish */);
+                finishForSync(active.mToken, i, null /* forceFinish */);
             }
             if (hadPreceding) {
                 return false;
@@ -732,8 +806,17 @@ public class Transitions implements RemoteCallable<Transitions>,
         track.mReadyTransitions.add(active);
 
         for (int i = 0; i < mObservers.size(); ++i) {
+            final boolean useTrace = Trace.isTagEnabled(TRACE_TAG_WINDOW_MANAGER);
+            if (useTrace) {
+                Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER,
+                        mObservers.get(i).getClass().getSimpleName() + "#onTransitionReady: "
+                                + transitTypeToString(info.getType()));
+            }
             mObservers.get(i).onTransitionReady(
                     active.mToken, info, active.mStartT, active.mFinishT);
+            if (useTrace) {
+                Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
+            }
         }
 
         /*
@@ -752,14 +835,16 @@ public class Transitions implements RemoteCallable<Transitions>,
         final int changeSize = info.getChanges().size();
         boolean taskChange = false;
         boolean transferStartingWindow = false;
-        int noAnimationBehindStartingWindow = 0;
+        int animBehindStartingWindow = 0;
         boolean allOccluded = changeSize > 0;
         for (int i = changeSize - 1; i >= 0; --i) {
             final TransitionInfo.Change change = info.getChanges().get(i);
             taskChange |= change.getTaskInfo() != null;
             transferStartingWindow |= change.hasFlags(FLAG_STARTING_WINDOW_TRANSFER_RECIPIENT);
-            if (change.hasAllFlags(FLAG_IS_BEHIND_STARTING_WINDOW | FLAG_NO_ANIMATION)) {
-                noAnimationBehindStartingWindow++;
+            if (change.hasAllFlags(FLAG_IS_BEHIND_STARTING_WINDOW | FLAG_NO_ANIMATION)
+                    || change.hasAllFlags(
+                            FLAG_IS_BEHIND_STARTING_WINDOW | FLAG_IN_TASK_WITH_EMBEDDED_ACTIVITY)) {
+                animBehindStartingWindow++;
             }
             if (!change.hasFlags(FLAG_IS_OCCLUDED)) {
                 allOccluded = false;
@@ -770,18 +855,19 @@ public class Transitions implements RemoteCallable<Transitions>,
             }
             // The change has already animated by back gesture, don't need to play transition
             // animation on it.
-            if (change.hasFlags(FLAG_BACK_GESTURE_ANIMATED)) {
+            if (!migratePredictiveBackTransition()
+                    && change.hasFlags(FLAG_BACK_GESTURE_ANIMATED)) {
                 info.getChanges().remove(i);
             }
         }
         // There does not need animation when:
         // A. Transfer starting window. Apply transfer starting window directly if there is no other
         // task change. Since this is an activity->activity situation, we can detect it by selecting
-        // transitions with only 2 changes where
-        // 1. neither are tasks, and
+        // transitions with changes where
+        // 1. none are tasks, and
         // 2. one is a starting-window recipient, or all change is behind starting window.
-        if (!taskChange && (transferStartingWindow || noAnimationBehindStartingWindow == changeSize)
-                && changeSize == 2
+        if (!taskChange && (transferStartingWindow || animBehindStartingWindow == changeSize)
+                && changeSize >= 1
                 // B. It's visibility change if the TRANSIT_TO_BACK/TO_FRONT happened when all
                 // changes are underneath another change.
                 || ((info.getType() == TRANSIT_TO_BACK || info.getType() == TRANSIT_TO_FRONT)
@@ -836,6 +922,7 @@ public class Transitions implements RemoteCallable<Transitions>,
                     } else if (mPendingTransitions.isEmpty()) {
                         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "All active transition "
                                 + "animations finished");
+                        mKnownTransitions.clear();
                         // Run all runnables from the run-when-idle queue.
                         for (int i = 0; i < mRunWhenIdleQueue.size(); i++) {
                             mRunWhenIdleQueue.get(i).run();
@@ -856,19 +943,22 @@ public class Transitions implements RemoteCallable<Transitions>,
                     ready.mStartT.apply();
                 }
                 // finish now since there's nothing to animate. Calls back into processReadyQueue
-                onFinish(ready, null);
+                onFinish(ready.mToken, null);
                 return;
             }
-            playTransition(ready);
+            playTransitionWithTracing(ready);
             // Attempt to merge any more queued-up transitions.
             processReadyQueue(track);
             return;
         }
         // An existing animation is playing, so see if we can merge.
         final ActiveTransition playing = track.mActiveTransition;
+        final IBinder playingToken = playing.mToken;
+        final IBinder readyToken = ready.mToken;
+
         if (ready.mAborted) {
             // record as merged since it is no-op. Calls back into processReadyQueue
-            onMerged(playing, ready);
+            onMerged(playingToken, readyToken);
             return;
         }
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "Transition %s ready while"
@@ -876,14 +966,29 @@ public class Transitions implements RemoteCallable<Transitions>,
                 + " in case they can be merged", ready, playing);
         mTransitionTracer.logMergeRequested(ready.mInfo.getDebugId(), playing.mInfo.getDebugId());
         playing.mHandler.mergeAnimation(ready.mToken, ready.mInfo, ready.mStartT,
-                playing.mToken, (wct) -> onMerged(playing, ready));
+                playing.mToken, (wct) -> onMerged(playingToken, readyToken));
     }
 
-    private void onMerged(@NonNull ActiveTransition playing, @NonNull ActiveTransition merged) {
+    private void onMerged(@NonNull IBinder playingToken, @NonNull IBinder mergedToken) {
+        mMainExecutor.assertCurrentThread();
+
+        ActiveTransition playing = mKnownTransitions.get(playingToken);
+        if (playing == null) {
+            Log.e(TAG, "Merging into a non-existent transition: " + playingToken);
+            return;
+        }
+
+        ActiveTransition merged = mKnownTransitions.get(mergedToken);
+        if (merged == null) {
+            Log.e(TAG, "Merging a non-existent transition: " + mergedToken);
+            return;
+        }
+
         if (playing.getTrack() != merged.getTrack()) {
             throw new IllegalStateException("Can't merge across tracks: " + merged + " into "
                     + playing);
         }
+
         final Track track = mTracks.get(playing.getTrack());
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "Transition was merged: %s into %s",
                 merged, playing);
@@ -913,10 +1018,24 @@ public class Transitions implements RemoteCallable<Transitions>,
         processReadyQueue(track);
     }
 
+    private void playTransitionWithTracing(@NonNull ActiveTransition active) {
+        final boolean useTrace = Trace.isTagEnabled(TRACE_TAG_WINDOW_MANAGER);
+        if (useTrace) {
+            Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER,
+                    "playTransition: " + transitTypeToString(active.mInfo.getType()));
+        }
+        playTransition(active);
+        if (useTrace) {
+            Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
+        }
+    }
+
     private void playTransition(@NonNull ActiveTransition active) {
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "Playing animation for %s", active);
+        final var token = active.mToken;
+
         for (int i = 0; i < mObservers.size(); ++i) {
-            mObservers.get(i).onTransitionStarting(active.mToken);
+            mObservers.get(i).onTransitionStarting(token);
         }
 
         setupAnimHierarchy(active.mInfo, active.mStartT, active.mFinishT);
@@ -925,41 +1044,80 @@ public class Transitions implements RemoteCallable<Transitions>,
         if (active.mHandler != null) {
             ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, " try firstHandler %s",
                     active.mHandler);
-            boolean consumed = active.mHandler.startAnimation(active.mToken, active.mInfo,
-                    active.mStartT, active.mFinishT, (wct) -> onFinish(active, wct));
+            boolean consumed = active.mHandler.startAnimation(token, active.mInfo,
+                    active.mStartT, active.mFinishT, (wct) -> onFinish(token, wct));
             if (consumed) {
                 ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, " animated by firstHandler");
                 mTransitionTracer.logDispatched(active.mInfo.getDebugId(), active.mHandler);
+                if (Trace.isTagEnabled(TRACE_TAG_WINDOW_MANAGER)) {
+                    Trace.instant(TRACE_TAG_WINDOW_MANAGER,
+                            active.mHandler.getClass().getSimpleName()
+                                    + "#startAnimation animated "
+                                    + transitTypeToString(active.mInfo.getType()));
+                }
                 return;
             }
         }
         // Otherwise give every other handler a chance
-        active.mHandler = dispatchTransition(active.mToken, active.mInfo, active.mStartT,
-                active.mFinishT, (wct) -> onFinish(active, wct), active.mHandler);
+        active.mHandler = dispatchTransition(token, active.mInfo, active.mStartT,
+                active.mFinishT, (wct) -> onFinish(token, wct), active.mHandler);
     }
 
     /**
      * Gives every handler (in order) a chance to animate until one consumes the transition.
      * @return the handler which consumed the transition.
      */
-    TransitionHandler dispatchTransition(@NonNull IBinder transition, @NonNull TransitionInfo info,
-            @NonNull SurfaceControl.Transaction startT, @NonNull SurfaceControl.Transaction finishT,
-            @NonNull TransitionFinishCallback finishCB, @Nullable TransitionHandler skip) {
+    public TransitionHandler dispatchTransition(
+            @NonNull IBinder transition,
+            @NonNull TransitionInfo info,
+            @NonNull SurfaceControl.Transaction startT,
+            @NonNull SurfaceControl.Transaction finishT,
+            @NonNull TransitionFinishCallback finishCB,
+            @Nullable TransitionHandler skip
+    ) {
         for (int i = mHandlers.size() - 1; i >= 0; --i) {
-            if (mHandlers.get(i) == skip) continue;
-            ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, " try handler %s",
-                    mHandlers.get(i));
+            if (mHandlers.get(i) == skip) {
+                ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, " skip handler %s",
+                        mHandlers.get(i));
+                continue;
+            }
             boolean consumed = mHandlers.get(i).startAnimation(transition, info, startT, finishT,
                     finishCB);
             if (consumed) {
                 ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, " animated by %s",
                         mHandlers.get(i));
                 mTransitionTracer.logDispatched(info.getDebugId(), mHandlers.get(i));
+                if (Trace.isTagEnabled(TRACE_TAG_WINDOW_MANAGER)) {
+                    Trace.instant(TRACE_TAG_WINDOW_MANAGER,
+                            mHandlers.get(i).getClass().getSimpleName()
+                                    + "#startAnimation animated "
+                                    + transitTypeToString(info.getType()));
+                }
                 return mHandlers.get(i);
             }
         }
         throw new IllegalStateException(
                 "This shouldn't happen, maybe the default handler is broken.");
+    }
+
+    private Pair<TransitionHandler, WindowContainerTransaction> dispatchRequestWithTracing(
+            @NonNull IBinder transition, @NonNull TransitionRequestInfo request,
+            @Nullable TransitionHandler skip) {
+        final boolean useTrace = Trace.isTagEnabled(TRACE_TAG_WINDOW_MANAGER);
+        if (useTrace) {
+            Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER,
+                    "dispatchRequest: " + transitTypeToString(request.getType()));
+        }
+        Pair<TransitionHandler, WindowContainerTransaction> result =
+                dispatchRequest(transition, request, skip);
+        if (useTrace) {
+            if (result != null) {
+                Trace.instant(TRACE_TAG_WINDOW_MANAGER, result.first.getClass().getSimpleName()
+                        + "#handleRequest handled " + transitTypeToString(request.getType()));
+            }
+            Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
+        }
+        return result;
     }
 
     /**
@@ -1011,10 +1169,17 @@ public class Transitions implements RemoteCallable<Transitions>,
         info.releaseAnimSurfaces();
     }
 
-    private void onFinish(ActiveTransition active,
-            @Nullable WindowContainerTransaction wct) {
+    private void onFinish(IBinder token, @Nullable WindowContainerTransaction wct) {
+        mMainExecutor.assertCurrentThread();
+
+        final ActiveTransition active = mKnownTransitions.get(token);
+        if (active == null) {
+            Log.e(TAG, "Trying to finish a non-existent transition: " + token);
+            return;
+        }
+
         final Track track = mTracks.get(active.getTrack());
-        if (track.mActiveTransition != active) {
+        if (track == null || track.mActiveTransition != active) {
             Log.e(TAG, "Trying to finish a non-running transition. Either remote crashed or "
                     + " a handler didn't properly deal with a merge. " + active,
                     new RuntimeException());
@@ -1067,54 +1232,25 @@ public class Transitions implements RemoteCallable<Transitions>,
                 ActiveTransition merged = active.mMerged.get(iM);
                 mOrganizer.finishTransition(merged.mToken, null /* wct */);
                 releaseSurfaces(merged.mInfo);
+                mKnownTransitions.remove(merged.mToken);
             }
             active.mMerged.clear();
         }
+        mKnownTransitions.remove(token);
 
         // Now that this is done, check the ready queue for more work.
         processReadyQueue(track);
-    }
-
-    /**
-     * Checks to see if the transition specified by `token` is already known. If so, it will be
-     * returned.
-     */
-    @Nullable
-    private ActiveTransition getKnownTransition(IBinder token) {
-        for (int i = 0; i < mPendingTransitions.size(); ++i) {
-            final ActiveTransition active = mPendingTransitions.get(i);
-            if (active.mToken == token) return active;
-        }
-        for (int i = 0; i < mReadyDuringSync.size(); ++i) {
-            final ActiveTransition active = mReadyDuringSync.get(i);
-            if (active.mToken == token) return active;
-        }
-        for (int t = 0; t < mTracks.size(); ++t) {
-            final Track tr = mTracks.get(t);
-            for (int i = 0; i < tr.mReadyTransitions.size(); ++i) {
-                final ActiveTransition active = tr.mReadyTransitions.get(i);
-                if (active.mToken == token) return active;
-            }
-            final ActiveTransition active = tr.mActiveTransition;
-            if (active == null) continue;
-            if (active.mToken == token) return active;
-            if (active.mMerged == null) continue;
-            for (int m = 0; m < active.mMerged.size(); ++m) {
-                final ActiveTransition merged = active.mMerged.get(m);
-                if (merged.mToken == token) return merged;
-            }
-        }
-        return null;
     }
 
     void requestStartTransition(@NonNull IBinder transitionToken,
             @Nullable TransitionRequestInfo request) {
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "Transition requested (#%d): %s %s",
                 request.getDebugId(), transitionToken, request);
-        if (getKnownTransition(transitionToken) != null) {
+        if (mKnownTransitions.containsKey(transitionToken)) {
             throw new RuntimeException("Transition already started " + transitionToken);
         }
-        final ActiveTransition active = new ActiveTransition();
+        final ActiveTransition active = new ActiveTransition(transitionToken);
+        mKnownTransitions.put(transitionToken, active);
         WindowContainerTransaction wct = null;
 
         // If we have sleep, we use a special handler and we try to finish everything ASAP.
@@ -1122,21 +1258,23 @@ public class Transitions implements RemoteCallable<Transitions>,
             mSleepHandler.handleRequest(transitionToken, request);
             active.mHandler = mSleepHandler;
         } else {
-            for (int i = mHandlers.size() - 1; i >= 0; --i) {
-                wct = mHandlers.get(i).handleRequest(transitionToken, request);
-                if (wct != null) {
-                    active.mHandler = mHandlers.get(i);
-                    break;
-                }
+            Pair<TransitionHandler, WindowContainerTransaction> requestResult =
+                    dispatchRequestWithTracing(transitionToken, request, /* skip= */ null);
+            if (requestResult != null) {
+                active.mHandler = requestResult.first;
+                wct = requestResult.second;
             }
             if (request.getDisplayChange() != null) {
                 TransitionRequestInfo.DisplayChange change = request.getDisplayChange();
-                if (change.getEndRotation() != change.getStartRotation()) {
-                    // Is a rotation, so dispatch to all displayChange listeners
+                if (change.getStartRotation() != change.getEndRotation()
+                        || (change.getStartAbsBounds() != null
+                        && !change.getStartAbsBounds().equals(change.getEndAbsBounds()))) {
+                    // Is a display change, so dispatch to all displayChange listeners
                     if (wct == null) {
                         wct = new WindowContainerTransaction();
                     }
-                    mDisplayController.onDisplayRotateRequested(wct, change.getDisplayId(),
+                    mDisplayController.onDisplayChangeRequested(wct, change.getDisplayId(),
+                            change.getStartAbsBounds(), change.getEndAbsBounds(),
                             change.getStartRotation(), change.getEndRotation());
                 }
             }
@@ -1154,7 +1292,6 @@ public class Transitions implements RemoteCallable<Transitions>,
             wct.setBounds(request.getTriggerTask().token, null);
         }
         mOrganizer.startTransition(transitionToken, wct != null && wct.isEmpty() ? null : wct);
-        active.mToken = transitionToken;
         // Currently, WMCore only does one transition at a time. If it makes a requestStart, it
         // is already collecting that transition on core-side, so it will be the next one to
         // become ready. There may already be pending transitions added as part of direct
@@ -1172,12 +1309,36 @@ public class Transitions implements RemoteCallable<Transitions>,
     public IBinder startTransition(@WindowManager.TransitionType int type,
             @NonNull WindowContainerTransaction wct, @Nullable TransitionHandler handler) {
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "Directly starting a new transition "
-                + "type=%d wct=%s handler=%s", type, wct, handler);
-        final ActiveTransition active = new ActiveTransition();
+                + "type=%s wct=%s handler=%s", transitTypeToString(type), wct, handler);
+        final ActiveTransition active =
+                new ActiveTransition(mOrganizer.startNewTransition(type, wct));
         active.mHandler = handler;
-        active.mToken = mOrganizer.startNewTransition(type, wct);
+        mKnownTransitions.put(active.mToken, active);
         mPendingTransitions.add(active);
         return active.mToken;
+    }
+
+    /**
+     * Checks whether a handler exists capable of taking over the given transition, and returns it.
+     * Otherwise it returns null.
+     */
+    @Nullable
+    public TransitionHandler getHandlerForTakeover(
+            @NonNull IBinder transition, @NonNull TransitionInfo info) {
+        if (!returnAnimationFrameworkLongLived()) {
+            ProtoLog.v(ShellProtoLogGroup.WM_SHELL_RECENTS_TRANSITION,
+                    "Trying to get a handler for takeover but the flag is disabled");
+            return null;
+        }
+
+        for (TransitionHandler handler : mHandlers) {
+            TransitionHandler candidate = handler.getHandlerForTakeover(transition, info);
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1192,14 +1353,14 @@ public class Transitions implements RemoteCallable<Transitions>,
      *
      * This is then repeated until there are no more pending sleep transitions.
      *
-     * @param reason The SLEEP transition that triggered this round of finishes. We will continue
-     *               looping round finishing transitions as long as this is still waiting.
+     * @param reason The token for the SLEEP transition that triggered this round of finishes.
+     *               We will continue looping round finishing transitions until this is ready.
      * @param forceFinish When non-null, this is the transition that we last sent the SLEEP merge
      *                    signal to -- so it will be force-finished if it's still running.
      */
-    private void finishForSync(ActiveTransition reason,
+    private void finishForSync(IBinder reason,
             int trackIdx, @Nullable ActiveTransition forceFinish) {
-        if (getKnownTransition(reason.mToken) == null) {
+        if (!mKnownTransitions.containsKey(reason)) {
             Log.d(TAG, "finishForSleep: already played sync transition " + reason);
             return;
         }
@@ -1219,7 +1380,7 @@ public class Transitions implements RemoteCallable<Transitions>,
                     forceFinish.mHandler.onTransitionConsumed(
                             forceFinish.mToken, true /* aborted */, null /* finishTransaction */);
                 }
-                onFinish(forceFinish, null);
+                onFinish(forceFinish.mToken, null);
             }
         }
         if (track.isIdle() || mReadyDuringSync.isEmpty()) {
@@ -1322,6 +1483,49 @@ public class Transitions implements RemoteCallable<Transitions>,
                 @NonNull TransitionFinishCallback finishCallback) { }
 
         /**
+         * Checks whether this handler is capable of taking over a transition matching `info`.
+         * {@link TransitionHandler#takeOverAnimation(IBinder, TransitionInfo,
+         * SurfaceControl.Transaction, TransitionFinishCallback, WindowAnimationState[])} is
+         * guaranteed to succeed if called on the handler returned by this method.
+         *
+         * Note that the handler returned by this method can either be itself, or a different one
+         * selected by this handler to take care of the transition on its behalf.
+         *
+         * @param transition The transition that should be taken over.
+         * @param info Information about the transition to be taken over.
+         * @return A handler capable of taking over a matching transition, or null.
+         */
+        @Nullable
+        default TransitionHandler getHandlerForTakeover(
+                @NonNull IBinder transition, @NonNull TransitionInfo info) {
+            return null;
+        }
+
+        /**
+         * Attempt to take over a running transition. This must succeed if this handler was returned
+         * by {@link TransitionHandler#getHandlerForTakeover(IBinder, TransitionInfo)}.
+         *
+         * @param transition The transition that should be taken over.
+         * @param info Information about the what is changing in the transition.
+         * @param transaction Contains surface changes that resulted from the transition. Any
+         *                    additional changes should be added to this transaction and committed
+         *                    inside this method.
+         * @param finishCallback Call this at the end of the animation, if the take-over succeeds.
+         *                       Note that this will be called instead of the callback originally
+         *                       passed to startAnimation(), so the caller should make sure all
+         *                       necessary cleanup happens here. This MUST be called on main thread.
+         * @param states The animation states of the transition's window at the time this method was
+         *               called.
+         * @return true if the transition was taken over, false if not.
+         */
+        default boolean takeOverAnimation(@NonNull IBinder transition, @NonNull TransitionInfo info,
+                @NonNull SurfaceControl.Transaction transaction,
+                @NonNull TransitionFinishCallback finishCallback,
+                @NonNull WindowAnimationState[] states) {
+            return false;
+        }
+
+        /**
          * Potentially handles a startTransition request.
          *
          * @param transition The transition whose start is being requested.
@@ -1370,16 +1574,16 @@ public class Transitions implements RemoteCallable<Transitions>,
          *                          transition animation. The Transition system will apply it when
          *                          finishCallback is called by the transition handler.
          */
-        void onTransitionReady(@NonNull IBinder transition, @NonNull TransitionInfo info,
+        default void onTransitionReady(@NonNull IBinder transition, @NonNull TransitionInfo info,
                 @NonNull SurfaceControl.Transaction startTransaction,
-                @NonNull SurfaceControl.Transaction finishTransaction);
+                @NonNull SurfaceControl.Transaction finishTransaction) {}
 
         /**
          * Called when the transition is starting to play. It isn't called for merged transitions.
          *
          * @param transition the unique token of this transition
          */
-        void onTransitionStarting(@NonNull IBinder transition);
+        default void onTransitionStarting(@NonNull IBinder transition) {}
 
         /**
          * Called when a transition is merged into another transition. There won't be any following
@@ -1388,7 +1592,7 @@ public class Transitions implements RemoteCallable<Transitions>,
          * @param merged the unique token of the transition that's merged to another one
          * @param playing the unique token of the transition that accepts the merge
          */
-        void onTransitionMerged(@NonNull IBinder merged, @NonNull IBinder playing);
+        default void onTransitionMerged(@NonNull IBinder merged, @NonNull IBinder playing) {}
 
         /**
          * Called when the transition is finished. This isn't called for merged transitions.
@@ -1396,7 +1600,7 @@ public class Transitions implements RemoteCallable<Transitions>,
          * @param transition the unique token of this transition
          * @param aborted {@code true} if this transition is aborted; {@code false} otherwise.
          */
-        void onTransitionFinished(@NonNull IBinder transition, boolean aborted);
+        default void onTransitionFinished(@NonNull IBinder transition, boolean aborted) {}
     }
 
     @BinderThread
@@ -1405,6 +1609,8 @@ public class Transitions implements RemoteCallable<Transitions>,
         public void onTransitionReady(IBinder iBinder, TransitionInfo transitionInfo,
                 SurfaceControl.Transaction t, SurfaceControl.Transaction finishT)
                 throws RemoteException {
+            ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TRANSITIONS, "onTransitionReady(transaction=%d)",
+                    t.getId());
             mMainExecutor.execute(() -> Transitions.this.onTransitionReady(
                     iBinder, transitionInfo, t, finishT));
         }
@@ -1424,16 +1630,36 @@ public class Transitions implements RemoteCallable<Transitions>,
         @Override
         public void registerRemote(@NonNull TransitionFilter filter,
                 @NonNull RemoteTransition remoteTransition) {
-            mMainExecutor.execute(() -> {
-                mRemoteTransitionHandler.addFiltered(filter, remoteTransition);
-            });
+            mMainExecutor.execute(
+                    () -> mRemoteTransitionHandler.addFiltered(filter, remoteTransition));
+        }
+
+        @Override
+        public void registerRemoteForTakeover(@NonNull TransitionFilter filter,
+                @NonNull RemoteTransition remoteTransition) {
+            mMainExecutor.execute(() -> mRemoteTransitionHandler.addFilteredForTakeover(
+                    filter, remoteTransition));
         }
 
         @Override
         public void unregisterRemote(@NonNull RemoteTransition remoteTransition) {
-            mMainExecutor.execute(() -> {
-                mRemoteTransitionHandler.removeFiltered(remoteTransition);
-            });
+            mMainExecutor.execute(
+                    () -> mRemoteTransitionHandler.removeFiltered(remoteTransition));
+        }
+
+        @Override
+        public void setFocusTransitionListener(FocusTransitionListener listener,
+                Executor executor) {
+            mMainExecutor.execute(() ->
+                    mFocusTransitionObserver.setLocalFocusTransitionListener(listener, executor));
+
+        }
+
+        @Override
+        public void unsetFocusTransitionListener(FocusTransitionListener listener) {
+            mMainExecutor.execute(() ->
+                    mFocusTransitionObserver.unsetLocalFocusTransitionListener(listener));
+
         }
     }
 
@@ -1462,17 +1688,23 @@ public class Transitions implements RemoteCallable<Transitions>,
         public void registerRemote(@NonNull TransitionFilter filter,
                 @NonNull RemoteTransition remoteTransition) {
             executeRemoteCallWithTaskPermission(mTransitions, "registerRemote",
-                    (transitions) -> {
-                        transitions.mRemoteTransitionHandler.addFiltered(filter, remoteTransition);
-                    });
+                    (transitions) -> transitions.mRemoteTransitionHandler.addFiltered(
+                            filter, remoteTransition));
+        }
+
+        @Override
+        public void registerRemoteForTakeover(@NonNull TransitionFilter filter,
+                @NonNull RemoteTransition remoteTransition) {
+            executeRemoteCallWithTaskPermission(mTransitions, "registerRemoteForTakeover",
+                    (transitions) -> transitions.mRemoteTransitionHandler.addFilteredForTakeover(
+                            filter, remoteTransition));
         }
 
         @Override
         public void unregisterRemote(@NonNull RemoteTransition remoteTransition) {
             executeRemoteCallWithTaskPermission(mTransitions, "unregisterRemote",
-                    (transitions) -> {
-                        transitions.mRemoteTransitionHandler.removeFiltered(remoteTransition);
-                    });
+                    (transitions) ->
+                            transitions.mRemoteTransitionHandler.removeFiltered(remoteTransition));
         }
 
         @Override
@@ -1486,6 +1718,15 @@ public class Transitions implements RemoteCallable<Transitions>,
                     (transitions) -> {
                         transitions.mHomeTransitionObserver.setHomeTransitionListener(transitions,
                                 listener);
+                    });
+        }
+
+        @Override
+        public void setFocusTransitionListener(IFocusTransitionListener listener) {
+            executeRemoteCallWithTaskPermission(mTransitions, "setFocusTransitionListener",
+                    (transitions) -> {
+                        transitions.mFocusTransitionObserver.setRemoteFocusTransitionListener(
+                                transitions, listener);
                     });
         }
 
@@ -1557,6 +1798,8 @@ public class Transitions implements RemoteCallable<Transitions>,
             pw.println(" (" + Integer.toHexString(System.identityHashCode(handler)) + ")");
         }
 
+        mRemoteTransitionHandler.dump(pw, prefix);
+
         pw.println(prefix + "Observers:");
         for (TransitionObserver observer : mObservers) {
             pw.print(innerPrefix);
@@ -1608,5 +1851,53 @@ public class Transitions implements RemoteCallable<Transitions>,
                 pw.println(transition.mHandler);
             }
         }
+    }
+
+    /**
+     * Like WindowManager#transitTypeToString(), but also covers known custom transition types as
+     * well.
+     */
+    public static String transitTypeToString(int transitType) {
+        if (transitType < TRANSIT_FIRST_CUSTOM) {
+            return WindowManager.transitTypeToString(transitType);
+        }
+
+        String typeStr = switch (transitType) {
+            case TRANSIT_EXIT_PIP -> "EXIT_PIP";
+            case TRANSIT_EXIT_PIP_TO_SPLIT -> "EXIT_PIP_TO_SPLIT";
+            case TRANSIT_REMOVE_PIP -> "REMOVE_PIP";
+            case TRANSIT_SPLIT_SCREEN_PAIR_OPEN -> "SPLIT_SCREEN_PAIR_OPEN";
+            case TRANSIT_SPLIT_SCREEN_OPEN_TO_SIDE -> "SPLIT_SCREEN_OPEN_TO_SIDE";
+            case TRANSIT_SPLIT_DISMISS_SNAP -> "SPLIT_DISMISS_SNAP";
+            case TRANSIT_SPLIT_DISMISS -> "SPLIT_DISMISS";
+            case TRANSIT_MAXIMIZE -> "MAXIMIZE";
+            case TRANSIT_RESTORE_FROM_MAXIMIZE -> "RESTORE_FROM_MAXIMIZE";
+            case TRANSIT_DESKTOP_MODE_START_DRAG_TO_DESKTOP -> "DESKTOP_MODE_START_DRAG_TO_DESKTOP";
+            case TRANSIT_DESKTOP_MODE_END_DRAG_TO_DESKTOP -> "DESKTOP_MODE_END_DRAG_TO_DESKTOP";
+            case TRANSIT_DESKTOP_MODE_CANCEL_DRAG_TO_DESKTOP ->
+                    "DESKTOP_MODE_CANCEL_DRAG_TO_DESKTOP";
+            case TRANSIT_DESKTOP_MODE_TOGGLE_RESIZE -> "DESKTOP_MODE_TOGGLE_RESIZE";
+            case TRANSIT_RESIZE_PIP -> "RESIZE_PIP";
+            case TRANSIT_TASK_FRAGMENT_DRAG_RESIZE -> "TASK_FRAGMENT_DRAG_RESIZE";
+            case TRANSIT_SPLIT_PASSTHROUGH -> "SPLIT_PASSTHROUGH";
+            case TRANSIT_CLEANUP_PIP_EXIT -> "CLEANUP_PIP_EXIT";
+            case TRANSIT_MINIMIZE -> "MINIMIZE";
+            case TRANSIT_START_RECENTS_TRANSITION -> "START_RECENTS_TRANSITION";
+            case TRANSIT_END_RECENTS_TRANSITION -> "END_RECENTS_TRANSITION";
+            default -> "";
+        };
+        return typeStr + "(FIRST_CUSTOM+" + (transitType - TRANSIT_FIRST_CUSTOM) + ")";
+    }
+
+    private static boolean getShellTransitEnabled() {
+        try {
+            if (AppGlobals.getPackageManager().hasSystemFeature(
+                    PackageManager.FEATURE_AUTOMOTIVE, 0)) {
+                return SystemProperties.getBoolean("persist.wm.debug.shell_transit", true);
+            }
+        } catch (RemoteException re) {
+            Log.w(TAG, "Error getting system features");
+        }
+        return true;
     }
 }

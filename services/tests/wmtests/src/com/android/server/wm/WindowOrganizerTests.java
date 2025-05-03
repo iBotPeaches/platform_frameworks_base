@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import static android.Manifest.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS;
 import static android.app.ActivityManager.START_CANCELED;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
@@ -28,13 +29,18 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSET;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+import static android.content.pm.PackageManager.PERMISSION_DENIED;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.content.res.Configuration.SCREEN_HEIGHT_DP_UNDEFINED;
 import static android.content.res.Configuration.SCREEN_WIDTH_DP_UNDEFINED;
+import static android.view.InsetsSource.FLAG_FORCE_CONSUMING;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
+import static android.window.DisplayAreaOrganizer.FEATURE_VENDOR_FIRST;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.never;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.times;
@@ -59,6 +65,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.quality.Strictness.LENIENT;
 
 import android.annotation.NonNull;
 import android.app.ActivityManager;
@@ -67,6 +74,7 @@ import android.app.ActivityOptions;
 import android.app.ActivityTaskManager.RootTaskInfo;
 import android.app.IRequestFinishCallback;
 import android.app.PictureInPictureParams;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ParceledListSlice;
 import android.content.res.Configuration;
@@ -74,15 +82,19 @@ import android.graphics.Rect;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.Presubmit;
+import android.platform.test.annotations.RequiresFlagsDisabled;
 import android.util.ArrayMap;
 import android.util.Rational;
 import android.view.Display;
+import android.view.InsetsSource;
 import android.view.SurfaceControl;
 import android.view.WindowInsets;
 import android.window.ITaskFragmentOrganizer;
 import android.window.ITaskOrganizer;
 import android.window.IWindowContainerTransactionCallback;
+import android.window.RemoteTransition;
 import android.window.StartingWindowInfo;
 import android.window.StartingWindowRemovalInfo;
 import android.window.TaskAppearedInfo;
@@ -98,6 +110,7 @@ import com.android.window.flags.Flags;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockitoSession;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -110,6 +123,8 @@ import java.util.function.BiConsumer;
  * Build/Install/Run:
  *  atest WmTests:WindowOrganizerTests
  */
+
+// TODO revert parts of this set to set the flag to test the behavior
 @SmallTest
 @Presubmit
 @RunWith(WindowTestRunner.class)
@@ -261,7 +276,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
         rootTask.setTaskOrganizer(null);
         mWm.mAtmService.mTaskOrganizerController.dispatchPendingEvents();
 
-        verify(mWm.mAtmService).removeTask(eq(rootTask.mTaskId));
+        verify(mWm.mAtmService).removeTask(eq(rootTask));
     }
 
     @Test
@@ -279,7 +294,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
         rootTask.setTaskOrganizer(null);
         mWm.mAtmService.mTaskOrganizerController.dispatchPendingEvents();
 
-        verify(mWm.mAtmService, never()).removeTask(eq(rootTask.mTaskId));
+        verify(mWm.mAtmService, never()).removeTask(eq(rootTask));
     }
 
     @Test
@@ -529,6 +544,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
     }
 
     @Test
+    @RequiresFlagsDisabled(com.android.wm.shell.Flags.FLAG_ENABLE_PIP2)
     public void testSetActivityWindowingMode() {
         final ActivityRecord record = makePipableActivity();
         final Task rootTask = record.getRootTask();
@@ -631,6 +647,66 @@ public class WindowOrganizerTests extends WindowTestsBase {
         assertTrue(taskFragment.isFocusable());
         assertTrue(taskFragment.isTopActivityFocusable());
         assertFalse(taskFragment.isForceTranslucent());
+    }
+
+    @Test
+    public void testStartActivityInTaskFragment_checkCallerPermission() {
+        final ActivityStartController activityStartController =
+                mWm.mAtmService.getActivityStartController();
+        spyOn(activityStartController);
+        final ArgumentCaptor<SafeActivityOptions> activityOptionsCaptor =
+                ArgumentCaptor.forClass(SafeActivityOptions.class);
+
+        final int uid = Binder.getCallingUid();
+        final Task rootTask = new TaskBuilder(mSupervisor).setCreateActivity(true)
+                .setWindowingMode(WINDOWING_MODE_FULLSCREEN).build();
+        final WindowContainerTransaction t = new WindowContainerTransaction();
+        final TaskFragmentOrganizer organizer =
+                createTaskFragmentOrganizer(t, true /* isSystemOrganizer */);
+        final IBinder token = new Binder();
+        final TaskFragment taskFragment = new TaskFragmentBuilder(mAtm)
+                .setParentTask(rootTask)
+                .setFragmentToken(token)
+                .setOrganizer(organizer)
+                .createActivityCount(1)
+                .build();
+        mWm.mAtmService.mWindowOrganizerController.mLaunchTaskFragments.put(token, taskFragment);
+        final ActivityRecord ownerActivity = taskFragment.getTopMostActivity();
+
+        // Start Activity in TaskFragment with remote transition.
+        final RemoteTransition transition = mock(RemoteTransition.class);
+        final ActivityOptions options = ActivityOptions.makeRemoteTransition(transition);
+        final Intent intent = new Intent();
+        t.startActivityInTaskFragment(token, ownerActivity.token, intent, options.toBundle());
+        mWm.mAtmService.mWindowOrganizerController.applyTaskFragmentTransactionLocked(
+                t, TaskFragmentOrganizer.TASK_FRAGMENT_TRANSIT_OPEN,
+                false /* shouldApplyIndependently */, null /* remoteTransition */);
+
+        // Get the ActivityOptions.
+        verify(activityStartController).startActivityInTaskFragment(
+                eq(taskFragment), eq(intent), activityOptionsCaptor.capture(),
+                eq(ownerActivity.token), eq(uid), anyInt(), any());
+        final SafeActivityOptions safeActivityOptions = activityOptionsCaptor.getValue();
+
+        final MockitoSession session =
+                mockitoSession().strictness(LENIENT).spyStatic(ActivityTaskManagerService.class)
+                        .startMocking();
+        try {
+            // Without the CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS permission, start activity with
+            // remote transition is not allowed.
+            doReturn(PERMISSION_DENIED).when(() -> ActivityTaskManagerService.checkPermission(
+                    eq(CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS), anyInt(), eq(uid)));
+            assertThrows(SecurityException.class,
+                    () -> safeActivityOptions.getOptions(mWm.mAtmService.mTaskSupervisor));
+
+            // With the CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS permission, start activity with
+            // remote transition is allowed.
+            doReturn(PERMISSION_GRANTED).when(() -> ActivityTaskManagerService.checkPermission(
+                    eq(CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS), anyInt(), eq(uid)));
+            safeActivityOptions.getOptions(mWm.mAtmService.mTaskSupervisor);
+        } finally {
+            session.finishMocking();
+        }
     }
 
     @Test
@@ -903,7 +979,8 @@ public class WindowOrganizerTests extends WindowTestsBase {
                 0 /* index */,
                 WindowInsets.Type.systemOverlays(),
                 new Rect(0, 0, 1080, 200),
-                null /* boundingRects */);
+                null /* boundingRects */,
+                0 /* flags */);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
 
         assertThat(navigationBarInsetsReceiverTask.mLocalInsetsSources
@@ -929,11 +1006,36 @@ public class WindowOrganizerTests extends WindowTestsBase {
                 0 /* index */,
                 WindowInsets.Type.systemOverlays(),
                 new Rect(0, 0, 1080, 200),
-                boundingRects);
+                boundingRects,
+                0 /* flags */);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
 
         assertArrayEquals(boundingRects, navigationBarInsetsReceiverTask.mLocalInsetsSources
                 .valueAt(0).getBoundingRects());
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_CAPTION_COMPAT_INSET_FORCE_CONSUMPTION)
+    public void testAddInsetsSource_withFlags() {
+        final Task rootTask = createTask(mDisplayContent);
+
+        final Task insetsReceiverTask = createTaskInRootTask(rootTask, 0);
+        insetsReceiverTask.getConfiguration().windowConfiguration
+                .setBounds(new Rect(0, 200, 1080, 700));
+
+        final @InsetsSource.Flags int flags = FLAG_FORCE_CONSUMING;
+        final WindowContainerTransaction wct = new WindowContainerTransaction();
+        wct.addInsetsSource(
+                insetsReceiverTask.mRemoteToken.toWindowContainerToken(),
+                new Binder(),
+                0 /* index */,
+                WindowInsets.Type.systemOverlays(),
+                new Rect(0, 0, 1080, 200),
+                null /* boundingRects */,
+                flags);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+
+        assertEquals(flags, insetsReceiverTask.mLocalInsetsSources.valueAt(0).getFlags());
     }
 
     @Test
@@ -951,7 +1053,8 @@ public class WindowOrganizerTests extends WindowTestsBase {
                 0 /* index */,
                 WindowInsets.Type.systemOverlays(),
                 new Rect(0, 0, 1080, 200),
-                null /* boundingRects */);
+                null /* boundingRects */,
+                0 /* flags */);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
 
         final WindowContainerTransaction wct2 = new WindowContainerTransaction();
@@ -1200,6 +1303,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
     }
 
     @Test
+    @RequiresFlagsDisabled(com.android.wm.shell.Flags.FLAG_ENABLE_PIP2)
     public void testEnterPipParams() {
         final StubOrganizer o = new StubOrganizer();
         mWm.mAtmService.mTaskOrganizerController.registerTaskOrganizer(o);
@@ -1215,6 +1319,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
     }
 
     @Test
+    @RequiresFlagsDisabled(com.android.wm.shell.Flags.FLAG_ENABLE_PIP2)
     public void testChangePipParams() {
         class ChangeSavingOrganizer extends StubOrganizer {
             RunningTaskInfo mChangedInfo;
@@ -1234,6 +1339,12 @@ public class WindowOrganizerTests extends WindowTestsBase {
         waitUntilHandlersIdle();
         assertNotNull(o.mInfo);
         assertNotNull(o.mInfo.pictureInPictureParams);
+
+        // Bypass the quota check, which causes NPE in current test setup.
+        if (mWm.mAtmService.mActivityClientController.mSetPipAspectRatioQuotaTracker != null) {
+            mWm.mAtmService.mActivityClientController.mSetPipAspectRatioQuotaTracker
+                    .setEnabled(false);
+        }
 
         final PictureInPictureParams p2 = new PictureInPictureParams.Builder()
                 .setAspectRatio(new Rational(3, 4)).build();
@@ -1376,8 +1487,9 @@ public class WindowOrganizerTests extends WindowTestsBase {
         assertTrue(w1.syncNextBuffer());
         assertTrue(w2.syncNextBuffer());
 
-        // A drawn window can complete the sync state automatically.
+        // A drawn window in non-explicit sync can complete the sync state automatically.
         w1.mWinAnimator.mDrawState = WindowStateAnimator.HAS_DRAWN;
+        w1.mPrepareSyncSeqId = 0;
         makeLastConfigReportedToClient(w1, true /* visible */);
         mWm.mSyncEngine.onSurfacePlacement();
         verify(mockCallback).onTransactionReady(anyInt(), any());
@@ -1445,6 +1557,113 @@ public class WindowOrganizerTests extends WindowTestsBase {
         assertEquals(PendingTaskEvent.EVENT_APPEARED, pendingEvents.get(0).mEventType);
         assertEquals("TestDescription",
                 pendingEvents.get(0).mTask.getTaskInfo().taskDescription.getLabel());
+    }
+
+    @Test
+    public void testReorderWithParents() {
+        /*
+                  default TDA
+               ____|______
+               |         |
+           firstTda    secondTda
+               |             |
+         firstRootTask    secondRootTask
+
+         */
+        final TaskDisplayArea firstTaskDisplayArea = createTaskDisplayArea(
+                mDisplayContent, mRootWindowContainer.mWmService, "FirstTaskDisplayArea",
+                FEATURE_VENDOR_FIRST);
+        final TaskDisplayArea secondTaskDisplayArea = createTaskDisplayArea(
+                mDisplayContent, mRootWindowContainer.mWmService, "SecondTaskDisplayArea",
+                FEATURE_VENDOR_FIRST + 1);
+        final Task firstRootTask = firstTaskDisplayArea.createRootTask(
+                WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, false /* onTop */);
+        final Task secondRootTask = secondTaskDisplayArea.createRootTask(
+                WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, false /* onTop */);
+        final ActivityRecord firstActivity = new ActivityBuilder(mAtm)
+                .setTask(firstRootTask).build();
+        final ActivityRecord secondActivity = new ActivityBuilder(mAtm)
+                .setTask(secondRootTask).build();
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+
+        // Reorder to top
+        wct.reorder(firstRootTask.mRemoteToken.toWindowContainerToken(), true /* onTop */,
+                true /* includingParents */);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+
+        // firstRootTask can only be on the top if its TDA was also reordered to the Top which
+        // in-turn ensures that the reorder happened including the parents.
+        assertThat(mDisplayContent.getTopRootTask()).isEqualTo(firstRootTask);
+
+        // Reorder to bottom
+        wct.reorder(firstRootTask.mRemoteToken.toWindowContainerToken(), false /* onTop */,
+                true /* includingParents */);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+
+        // firstRootTask can only be on the bottom if its TDA was also reordered to the bottom
+        // which in-turn ensures that the reorder happened including the parents.
+        assertThat(mDisplayContent.getBottomMostTask()).isEqualTo(firstRootTask);
+    }
+
+    @Test
+    public void testReorderDisplayArea() {
+        /*
+                  defaultTda
+               ____|______
+               |         |
+           firstTda    secondTda
+               |             |
+         firstRootTask    secondRootTask
+
+         */
+        final TaskDisplayArea firstTaskDisplayArea = createTaskDisplayArea(
+                mDisplayContent, mRootWindowContainer.mWmService, "FirstTaskDisplayArea",
+                FEATURE_VENDOR_FIRST);
+        final TaskDisplayArea secondTaskDisplayArea = createTaskDisplayArea(
+                mDisplayContent, mRootWindowContainer.mWmService, "SecondTaskDisplayArea",
+                FEATURE_VENDOR_FIRST + 1);
+        final Task firstRootTask = firstTaskDisplayArea.createRootTask(
+                WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, false /* onTop */);
+        final Task secondRootTask = secondTaskDisplayArea.createRootTask(
+                WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD, false /* onTop */);
+        final ActivityRecord firstActivity = new ActivityBuilder(mAtm)
+                .setTask(firstRootTask).build();
+        final ActivityRecord secondActivity = new ActivityBuilder(mAtm)
+                .setTask(secondRootTask).build();
+
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+
+        // Reorder to top
+        wct.reorder(firstTaskDisplayArea.mRemoteToken.toWindowContainerToken(), true /* onTop */,
+                true /* includingParents */);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+        assertThat(mDisplayContent.getTopRootTask()).isEqualTo(firstRootTask);
+
+        // Reorder to bottom
+        wct.reorder(firstTaskDisplayArea.mRemoteToken.toWindowContainerToken(), false /* onTop */,
+                true /* includingParents */);
+        mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct);
+        assertThat(mDisplayContent.getBottomMostTask()).isEqualTo(firstRootTask);
+    }
+
+    @Test
+    public void testReparentDisplayAreaUnsupported() {
+        final TaskDisplayArea firstTaskDisplayArea = createTaskDisplayArea(
+                mDisplayContent, mRootWindowContainer.mWmService, "FirstTaskDisplayArea",
+                FEATURE_VENDOR_FIRST);
+        final TaskDisplayArea secondTaskDisplayArea = createTaskDisplayArea(
+                mDisplayContent, mRootWindowContainer.mWmService, "SecondTaskDisplayArea",
+                FEATURE_VENDOR_FIRST + 1);
+
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+        wct.reparent(firstTaskDisplayArea.mRemoteToken.toWindowContainerToken(),
+                secondTaskDisplayArea.mRemoteToken.toWindowContainerToken(),
+                true /* onTop */
+        );
+
+        assertThrows(UnsupportedOperationException.class, () ->
+                mWm.mAtmService.mWindowOrganizerController.applyTransaction(wct)
+        );
     }
 
     @Test
@@ -1623,7 +1842,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
         verify(organizer).onTaskInfoChanged(infoCaptor.capture());
         RunningTaskInfo info = infoCaptor.getValue();
         assertEquals(rootTask.mTaskId, info.taskId);
-        assertTrue(info.appCompatTaskInfo.topActivityInSizeCompat);
+        assertTrue(info.appCompatTaskInfo.isTopActivityInSizeCompat());
 
         // Ensure task info show top activity that is not visible as not in size compat.
         clearInvocations(organizer);
@@ -1633,7 +1852,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
         verify(organizer).onTaskInfoChanged(infoCaptor.capture());
         info = infoCaptor.getValue();
         assertEquals(rootTask.mTaskId, info.taskId);
-        assertFalse(info.appCompatTaskInfo.topActivityInSizeCompat);
+        assertFalse(info.appCompatTaskInfo.isTopActivityInSizeCompat());
 
         // Ensure task info show non size compat top activity as not in size compat.
         clearInvocations(organizer);
@@ -1644,7 +1863,7 @@ public class WindowOrganizerTests extends WindowTestsBase {
         verify(organizer).onTaskInfoChanged(infoCaptor.capture());
         info = infoCaptor.getValue();
         assertEquals(rootTask.mTaskId, info.taskId);
-        assertFalse(info.appCompatTaskInfo.topActivityInSizeCompat);
+        assertFalse(info.appCompatTaskInfo.isTopActivityInSizeCompat());
     }
 
     @Test
@@ -1670,26 +1889,42 @@ public class WindowOrganizerTests extends WindowTestsBase {
         assertTrue(optionsCaptor.getValue().getOriginalOptions().getTransientLaunch());
     }
 
+    @SuppressWarnings("GuardedBy")
     @Test
+    @RequiresFlagsDisabled(com.android.wm.shell.Flags.FLAG_ENABLE_PIP2)
     public void testResumeTopsWhenLeavingPinned() {
-        final ActivityRecord record = makePipableActivity();
-        final Task rootTask = record.getRootTask();
+        final ActivityRecord home = new ActivityBuilder(mAtm).setTask(
+                mRootWindowContainer.getDefaultTaskDisplayArea().getRootHomeTask()).build();
+        final Task homeTask = home.getTask();
+        final ActivityRecord pipActivity = makePipableActivity();
 
-        clearInvocations(mWm.mAtmService.mRootWindowContainer);
         final WindowContainerTransaction t = new WindowContainerTransaction();
-        WindowContainerToken wct = rootTask.mRemoteToken.toWindowContainerToken();
-        t.setWindowingMode(wct, WINDOWING_MODE_PINNED);
+        t.setWindowingMode(pipActivity.getTask().mRemoteToken.toWindowContainerToken(),
+                WINDOWING_MODE_PINNED);
+        clearInvocations(homeTask);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(t);
-        verify(mWm.mAtmService.mRootWindowContainer).resumeFocusedTasksTopActivities();
+        if (WindowOrganizerController.shouldApplyLifecycleEffectOnPipChange()) {
+            verify(homeTask).resumeTopActivityUncheckedLocked(any(), any(), anyBoolean());
+        } else {
+            verify(homeTask, never()).resumeTopActivityUncheckedLocked(any(), any(), anyBoolean());
+        }
 
-        clearInvocations(mWm.mAtmService.mRootWindowContainer);
+        // Undo the effect of legacy logic in RootWindowContainer#moveActivityToPinnedRootTask.
+        if (pipActivity.mWaitForEnteringPinnedMode) {
+            pipActivity.mWaitForEnteringPinnedMode = false;
+            pipActivity.setWindowingMode(WINDOWING_MODE_UNDEFINED);
+        }
+        assertFalse(pipActivity.isFocusable());
+
         // The token for the PIP root task may have changed when the task entered PIP mode, so do
         // not reuse the one from above.
-        final WindowContainerToken newToken =
-                record.getRootTask().mRemoteToken.toWindowContainerToken();
+        final Task pipTask = pipActivity.getTask();
+        final WindowContainerToken newToken = pipTask.mRemoteToken.toWindowContainerToken();
         t.setWindowingMode(newToken, WINDOWING_MODE_FULLSCREEN);
+        clearInvocations(pipTask);
         mWm.mAtmService.mWindowOrganizerController.applyTransaction(t);
-        verify(mWm.mAtmService.mRootWindowContainer).resumeFocusedTasksTopActivities();
+        assertTrue(pipActivity.isFocusable());
+        verify(pipTask).resumeTopActivityUncheckedLocked(any(), any(), anyBoolean());
     }
 
     @Test

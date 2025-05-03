@@ -48,7 +48,6 @@ public class SystemSettings {
                 Settings.System.WIFI_STATIC_DNS2,
                 Settings.System.BLUETOOTH_DISCOVERABILITY,
                 Settings.System.BLUETOOTH_DISCOVERABILITY_TIMEOUT,
-                Settings.System.DEFAULT_DEVICE_FONT_SCALE,
                 Settings.System.FONT_SCALE,
                 Settings.System.DIM_SCREEN,
                 Settings.System.SCREEN_OFF_TIMEOUT,
@@ -79,7 +78,11 @@ public class SystemSettings {
                 Settings.System.SHOW_WEB_SUGGESTIONS,
                 Settings.System.SIP_CALL_OPTIONS,
                 Settings.System.SIP_RECEIVE_CALLS,
+                Settings.System.TOUCHPAD_THREE_FINGER_TAP_CUSTOMIZATION,
                 Settings.System.POINTER_SPEED,
+                Settings.System.POINTER_FILL_STYLE,
+                Settings.System.POINTER_STROKE_STYLE,
+                Settings.System.POINTER_SCALE,
                 Settings.System.VIBRATE_ON,
                 Settings.System.VIBRATE_WHEN_RINGING,
                 Settings.System.RINGTONE,
@@ -104,6 +107,8 @@ public class SystemSettings {
                 Settings.System.UNREAD_NOTIFICATION_DOT_INDICATOR,
                 Settings.System.AUTO_LAUNCH_MEDIA_CONTROLS,
                 Settings.System.LOCALE_PREFERENCES,
+                Settings.System.MOUSE_REVERSE_VERTICAL_SCROLLING,
+                Settings.System.MOUSE_SWAP_PRIMARY_BUTTON,
                 Settings.System.TOUCHPAD_POINTER_SPEED,
                 Settings.System.TOUCHPAD_NATURAL_SCROLLING,
                 Settings.System.TOUCHPAD_TAP_TO_CLICK,
@@ -114,7 +119,8 @@ public class SystemSettings {
                 Settings.System.SCREEN_FLASH_NOTIFICATION_COLOR,
                 Settings.System.NOTIFICATION_COOLDOWN_ENABLED,
                 Settings.System.NOTIFICATION_COOLDOWN_ALL,
-                Settings.System.NOTIFICATION_COOLDOWN_VIBRATE_UNLOCKED
+                Settings.System.NOTIFICATION_COOLDOWN_VIBRATE_UNLOCKED,
+                Settings.System.PREFERRED_REGION
         ));
         if (Flags.backUpSmoothDisplayAndForcePeakRefreshRate()) {
             settings.add(Settings.System.PEAK_REFRESH_RATE);

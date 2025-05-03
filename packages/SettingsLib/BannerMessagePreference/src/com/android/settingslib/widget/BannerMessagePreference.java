@@ -38,13 +38,12 @@ import androidx.annotation.StringRes;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceViewHolder;
 
-import com.android.settingslib.utils.BuildCompatUtils;
 import com.android.settingslib.widget.preference.banner.R;
 /**
  * Banner message is a banner displaying important information (permission request, page error etc),
  * and provide actions for user to address. It requires a user action to be dismissed.
  */
-public class BannerMessagePreference extends Preference {
+public class BannerMessagePreference extends Preference implements GroupSectionDividerMixin {
 
     public enum AttentionLevel {
         HIGH(0, R.color.banner_background_attention_high, R.color.banner_accent_attention_high),
@@ -84,7 +83,7 @@ public class BannerMessagePreference extends Preference {
     }
 
     private static final String TAG = "BannerPreference";
-    private static final boolean IS_AT_LEAST_S = BuildCompatUtils.isAtLeastS();
+    private static final boolean IS_AT_LEAST_S = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
 
     private final BannerMessagePreference.ButtonInfo mPositiveButtonInfo =
             new BannerMessagePreference.ButtonInfo();

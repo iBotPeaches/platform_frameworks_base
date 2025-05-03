@@ -29,6 +29,8 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.proto.ProtoOutputStream;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.io.ByteArrayOutputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -207,8 +209,10 @@ public final class ZenPolicy implements Parcelable {
 
     /**
      * Total number of priority categories. Keep updated with any updates to PriorityCategory enum.
+     * If this changes, you must update {@link ZenModeDiff.PolicyDiff} to include new categories.
      * @hide
      */
+    @VisibleForTesting
     public static final int NUM_PRIORITY_CATEGORIES = 9;
 
     /** @hide */
@@ -241,8 +245,10 @@ public final class ZenPolicy implements Parcelable {
 
     /**
      * Total number of visual effects. Keep updated with any updates to VisualEffect enum.
+     * If this changes, you must update {@link ZenModeDiff.PolicyDiff} to include new categories.
      * @hide
      */
+    @VisibleForTesting
     public static final int NUM_VISUAL_EFFECTS = 7;
 
     /** @hide */
@@ -349,23 +355,29 @@ public final class ZenPolicy implements Parcelable {
     /**
      * Indicates no explicit setting for which channels may bypass DND when this policy is active.
      * Defaults to {@link #CHANNEL_POLICY_PRIORITY}.
+     *
+     * @hide
      */
     @FlaggedApi(Flags.FLAG_MODES_API)
-    private static final int CHANNEL_POLICY_UNSET = 0;
+    public static final int CHANNEL_POLICY_UNSET = 0;
 
     /**
      * Indicates that channels marked as {@link NotificationChannel#canBypassDnd()} can bypass DND
      * when this policy is active.
+     *
+     * @hide
      */
     @FlaggedApi(Flags.FLAG_MODES_API)
-    private static final int CHANNEL_POLICY_PRIORITY = 1;
+    public static final int CHANNEL_POLICY_PRIORITY = 1;
 
     /**
      * Indicates that no channels can bypass DND when this policy is active, even those marked as
      * {@link NotificationChannel#canBypassDnd()}.
+     *
+     * @hide
      */
     @FlaggedApi(Flags.FLAG_MODES_API)
-    private static final int CHANNEL_POLICY_NONE = 2;
+    public static final int CHANNEL_POLICY_NONE = 2;
 
     /** @hide */
     public ZenPolicy() {
@@ -384,6 +396,46 @@ public final class ZenPolicy implements Parcelable {
         mPriorityCalls = priorityCalls;
         mConversationSenders = conversationSenders;
         mAllowChannels = allowChannels;
+    }
+
+    /**
+     * Base Zen Policy used when {@link android.app.NotificationManager#setInterruptionFilter} is
+     * called with {@link android.app.NotificationManager#INTERRUPTION_FILTER_ALARMS} or an
+     * {@link android.app.AutomaticZenRule} specifies said filter.
+     *
+     * <p>Note that <em>visual effects</em> for filtered notifications are unset in this base
+     * policy, so should be merged on top of the default policy's visual effects (see
+     * {@link #overwrittenWith(ZenPolicy)}).
+     *
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_MODES_API)
+    public static ZenPolicy getBasePolicyInterruptionFilterAlarms() {
+        return new ZenPolicy.Builder()
+                .disallowAllSounds()
+                .allowAlarms(true)
+                .allowMedia(true)
+                .allowPriorityChannels(false)
+                .build();
+    }
+
+    /**
+     * Base Zen Policy used when {@link android.app.NotificationManager#setInterruptionFilter} is
+     * called with {@link android.app.NotificationManager#INTERRUPTION_FILTER_NONE} or an
+     * {@link android.app.AutomaticZenRule} specifies said filter.
+     *
+     * <p>Note that <em>visual effects</em> for filtered notifications are unset in this base
+     * policy, so it should be merged on top of the device default policy's visual effects (see
+     * {@link #overwrittenWith(ZenPolicy)}).
+     *
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_MODES_API)
+    public static ZenPolicy getBasePolicyInterruptionFilterNone() {
+        return new ZenPolicy.Builder()
+                .disallowAllSounds()
+                .allowPriorityChannels(false)
+                .build();
     }
 
     /**
@@ -561,6 +613,13 @@ public final class ZenPolicy implements Parcelable {
      */
     public @State int getVisualEffectNotificationList() {
         return mVisualEffects.get(VISUAL_EFFECT_NOTIFICATION_LIST);
+    }
+
+    /**
+     * @hide
+     */
+    public @ChannelType int getAllowedChannels() {
+        return mAllowChannels;
     }
 
     /**
@@ -994,9 +1053,16 @@ public final class ZenPolicy implements Parcelable {
         /**
          * Set whether priority channels are permitted to break through DND.
          */
+        @SuppressLint("BuilderSetStyle")
         @FlaggedApi(Flags.FLAG_MODES_API)
         public @NonNull Builder allowPriorityChannels(boolean allow) {
             mZenPolicy.mAllowChannels = allow ? CHANNEL_POLICY_PRIORITY : CHANNEL_POLICY_NONE;
+            return this;
+        }
+
+        /** @hide */
+        public @NonNull Builder allowChannels(@ChannelType int channelType) {
+            mZenPolicy.mAllowChannels = channelType;
             return this;
         }
     }
@@ -1220,7 +1286,10 @@ public final class ZenPolicy implements Parcelable {
         return "invalidState{" + state + "}";
     }
 
-    private String peopleTypeToString(@PeopleType int peopleType) {
+    /**
+     * @hide
+     */
+    public static String peopleTypeToString(@PeopleType int peopleType) {
         switch (peopleType) {
             case PEOPLE_TYPE_ANYONE:
                 return "anyone";

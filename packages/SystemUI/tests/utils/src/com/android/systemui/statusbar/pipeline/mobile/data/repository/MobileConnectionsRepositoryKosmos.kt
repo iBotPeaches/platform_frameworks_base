@@ -18,11 +18,21 @@ package com.android.systemui.statusbar.pipeline.mobile.data.repository
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
-import com.android.systemui.util.mockito.mock
+import com.android.systemui.log.table.logcatTableLogBuffer
+import com.android.systemui.statusbar.pipeline.mobile.util.FakeMobileMappingsProxy
+import com.android.systemui.statusbar.pipeline.mobile.util.MobileMappingsProxy
+
+val Kosmos.mobileMappingsProxy: MobileMappingsProxy by Fixture { FakeMobileMappingsProxy() }
+
+var Kosmos.mobileConnectionsRepositoryLogbufferName by Fixture { "FakeMobileConnectionsRepository" }
 
 val Kosmos.fakeMobileConnectionsRepository by Fixture {
-    FakeMobileConnectionsRepository(tableLogBuffer = mock())
+    FakeMobileConnectionsRepository(
+        mobileMappings = mobileMappingsProxy,
+        tableLogBuffer = logcatTableLogBuffer(this, mobileConnectionsRepositoryLogbufferName),
+    )
 }
 
-val Kosmos.mobileConnectionsRepository by
-    Fixture<MobileConnectionsRepository> { fakeMobileConnectionsRepository }
+val Kosmos.mobileConnectionsRepository: MobileConnectionsRepository by Fixture {
+    fakeMobileConnectionsRepository
+}

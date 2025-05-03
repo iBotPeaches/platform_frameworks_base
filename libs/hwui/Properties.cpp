@@ -16,10 +16,6 @@
 
 #include "Properties.h"
 
-#include "Debug.h"
-#ifdef __ANDROID__
-#include "HWUIProperties.sysprop.h"
-#endif
 #include <android-base/properties.h>
 #include <cutils/compiler.h>
 #include <log/log.h>
@@ -28,6 +24,8 @@
 #include <cstdlib>
 #include <optional>
 
+#include "Debug.h"
+#include "HWUIProperties.sysprop.h"
 #include "src/core/SkTraceEventCommon.h"
 
 #ifdef __ANDROID__
@@ -41,21 +39,26 @@ constexpr bool clip_surfaceviews() {
 constexpr bool hdr_10bit_plus() {
     return false;
 }
+constexpr bool initialize_gl_always() {
+    return false;
+}
+
+constexpr bool skip_eglmanager_telemetry() {
+    return false;
+}
+
+constexpr bool resample_gainmap_regions() {
+    return false;
+}
+
+constexpr bool query_global_priority() {
+    return false;
+}
 }  // namespace hwui_flags
 #endif
 
 namespace android {
 namespace uirenderer {
-
-#ifndef __ANDROID__ // Layoutlib does not compile HWUIProperties.sysprop as it depends on cutils properties
-std::optional<bool> use_vulkan() {
-    return base::GetBoolProperty("ro.hwui.use_vulkan", true);
-}
-
-std::optional<std::int32_t> render_ahead() {
-    return base::GetIntProperty("ro.hwui.render_ahead", 0);
-}
-#endif
 
 bool Properties::debugLayersUpdates = false;
 bool Properties::debugOverdraw = false;
@@ -109,6 +112,10 @@ float Properties::maxHdrHeadroomOn8bit = 5.f;  // TODO: Refine this number
 
 bool Properties::clipSurfaceViews = false;
 bool Properties::hdr10bitPlus = false;
+bool Properties::skipTelemetry = false;
+bool Properties::queryGlobalPriority = false;
+
+int Properties::timeoutMultiplier = 1;
 
 StretchEffectBehavior Properties::stretchEffectBehavior = StretchEffectBehavior::ShaderHWUI;
 
@@ -182,6 +189,11 @@ bool Properties::load() {
     clipSurfaceViews =
             base::GetBoolProperty("debug.hwui.clip_surfaceviews", hwui_flags::clip_surfaceviews());
     hdr10bitPlus = hwui_flags::hdr_10bit_plus();
+    queryGlobalPriority = hwui_flags::query_global_priority();
+
+    timeoutMultiplier = android::base::GetIntProperty("ro.hw_timeout_multiplier", 1);
+    skipTelemetry = base::GetBoolProperty(PROPERTY_SKIP_EGLMANAGER_TELEMETRY,
+                                          hwui_flags::skip_eglmanager_telemetry());
 
     return (prevDebugLayersUpdates != debugLayersUpdates) || (prevDebugOverdraw != debugOverdraw);
 }
@@ -267,6 +279,16 @@ bool Properties::isDrawingEnabled() {
         enableRTAnimations = drawingEnabledProp;
     }
     return drawingEnabled == DrawingEnabled::On;
+}
+
+bool Properties::initializeGlAlways() {
+    return base::GetBoolProperty(PROPERTY_INITIALIZE_GL_ALWAYS, hwui_flags::initialize_gl_always());
+}
+
+bool Properties::resampleGainmapRegions() {
+    static bool sResampleGainmapRegions = base::GetBoolProperty(
+            "debug.hwui.resample_gainmap_regions", hwui_flags::resample_gainmap_regions());
+    return sResampleGainmapRegions;
 }
 
 }  // namespace uirenderer

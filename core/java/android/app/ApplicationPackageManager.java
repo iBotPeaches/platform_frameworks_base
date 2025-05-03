@@ -16,6 +16,8 @@
 
 package android.app;
 
+import static android.app.PropertyInvalidatedCache.MODULE_SYSTEM;
+import static android.app.PropertyInvalidatedCache.createSystemCacheKey;
 import static android.app.admin.DevicePolicyResources.Drawables.Style.SOLID_COLORED;
 import static android.app.admin.DevicePolicyResources.Drawables.Style.SOLID_NOT_COLORED;
 import static android.app.admin.DevicePolicyResources.Drawables.WORK_PROFILE_ICON;
@@ -84,6 +86,7 @@ import android.content.pm.parsing.ApkLiteParseUtils;
 import android.content.res.ApkAssets;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -111,6 +114,8 @@ import android.os.storage.VolumeInfo;
 import android.permission.PermissionControllerManager;
 import android.permission.PermissionManager;
 import android.provider.Settings;
+import android.ravenwood.annotation.RavenwoodKeepPartialClass;
+import android.ravenwood.annotation.RavenwoodReplace;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
@@ -118,19 +123,24 @@ import android.system.StructStat;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.AttributeSet;
 import android.util.LauncherIcons;
 import android.util.Log;
 import android.util.Slog;
+import android.util.Xml;
 
 import com.android.internal.annotations.GuardedBy;
-import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
+import com.android.internal.pm.RoSystemFeatures;
 import com.android.internal.util.UserIcons;
 
 import dalvik.system.VMRuntime;
 
 import libcore.util.EmptyArray;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.File;
 import java.io.IOException;
@@ -151,6 +161,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** @hide */
+@RavenwoodKeepPartialClass
 public class ApplicationPackageManager extends PackageManager {
     private static final String TAG = "ApplicationPackageManager";
     private static final boolean DEBUG_ICONS = false;
@@ -772,46 +783,37 @@ public class ApplicationPackageManager extends PackageManager {
     }
 
     /**
+     * The API and cache name for hasSystemFeature.
+     */
+    private static final String HAS_SYSTEM_FEATURE_API = "has_system_feature";
+
+    /**
      * Identifies a single hasSystemFeature query.
      */
-    @Immutable
-    private static final class HasSystemFeatureQuery {
-        public final String name;
-        public final int version;
-        public HasSystemFeatureQuery(String n, int v) {
-            name = n;
-            version = v;
-        }
-        @Override
-        public String toString() {
-            return String.format("HasSystemFeatureQuery(name=\"%s\", version=%d)",
-                    name, version);
-        }
-        @Override
-        public boolean equals(@Nullable Object o) {
-            if (o instanceof HasSystemFeatureQuery) {
-                HasSystemFeatureQuery r = (HasSystemFeatureQuery) o;
-                return Objects.equals(name, r.name) &&  version == r.version;
-            } else {
-                return false;
-            }
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(name) * 13 + version;
-        }
-    }
+    private record HasSystemFeatureQuery(String name, int version) {}
 
     // Make this cache relatively large.  There are many system features and
     // none are ever invalidated.  MPTS tests suggests that the cache should
     // hold at least 150 entries.
     private final static PropertyInvalidatedCache<HasSystemFeatureQuery, Boolean>
-            mHasSystemFeatureCache =
-            new PropertyInvalidatedCache<HasSystemFeatureQuery, Boolean>(
-                256, "cache_key.has_system_feature") {
+            mHasSystemFeatureCache = new PropertyInvalidatedCache<>(
+                new PropertyInvalidatedCache.Args(MODULE_SYSTEM)
+                .api(HAS_SYSTEM_FEATURE_API).maxEntries(SDK_FEATURE_COUNT).isolateUids(false),
+                HAS_SYSTEM_FEATURE_API, null) {
+
                 @Override
                 public Boolean recompute(HasSystemFeatureQuery query) {
                     try {
+                        // As an optimization, check first to see if the feature was defined at
+                        // compile-time as either available or unavailable.
+                        // TODO(b/203143243): Consider hoisting this optimization out of the cache
+                        // after the trunk stable (build) flag has soaked and more features are
+                        // defined at compile-time.
+                        Boolean maybeHasSystemFeature =
+                                RoSystemFeatures.maybeHasFeature(query.name, query.version);
+                        if (maybeHasSystemFeature != null) {
+                            return maybeHasSystemFeature.booleanValue();
+                        }
                         return ActivityThread.currentActivityThread().getPackageManager().
                             hasSystemFeature(query.name, query.version);
                     } catch (RemoteException e) {
@@ -1017,6 +1019,33 @@ public class ApplicationPackageManager extends PackageManager {
         }
     }
 
+    @Override
+    public void setPageSizeAppCompatFlagsSettingsOverride(String packageName, boolean enabled) {
+        try {
+            mPM.setPageSizeAppCompatFlagsSettingsOverride(packageName, enabled);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    @Override
+    public boolean isPageSizeCompatEnabled(String packageName) {
+        try {
+            return mPM.isPageSizeCompatEnabled(packageName);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    @Override
+    public String getPageSizeCompatWarningMessage(String packageName) {
+        try {
+            return mPM.getPageSizeCompatWarningMessage(packageName);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
     private static List<byte[]> encodeCertificates(List<Certificate> certs) throws
             CertificateEncodingException {
         if (certs == null) {
@@ -1118,11 +1147,11 @@ public class ApplicationPackageManager extends PackageManager {
     }
 
     private static final String CACHE_KEY_PACKAGES_FOR_UID_PROPERTY =
-            "cache_key.get_packages_for_uid";
+            createSystemCacheKey("get_packages_for_uid");
     private static final PropertyInvalidatedCache<Integer, GetPackagesForUidResult>
             mGetPackagesForUidCache =
             new PropertyInvalidatedCache<Integer, GetPackagesForUidResult>(
-                32, CACHE_KEY_PACKAGES_FOR_UID_PROPERTY) {
+                1024, CACHE_KEY_PACKAGES_FOR_UID_PROPERTY) {
                 @Override
                 public GetPackagesForUidResult recompute(Integer uid) {
                     try {
@@ -1814,7 +1843,6 @@ public class ApplicationPackageManager extends PackageManager {
 
                 if (false) {
                     RuntimeException e = new RuntimeException("here");
-                    e.fillInStackTrace();
                     Log.w(TAG, "Getting drawable 0x" + Integer.toHexString(resId)
                                     + " from package " + packageName
                                     + ": app scale=" + r.getCompatibilityInfo().applicationScale
@@ -2157,11 +2185,16 @@ public class ApplicationPackageManager extends PackageManager {
     }
 
     @UnsupportedAppUsage
+    @RavenwoodReplace(reason = "<cinit> crashes due to unsupported class PropertyInvalidatedCache")
     static void configurationChanged() {
         synchronized (sSync) {
             sIconCache.clear();
             sStringCache.clear();
         }
+    }
+
+    private static void configurationChanged$ravenwood() {
+        /* no-op */
     }
 
     @UnsupportedAppUsage
@@ -4091,6 +4124,72 @@ public class ApplicationPackageManager extends PackageManager {
                     Log.w(TAG, "Failed to close apkAssets", ignored);
                 }
             }
+        }
+    }
+
+
+    @Override
+    public <T> T parseAndroidManifest(@NonNull ParcelFileDescriptor apkFileDescriptor,
+            @NonNull Function<XmlResourceParser, T> parserFunction) throws IOException {
+        Objects.requireNonNull(apkFileDescriptor, "apkFileDescriptor cannot be null");
+        Objects.requireNonNull(parserFunction, "parserFunction cannot be null");
+        try (XmlResourceParser xmlResourceParser = getAndroidManifestParser(apkFileDescriptor)) {
+            return parserFunction.apply(xmlResourceParser);
+        } catch (IOException e) {
+            Log.w(TAG, "Failed to get the android manifest parser", e);
+            throw e;
+        }
+    }
+
+    private static XmlResourceParser getAndroidManifestParser(@NonNull ParcelFileDescriptor fd)
+            throws IOException {
+        ApkAssets apkAssets = null;
+        try {
+            apkAssets = ApkAssets.loadFromFd(
+                    fd.getFileDescriptor(), fd.toString(), /* flags= */ 0 , /* assets= */null);
+            return apkAssets.openXml(ApkLiteParseUtils.ANDROID_MANIFEST_FILENAME);
+        } finally {
+            if (apkAssets != null) {
+                try {
+                    apkAssets.close();
+                } catch (Throwable ignored) {
+                    Log.w(TAG, "Failed to close apkAssets", ignored);
+                }
+            }
+        }
+    }
+
+    @Override
+    public TypedArray extractPackageItemInfoAttributes(PackageItemInfo info, String name,
+            String rootTag, int[] attributes) {
+        if (info == null || info.metaData == null) {
+            return null;
+        }
+
+        try (XmlResourceParser parser = info.loadXmlMetaData(this, name)) {
+            if (parser == null) {
+                Log.w(TAG, "No " + name + " metadata");
+                return null;
+            }
+
+            final AttributeSet attrs = Xml.asAttributeSet(parser);
+            while (true) {
+                final int type = parser.next();
+                if (type == XmlPullParser.END_DOCUMENT || type == XmlPullParser.START_TAG) {
+                    break;
+                }
+            }
+
+            if (!TextUtils.equals(parser.getName(), rootTag)) {
+                Log.w(TAG, "Metadata does not start with " + name + " tag");
+                return null;
+            }
+
+            return getResourcesForApplication(info.getApplicationInfo())
+                    .obtainAttributes(attrs, attributes);
+        } catch (PackageManager.NameNotFoundException | IOException | XmlPullParserException e) {
+            Log.e(TAG, "Error parsing: " + info.packageName, e);
+            return null;
         }
     }
 }

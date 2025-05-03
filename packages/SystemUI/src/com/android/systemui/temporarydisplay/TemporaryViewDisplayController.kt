@@ -32,8 +32,8 @@ import android.view.accessibility.AccessibilityManager.FLAG_CONTENT_ICONS
 import android.view.accessibility.AccessibilityManager.FLAG_CONTENT_TEXT
 import androidx.annotation.CallSuper
 import androidx.annotation.VisibleForTesting
+import com.android.app.viewcapture.ViewCaptureAwareWindowManager
 import com.android.systemui.CoreStartable
-import com.android.systemui.Dumpable
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.statusbar.policy.ConfigurationController
@@ -70,7 +70,7 @@ import java.io.PrintWriter
 abstract class TemporaryViewDisplayController<T : TemporaryViewInfo, U : TemporaryViewLogger<T>>(
     internal val context: Context,
     internal val logger: U,
-    internal val windowManager: WindowManager,
+    internal val windowManager: ViewCaptureAwareWindowManager,
     @Main private val mainExecutor: DelayableExecutor,
     private val accessibilityManager: AccessibilityManager,
     private val configurationController: ConfigurationController,
@@ -80,7 +80,7 @@ abstract class TemporaryViewDisplayController<T : TemporaryViewInfo, U : Tempora
     private val wakeLockBuilder: WakeLock.Builder,
     private val systemClock: SystemClock,
     internal val tempViewUiEventLogger: TemporaryViewUiEventLogger,
-) : CoreStartable, Dumpable {
+) : CoreStartable {
     /**
      * Window layout params that will be used as a starting point for the [windowLayoutParams] of
      * all subclasses.

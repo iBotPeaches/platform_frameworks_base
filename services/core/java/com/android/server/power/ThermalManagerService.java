@@ -31,6 +31,7 @@ import android.content.Context;
 import android.hardware.thermal.IThermal;
 import android.hardware.thermal.IThermalChangedCallback;
 import android.hardware.thermal.TemperatureThreshold;
+import android.hardware.thermal.TemperatureType;
 import android.hardware.thermal.ThrottlingSeverity;
 import android.hardware.thermal.V1_0.ThermalStatus;
 import android.hardware.thermal.V1_0.ThermalStatusCode;
@@ -42,6 +43,7 @@ import android.os.Handler;
 import android.os.HwBinder;
 import android.os.IBinder;
 import android.os.IThermalEventListener;
+import android.os.IThermalHeadroomListener;
 import android.os.IThermalService;
 import android.os.IThermalStatusListener;
 import android.os.PowerManager;
@@ -54,9 +56,11 @@ import android.os.ShellCallback;
 import android.os.ShellCommand;
 import android.os.SystemClock;
 import android.os.Temperature;
+import android.os.Trace;
 import android.util.ArrayMap;
 import android.util.EventLog;
 import android.util.Slog;
+import android.util.SparseArray;
 import android.util.StatsEvent;
 
 import com.android.internal.annotations.GuardedBy;
@@ -94,6 +98,15 @@ public class ThermalManagerService extends SystemService {
     /** Input range limits for getThermalHeadroom API */
     public static final int MIN_FORECAST_SEC = 0;
     public static final int MAX_FORECAST_SEC = 60;
+    public static final int DEFAULT_FORECAST_SECONDS = 10;
+    public static final int HEADROOM_CALLBACK_MIN_INTERVAL_MILLIS = 5000;
+    // headroom to temperature conversion: 3C every 0.1 headroom difference
+    // if no throttling event, the temperature difference should be at least 0.9C (or 0.03 headroom)
+    // to make a callback
+    public static final float HEADROOM_CALLBACK_MIN_DIFFERENCE = 0.03f;
+    // if no throttling event, the threshold headroom difference should be at least 0.01 (or 0.3C)
+    // to make a callback
+    public static final float HEADROOM_THRESHOLD_CALLBACK_MIN_DIFFERENCE = 0.01f;
 
     /** Lock to protect listen list. */
     private final Object mLock = new Object();
@@ -110,6 +123,15 @@ public class ThermalManagerService extends SystemService {
     @GuardedBy("mLock")
     private final RemoteCallbackList<IThermalStatusListener> mThermalStatusListeners =
             new RemoteCallbackList<>();
+
+    /** Registered observers of the thermal headroom. */
+    @GuardedBy("mLock")
+    private final RemoteCallbackList<IThermalHeadroomListener> mThermalHeadroomListeners =
+            new RemoteCallbackList<>();
+    @GuardedBy("mLock")
+    private long mLastHeadroomCallbackTimeMillis;
+    @GuardedBy("mLock")
+    private HeadroomCallbackData mLastHeadroomCallbackData = null;
 
     /** Current thermal status */
     @GuardedBy("mLock")
@@ -131,7 +153,38 @@ public class ThermalManagerService extends SystemService {
 
     /** Watches temperatures to forecast when throttling will occur */
     @VisibleForTesting
-    final TemperatureWatcher mTemperatureWatcher = new TemperatureWatcher();
+    final TemperatureWatcher mTemperatureWatcher;
+
+    private final ThermalHalWrapper.WrapperThermalChangedCallback mWrapperCallback =
+            new ThermalHalWrapper.WrapperThermalChangedCallback() {
+                @Override
+                public void onTemperatureChanged(Temperature temperature) {
+                    final long token = Binder.clearCallingIdentity();
+                    try {
+                        ThermalManagerService.this.onTemperatureChanged(temperature, true);
+                    } finally {
+                        Binder.restoreCallingIdentity(token);
+                    }
+                }
+
+                @Override
+                public void onThresholdChanged(TemperatureThreshold threshold) {
+                    final long token = Binder.clearCallingIdentity();
+                    try {
+                        final HeadroomCallbackData data;
+                        synchronized (mTemperatureWatcher.mSamples) {
+                            Slog.d(TAG, "Updating skin threshold: " + threshold);
+                            mTemperatureWatcher.updateTemperatureThresholdLocked(threshold, true);
+                            data = mTemperatureWatcher.getHeadroomCallbackDataLocked();
+                        }
+                        synchronized (mLock) {
+                            checkAndNotifyHeadroomListenersLocked(data);
+                        }
+                    } finally {
+                        Binder.restoreCallingIdentity(token);
+                    }
+                }
+            };
 
     private final Context mContext;
 
@@ -145,9 +198,10 @@ public class ThermalManagerService extends SystemService {
         mContext = context;
         mHalWrapper = halWrapper;
         if (halWrapper != null) {
-            halWrapper.setCallback(this::onTemperatureChangedCallback);
+            halWrapper.setCallback(mWrapperCallback);
         }
         mStatus = Temperature.THROTTLING_NONE;
+        mTemperatureWatcher = new TemperatureWatcher();
     }
 
     @Override
@@ -170,19 +224,19 @@ public class ThermalManagerService extends SystemService {
             // Connect to HAL and post to listeners.
             boolean halConnected = (mHalWrapper != null);
             if (!halConnected) {
-                mHalWrapper = new ThermalHalAidlWrapper(this::onTemperatureChangedCallback);
+                mHalWrapper = new ThermalHalAidlWrapper(mWrapperCallback);
                 halConnected = mHalWrapper.connectToHal();
             }
             if (!halConnected) {
-                mHalWrapper = new ThermalHal20Wrapper(this::onTemperatureChangedCallback);
+                mHalWrapper = new ThermalHal20Wrapper(mWrapperCallback);
                 halConnected = mHalWrapper.connectToHal();
             }
             if (!halConnected) {
-                mHalWrapper = new ThermalHal11Wrapper(this::onTemperatureChangedCallback);
+                mHalWrapper = new ThermalHal11Wrapper(mWrapperCallback);
                 halConnected = mHalWrapper.connectToHal();
             }
             if (!halConnected) {
-                mHalWrapper = new ThermalHal10Wrapper(this::onTemperatureChangedCallback);
+                mHalWrapper = new ThermalHal10Wrapper(mWrapperCallback);
                 halConnected = mHalWrapper.connectToHal();
             }
             if (!halConnected) {
@@ -199,37 +253,84 @@ public class ThermalManagerService extends SystemService {
                 onTemperatureChanged(temperatures.get(i), false);
             }
             onTemperatureMapChangedLocked();
-            mTemperatureWatcher.updateThresholds();
+            mTemperatureWatcher.getAndUpdateThresholds();
             mHalReady.set(true);
         }
     }
 
-    private void postStatusListener(IThermalStatusListener listener) {
+    @GuardedBy("mLock")
+    private void postStatusListenerLocked(IThermalStatusListener listener) {
         final boolean thermalCallbackQueued = FgThread.getHandler().post(() -> {
             try {
                 listener.onStatusChange(mStatus);
             } catch (RemoteException | RuntimeException e) {
-                Slog.e(TAG, "Thermal callback failed to call", e);
+                Slog.e(TAG, "Thermal status callback failed to call", e);
             }
         });
         if (!thermalCallbackQueued) {
-            Slog.e(TAG, "Thermal callback failed to queue");
+            Slog.e(TAG, "Thermal status callback failed to queue");
         }
     }
 
+    @GuardedBy("mLock")
     private void notifyStatusListenersLocked() {
         final int length = mThermalStatusListeners.beginBroadcast();
         try {
             for (int i = 0; i < length; i++) {
                 final IThermalStatusListener listener =
                         mThermalStatusListeners.getBroadcastItem(i);
-                postStatusListener(listener);
+                postStatusListenerLocked(listener);
             }
         } finally {
             mThermalStatusListeners.finishBroadcast();
         }
     }
 
+    @GuardedBy("mLock")
+    private void postHeadroomListenerLocked(IThermalHeadroomListener listener,
+            HeadroomCallbackData data) {
+        if (!mHalReady.get()) {
+            return;
+        }
+        final boolean thermalCallbackQueued = FgThread.getHandler().post(() -> {
+            try {
+                if (Float.isNaN(data.mHeadroom)) {
+                    return;
+                }
+                listener.onHeadroomChange(data.mHeadroom, data.mForecastHeadroom,
+                        data.mForecastSeconds, data.mHeadroomThresholds);
+            } catch (RemoteException | RuntimeException e) {
+                Slog.e(TAG, "Thermal headroom callback failed to call", e);
+            }
+        });
+        if (!thermalCallbackQueued) {
+            Slog.e(TAG, "Thermal headroom callback failed to queue");
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void checkAndNotifyHeadroomListenersLocked(HeadroomCallbackData data) {
+        if (!data.isSignificantDifferentFrom(mLastHeadroomCallbackData)
+                && System.currentTimeMillis()
+                < mLastHeadroomCallbackTimeMillis + HEADROOM_CALLBACK_MIN_INTERVAL_MILLIS) {
+            // skip notifying the client with similar data within a short period
+            return;
+        }
+        mLastHeadroomCallbackTimeMillis = System.currentTimeMillis();
+        mLastHeadroomCallbackData = data;
+        final int length = mThermalHeadroomListeners.beginBroadcast();
+        try {
+            for (int i = 0; i < length; i++) {
+                final IThermalHeadroomListener listener =
+                        mThermalHeadroomListeners.getBroadcastItem(i);
+                postHeadroomListenerLocked(listener, data);
+            }
+        } finally {
+            mThermalHeadroomListeners.finishBroadcast();
+        }
+    }
+
+    @GuardedBy("mLock")
     private void onTemperatureMapChangedLocked() {
         int newStatus = Temperature.THROTTLING_NONE;
         final int count = mTemperatureMap.size();
@@ -245,25 +346,27 @@ public class ThermalManagerService extends SystemService {
         }
     }
 
+    @GuardedBy("mLock")
     private void setStatusLocked(int newStatus) {
         if (newStatus != mStatus) {
+            Trace.traceCounter(Trace.TRACE_TAG_POWER, "ThermalManagerService.status", newStatus);
             mStatus = newStatus;
             notifyStatusListenersLocked();
         }
     }
 
-    private void postEventListenerCurrentTemperatures(IThermalEventListener listener,
+    @GuardedBy("mLock")
+    private void postEventListenerCurrentTemperaturesLocked(IThermalEventListener listener,
             @Nullable Integer type) {
-        synchronized (mLock) {
-            final int count = mTemperatureMap.size();
-            for (int i = 0; i < count; i++) {
-                postEventListener(mTemperatureMap.valueAt(i), listener,
-                        type);
-            }
+        final int count = mTemperatureMap.size();
+        for (int i = 0; i < count; i++) {
+            postEventListenerLocked(mTemperatureMap.valueAt(i), listener,
+                    type);
         }
     }
 
-    private void postEventListener(Temperature temperature,
+    @GuardedBy("mLock")
+    private void postEventListenerLocked(Temperature temperature,
             IThermalEventListener listener,
             @Nullable Integer type) {
         // Skip if listener registered with a different type
@@ -274,14 +377,15 @@ public class ThermalManagerService extends SystemService {
             try {
                 listener.notifyThrottling(temperature);
             } catch (RemoteException | RuntimeException e) {
-                Slog.e(TAG, "Thermal callback failed to call", e);
+                Slog.e(TAG, "Thermal event callback failed to call", e);
             }
         });
         if (!thermalCallbackQueued) {
-            Slog.e(TAG, "Thermal callback failed to queue");
+            Slog.e(TAG, "Thermal event callback failed to queue");
         }
     }
 
+    @GuardedBy("mLock")
     private void notifyEventListenersLocked(Temperature temperature) {
         final int length = mThermalEventListeners.beginBroadcast();
         try {
@@ -290,7 +394,7 @@ public class ThermalManagerService extends SystemService {
                         mThermalEventListeners.getBroadcastItem(i);
                 final Integer type =
                         (Integer) mThermalEventListeners.getBroadcastCookie(i);
-                postEventListener(temperature, listener, type);
+                postEventListenerLocked(temperature, listener, type);
             }
         } finally {
             mThermalEventListeners.finishBroadcast();
@@ -320,26 +424,30 @@ public class ThermalManagerService extends SystemService {
         }
     }
 
-    private void onTemperatureChanged(Temperature temperature, boolean sendStatus) {
+    private void onTemperatureChanged(Temperature temperature, boolean sendCallback) {
         shutdownIfNeeded(temperature);
         synchronized (mLock) {
             Temperature old = mTemperatureMap.put(temperature.getName(), temperature);
             if (old == null || old.getStatus() != temperature.getStatus()) {
                 notifyEventListenersLocked(temperature);
             }
-            if (sendStatus) {
+            if (sendCallback) {
                 onTemperatureMapChangedLocked();
             }
         }
-    }
-
-    /* HwBinder callback **/
-    private void onTemperatureChangedCallback(Temperature temperature) {
-        final long token = Binder.clearCallingIdentity();
-        try {
-            onTemperatureChanged(temperature, true);
-        } finally {
-            Binder.restoreCallingIdentity(token);
+        if (sendCallback && Flags.allowThermalThresholdsCallback()
+                && temperature.getType() == Temperature.TYPE_SKIN) {
+            final HeadroomCallbackData data;
+            synchronized (mTemperatureWatcher.mSamples) {
+                Slog.d(TAG, "Updating new temperature: " + temperature);
+                mTemperatureWatcher.updateTemperatureSampleLocked(System.currentTimeMillis(),
+                        temperature);
+                mTemperatureWatcher.mCachedHeadrooms.clear();
+                data = mTemperatureWatcher.getHeadroomCallbackDataLocked();
+            }
+            synchronized (mLock) {
+                checkAndNotifyHeadroomListenersLocked(data);
+            }
         }
     }
 
@@ -381,7 +489,7 @@ public class ThermalManagerService extends SystemService {
                         return false;
                     }
                     // Notify its callback after new client registered.
-                    postEventListenerCurrentTemperatures(listener, null);
+                    postEventListenerCurrentTemperaturesLocked(listener, null);
                     return true;
                 } finally {
                     Binder.restoreCallingIdentity(token);
@@ -397,11 +505,11 @@ public class ThermalManagerService extends SystemService {
             synchronized (mLock) {
                 final long token = Binder.clearCallingIdentity();
                 try {
-                    if (!mThermalEventListeners.register(listener, new Integer(type))) {
+                    if (!mThermalEventListeners.register(listener, type)) {
                         return false;
                     }
                     // Notify its callback after new client registered.
-                    postEventListenerCurrentTemperatures(listener, new Integer(type));
+                    postEventListenerCurrentTemperaturesLocked(listener, type);
                     return true;
                 } finally {
                     Binder.restoreCallingIdentity(token);
@@ -466,7 +574,7 @@ public class ThermalManagerService extends SystemService {
                         return false;
                     }
                     // Notify its callback after new client registered.
-                    postStatusListener(listener);
+                    postStatusListenerLocked(listener);
                     return true;
                 } finally {
                     Binder.restoreCallingIdentity(token);
@@ -539,11 +647,50 @@ public class ThermalManagerService extends SystemService {
         }
 
         @Override
+        public boolean registerThermalHeadroomListener(IThermalHeadroomListener listener) {
+            if (!mHalReady.get()) {
+                return false;
+            }
+            synchronized (mLock) {
+                // Notify its callback after new client registered.
+                final long token = Binder.clearCallingIdentity();
+                try {
+                    if (!mThermalHeadroomListeners.register(listener)) {
+                        return false;
+                    }
+                } finally {
+                    Binder.restoreCallingIdentity(token);
+                }
+            }
+            final HeadroomCallbackData data;
+            synchronized (mTemperatureWatcher.mSamples) {
+                data = mTemperatureWatcher.getHeadroomCallbackDataLocked();
+            }
+            // Notify its callback after new client registered.
+            synchronized (mLock) {
+                postHeadroomListenerLocked(listener, data);
+            }
+            return true;
+        }
+
+        @Override
+        public boolean unregisterThermalHeadroomListener(IThermalHeadroomListener listener) {
+            synchronized (mLock) {
+                final long token = Binder.clearCallingIdentity();
+                try {
+                    return mThermalHeadroomListeners.unregister(listener);
+                } finally {
+                    Binder.restoreCallingIdentity(token);
+                }
+            }
+        }
+
+        @Override
         public float getThermalHeadroom(int forecastSeconds) {
             if (!mHalReady.get()) {
                 FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_CALLED, getCallingUid(),
-                            FrameworkStatsLog.THERMAL_HEADROOM_CALLED__API_STATUS__HAL_NOT_READY,
-                            Float.NaN);
+                        FrameworkStatsLog.THERMAL_HEADROOM_CALLED__API_STATUS__HAL_NOT_READY,
+                        Float.NaN, forecastSeconds);
                 return Float.NaN;
             }
 
@@ -552,8 +699,8 @@ public class ThermalManagerService extends SystemService {
                     Slog.d(TAG, "Invalid forecastSeconds: " + forecastSeconds);
                 }
                 FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_CALLED, getCallingUid(),
-                            FrameworkStatsLog.THERMAL_HEADROOM_CALLED__API_STATUS__INVALID_ARGUMENT,
-                            Float.NaN);
+                        FrameworkStatsLog.THERMAL_HEADROOM_CALLED__API_STATUS__INVALID_ARGUMENT,
+                        Float.NaN, forecastSeconds);
                 return Float.NaN;
             }
 
@@ -574,13 +721,10 @@ public class ThermalManagerService extends SystemService {
                         THERMAL_HEADROOM_THRESHOLDS_CALLED__API_STATUS__FEATURE_NOT_SUPPORTED);
                 throw new UnsupportedOperationException("Thermal headroom thresholds not enabled");
             }
-            synchronized (mTemperatureWatcher.mSamples) {
-                FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_THRESHOLDS_CALLED,
-                        Binder.getCallingUid(),
-                        THERMAL_HEADROOM_THRESHOLDS_CALLED__API_STATUS__SUCCESS);
-                return Arrays.copyOf(mTemperatureWatcher.mHeadroomThresholds,
-                        mTemperatureWatcher.mHeadroomThresholds.length);
-            }
+            FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_THRESHOLDS_CALLED,
+                    Binder.getCallingUid(),
+                    THERMAL_HEADROOM_THRESHOLDS_CALLED__API_STATUS__SUCCESS);
+            return mTemperatureWatcher.getHeadroomThresholds();
         }
 
         @Override
@@ -693,13 +837,15 @@ public class ThermalManagerService extends SystemService {
     class ThermalShellCommand extends ShellCommand {
         @Override
         public int onCommand(String cmd) {
-            switch(cmd != null ? cmd : "") {
+            switch (cmd != null ? cmd : "") {
                 case "inject-temperature":
                     return runInjectTemperature();
                 case "override-status":
                     return runOverrideStatus();
                 case "reset":
                     return runReset();
+                case "headroom":
+                    return runHeadroom();
                 default:
                     return handleDefaultCommands(cmd);
             }
@@ -862,6 +1008,36 @@ public class ThermalManagerService extends SystemService {
             }
         }
 
+        private int runHeadroom() {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                final PrintWriter pw = getOutPrintWriter();
+                int forecastSecs;
+                try {
+                    forecastSecs = Integer.parseInt(getNextArgRequired());
+                } catch (RuntimeException ex) {
+                    pw.println("Error: " + ex);
+                    return -1;
+                }
+                if (!mHalReady.get()) {
+                    pw.println("Error: thermal HAL is not ready");
+                    return -1;
+                }
+
+                if (forecastSecs < MIN_FORECAST_SEC || forecastSecs > MAX_FORECAST_SEC) {
+                    pw.println(
+                            "Error: forecast second input should be in range [" + MIN_FORECAST_SEC
+                                    + "," + MAX_FORECAST_SEC + "]");
+                    return -1;
+                }
+                float headroom = mTemperatureWatcher.getForecast(forecastSecs);
+                pw.println("Headroom in " + forecastSecs + " seconds: " + headroom);
+                return 0;
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
+        }
+
         @Override
         public void onHelp() {
             final PrintWriter pw = getOutPrintWriter();
@@ -877,6 +1053,9 @@ public class ThermalManagerService extends SystemService {
             pw.println("    status code is defined in android.os.Temperature.");
             pw.println("  reset");
             pw.println("    unlocks the thermal status of the device.");
+            pw.println("  headroom FORECAST_SECONDS");
+            pw.println("    gets the thermal headroom forecast in specified seconds, from ["
+                    + MIN_FORECAST_SEC + "," + MAX_FORECAST_SEC + "].");
             pw.println();
         }
     }
@@ -887,19 +1066,19 @@ public class ThermalManagerService extends SystemService {
         /** Lock to protect HAL handle. */
         protected final Object mHalLock = new Object();
 
-        @FunctionalInterface
-        interface TemperatureChangedCallback {
-            void onValues(Temperature temperature);
+        interface WrapperThermalChangedCallback {
+            void onTemperatureChanged(Temperature temperature);
+            void onThresholdChanged(TemperatureThreshold threshold);
         }
 
         /** Temperature callback. */
-        protected TemperatureChangedCallback mCallback;
+        protected WrapperThermalChangedCallback mCallback;
 
         /** Cookie for matching the right end point. */
         protected static final int THERMAL_HAL_DEATH_COOKIE = 5612;
 
         @VisibleForTesting
-        protected void setCallback(TemperatureChangedCallback cb) {
+        protected void setCallback(WrapperThermalChangedCallback cb) {
             mCallback = cb;
         }
 
@@ -922,7 +1101,7 @@ public class ThermalManagerService extends SystemService {
                 List<Temperature> temperatures = getCurrentTemperatures(false, 0);
                 final int count = temperatures.size();
                 for (int i = 0; i < count; i++) {
-                    mCallback.onValues(temperatures.get(i));
+                    mCallback.onTemperatureChanged(temperatures.get(i));
                 }
             }
         }
@@ -948,31 +1127,42 @@ public class ThermalManagerService extends SystemService {
         private IThermal mInstance = null;
 
         /** Callback for Thermal HAL AIDL. */
-        private final IThermalChangedCallback mThermalChangedCallback =
+        private final IThermalChangedCallback mThermalCallbackAidl =
                 new IThermalChangedCallback.Stub() {
-                    @Override public void notifyThrottling(
-                            android.hardware.thermal.Temperature temperature)
-                            throws RemoteException {
+                    @Override
+                    public void notifyThrottling(
+                            android.hardware.thermal.Temperature temperature) {
                         Temperature svcTemperature = new Temperature(temperature.value,
                                 temperature.type, temperature.name, temperature.throttlingStatus);
                         final long token = Binder.clearCallingIdentity();
                         try {
-                            mCallback.onValues(svcTemperature);
+                            mCallback.onTemperatureChanged(svcTemperature);
                         } finally {
                             Binder.restoreCallingIdentity(token);
                         }
                     }
 
-            @Override public int getInterfaceVersion() throws RemoteException {
-                return this.VERSION;
-            }
+                    @Override
+                    public void notifyThresholdChanged(TemperatureThreshold threshold) {
+                        if (Flags.allowThermalThresholdsCallback()) {
+                            if (threshold.type == TemperatureType.SKIN) {
+                                mCallback.onThresholdChanged(threshold);
+                            }
+                        }
+                    }
 
-            @Override public String getInterfaceHash() throws RemoteException {
-                return this.HASH;
-            }
-        };
+                    @Override
+                    public int getInterfaceVersion() throws RemoteException {
+                        return this.VERSION;
+                    }
 
-        ThermalHalAidlWrapper(TemperatureChangedCallback callback) {
+                    @Override
+                    public String getInterfaceHash() throws RemoteException {
+                        return this.HASH;
+                    }
+                };
+
+        ThermalHalAidlWrapper(WrapperThermalChangedCallback callback) {
             mCallback = callback;
         }
 
@@ -1048,7 +1238,8 @@ public class ThermalManagerService extends SystemService {
         }
 
         @Override
-        @NonNull protected List<TemperatureThreshold> getTemperatureThresholds(
+        @NonNull
+        protected List<TemperatureThreshold> getTemperatureThresholds(
                 boolean shouldFilter, int type) {
             synchronized (mHalLock) {
                 final List<TemperatureThreshold> ret = new ArrayList<>();
@@ -1116,7 +1307,7 @@ public class ThermalManagerService extends SystemService {
         @VisibleForTesting
         void registerThermalChangedCallback() {
             try {
-                mInstance.registerThermalChangedCallback(mThermalChangedCallback);
+                mInstance.registerThermalChangedCallback(mThermalCallbackAidl);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 Slog.e(TAG, "Couldn't registerThermalChangedCallback due to invalid status",
                         e);
@@ -1148,7 +1339,7 @@ public class ThermalManagerService extends SystemService {
         @GuardedBy("mHalLock")
         private android.hardware.thermal.V1_0.IThermal mThermalHal10 = null;
 
-        ThermalHal10Wrapper(TemperatureChangedCallback callback) {
+        ThermalHal10Wrapper(WrapperThermalChangedCallback callback) {
             mCallback = callback;
         }
 
@@ -1280,14 +1471,14 @@ public class ThermalManagerService extends SystemService {
                                         : Temperature.THROTTLING_NONE);
                         final long token = Binder.clearCallingIdentity();
                         try {
-                            mCallback.onValues(thermalSvcTemp);
+                            mCallback.onTemperatureChanged(thermalSvcTemp);
                         } finally {
                             Binder.restoreCallingIdentity(token);
                         }
                     }
                 };
 
-        ThermalHal11Wrapper(TemperatureChangedCallback callback) {
+        ThermalHal11Wrapper(WrapperThermalChangedCallback callback) {
             mCallback = callback;
         }
 
@@ -1418,14 +1609,14 @@ public class ThermalManagerService extends SystemService {
                                 temperature.throttlingStatus);
                         final long token = Binder.clearCallingIdentity();
                         try {
-                            mCallback.onValues(thermalSvcTemp);
+                            mCallback.onTemperatureChanged(thermalSvcTemp);
                         } finally {
                             Binder.restoreCallingIdentity(token);
                         }
                     }
                 };
 
-        ThermalHal20Wrapper(TemperatureChangedCallback callback) {
+        ThermalHal20Wrapper(WrapperThermalChangedCallback callback) {
             mCallback = callback;
         }
 
@@ -1567,14 +1758,68 @@ public class ThermalManagerService extends SystemService {
         }
     }
 
+    private static final class HeadroomCallbackData {
+        float mHeadroom;
+        float mForecastHeadroom;
+        int mForecastSeconds;
+        float[] mHeadroomThresholds;
+
+        HeadroomCallbackData(float headroom, float forecastHeadroom, int forecastSeconds,
+                @NonNull float[] headroomThresholds) {
+            mHeadroom = headroom;
+            mForecastHeadroom = forecastHeadroom;
+            mForecastSeconds = forecastSeconds;
+            mHeadroomThresholds = headroomThresholds;
+        }
+
+        private boolean isSignificantDifferentFrom(HeadroomCallbackData other) {
+            if (other == null) return true;
+            // currently this is always the same as DEFAULT_FORECAST_SECONDS, when it's retried
+            // from thermal HAL, we may want to adjust this.
+            if (this.mForecastSeconds != other.mForecastSeconds) return true;
+            if (Math.abs(this.mHeadroom - other.mHeadroom)
+                    >= HEADROOM_CALLBACK_MIN_DIFFERENCE) return true;
+            if (Math.abs(this.mForecastHeadroom - other.mForecastHeadroom)
+                    >= HEADROOM_CALLBACK_MIN_DIFFERENCE) return true;
+            for (int i = 0; i < this.mHeadroomThresholds.length; i++) {
+                if (Float.isNaN(this.mHeadroomThresholds[i]) != Float.isNaN(
+                        other.mHeadroomThresholds[i])) {
+                    return true;
+                }
+                if (Math.abs(this.mHeadroomThresholds[i] - other.mHeadroomThresholds[i])
+                        >= HEADROOM_THRESHOLD_CALLBACK_MIN_DIFFERENCE) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "HeadroomCallbackData[mHeadroom=" + mHeadroom + ", mForecastHeadroom="
+                    + mForecastHeadroom + ", mForecastSeconds=" + mForecastSeconds
+                    + ", mHeadroomThresholds=" + Arrays.toString(mHeadroomThresholds) + "]";
+        }
+    }
+
     @VisibleForTesting
     class TemperatureWatcher {
+        private static final int RING_BUFFER_SIZE = 30;
+        private static final int INACTIVITY_THRESHOLD_MILLIS = 10000;
+        @VisibleForTesting
+        long mInactivityThresholdMillis = INACTIVITY_THRESHOLD_MILLIS;
+
         private final Handler mHandler = BackgroundThread.getHandler();
 
-        /** Map of skin temperature sensor name to a corresponding list of samples */
+        /**
+         * Map of skin temperature sensor name to a corresponding list of samples
+         * Updates to the samples should also clear the headroom cache.
+         */
         @GuardedBy("mSamples")
         @VisibleForTesting
         final ArrayMap<String, ArrayList<Sample>> mSamples = new ArrayMap<>();
+        @GuardedBy("mSamples")
+        private final SparseArray<Float> mCachedHeadrooms = new SparseArray<>(2);
 
         /** Map of skin temperature sensor name to the corresponding SEVERE temperature threshold */
         @GuardedBy("mSamples")
@@ -1586,52 +1831,52 @@ public class ThermalManagerService extends SystemService {
         @GuardedBy("mSamples")
         private long mLastForecastCallTimeMillis = 0;
 
-        private static final int INACTIVITY_THRESHOLD_MILLIS = 10000;
-        @VisibleForTesting
-        long mInactivityThresholdMillis = INACTIVITY_THRESHOLD_MILLIS;
-
-        void updateThresholds() {
+        void getAndUpdateThresholds() {
+            List<TemperatureThreshold> thresholds =
+                    mHalWrapper.getTemperatureThresholds(true, Temperature.TYPE_SKIN);
             synchronized (mSamples) {
-                List<TemperatureThreshold> thresholds =
-                        mHalWrapper.getTemperatureThresholds(true, Temperature.TYPE_SKIN);
                 if (Flags.allowThermalHeadroomThresholds()) {
                     Arrays.fill(mHeadroomThresholds, Float.NaN);
                 }
-                for (int t = 0; t < thresholds.size(); ++t) {
-                    TemperatureThreshold threshold = thresholds.get(t);
-                    if (threshold.hotThrottlingThresholds.length <= ThrottlingSeverity.SEVERE) {
-                        continue;
-                    }
-                    float severeThreshold =
-                            threshold.hotThrottlingThresholds[ThrottlingSeverity.SEVERE];
-                    if (!Float.isNaN(severeThreshold)) {
-                        mSevereThresholds.put(threshold.name, severeThreshold);
-                        if (Flags.allowThermalHeadroomThresholds()) {
-                            for (int severity = ThrottlingSeverity.LIGHT;
-                                    severity <= ThrottlingSeverity.SHUTDOWN; severity++) {
-                                if (severity != ThrottlingSeverity.SEVERE
-                                        && threshold.hotThrottlingThresholds.length > severity) {
-                                    updateHeadroomThreshold(severity,
-                                            threshold.hotThrottlingThresholds[severity],
-                                            severeThreshold);
-                                }
-                            }
-                        }
-                    }
+                for (final TemperatureThreshold threshold : thresholds) {
+                    updateTemperatureThresholdLocked(threshold, false);
                 }
             }
         }
 
         // For an older device with multiple SKIN sensors, we will set a severity's headroom
-        // threshold based on the minimum value of all as a workaround.
-        void updateHeadroomThreshold(int severity, float threshold, float severeThreshold) {
-            if (!Float.isNaN(threshold)) {
-                synchronized (mSamples) {
+        // threshold based on the minimum value of all as a workaround, unless override.
+        @GuardedBy("mSamples")
+        void updateTemperatureThresholdLocked(TemperatureThreshold threshold, boolean override) {
+            if (threshold.hotThrottlingThresholds.length <= ThrottlingSeverity.SEVERE) {
+                return;
+            }
+            float severeThreshold =
+                    threshold.hotThrottlingThresholds[ThrottlingSeverity.SEVERE];
+            if (Float.isNaN(severeThreshold)) {
+                return;
+            }
+            mSevereThresholds.put(threshold.name, severeThreshold);
+            if (!Flags.allowThermalHeadroomThresholds()) {
+                return;
+            }
+            if (override) {
+                Slog.d(TAG, "Headroom cache cleared on threshold update " + threshold);
+                mCachedHeadrooms.clear();
+                Arrays.fill(mHeadroomThresholds, Float.NaN);
+            }
+            for (int severity = ThrottlingSeverity.LIGHT;
+                    severity <= ThrottlingSeverity.SHUTDOWN; severity++) {
+                if (threshold.hotThrottlingThresholds.length > severity) {
+                    float t = threshold.hotThrottlingThresholds[severity];
+                    if (Float.isNaN(t)) {
+                        continue;
+                    }
                     if (severity == ThrottlingSeverity.SEVERE) {
                         mHeadroomThresholds[severity] = 1.0f;
-                        return;
+                        continue;
                     }
-                    float headroom = normalizeTemperature(threshold, severeThreshold);
+                    float headroom = normalizeTemperature(t, severeThreshold);
                     if (Float.isNaN(mHeadroomThresholds[severity])) {
                         mHeadroomThresholds[severity] = headroom;
                     } else {
@@ -1642,43 +1887,44 @@ public class ThermalManagerService extends SystemService {
             }
         }
 
-        private static final int RING_BUFFER_SIZE = 30;
-
-        private void updateTemperature() {
+        private void getAndUpdateTemperatureSamples() {
             synchronized (mSamples) {
                 if (SystemClock.elapsedRealtime() - mLastForecastCallTimeMillis
                         < mInactivityThresholdMillis) {
                     // Trigger this again after a second as long as forecast has been called more
                     // recently than the inactivity timeout
-                    mHandler.postDelayed(this::updateTemperature, 1000);
+                    mHandler.postDelayed(this::getAndUpdateTemperatureSamples, 1000);
                 } else {
                     // Otherwise, we've been idle for at least 10 seconds, so we should
                     // shut down
                     mSamples.clear();
+                    mCachedHeadrooms.clear();
                     return;
                 }
 
                 long now = SystemClock.elapsedRealtime();
-                List<Temperature> temperatures = mHalWrapper.getCurrentTemperatures(true,
+                final List<Temperature> temperatures = mHalWrapper.getCurrentTemperatures(true,
                         Temperature.TYPE_SKIN);
-
-                for (int t = 0; t < temperatures.size(); ++t) {
-                    Temperature temperature = temperatures.get(t);
-
-                    // Filter out invalid temperatures. If this results in no values being stored at
-                    // all, the mSamples.empty() check in getForecast() will catch it.
-                    if (Float.isNaN(temperature.getValue())) {
-                        continue;
-                    }
-
-                    ArrayList<Sample> samples = mSamples.computeIfAbsent(temperature.getName(),
-                            k -> new ArrayList<>(RING_BUFFER_SIZE));
-                    if (samples.size() == RING_BUFFER_SIZE) {
-                        samples.remove(0);
-                    }
-                    samples.add(new Sample(now, temperature.getValue()));
+                for (Temperature temperature : temperatures) {
+                    updateTemperatureSampleLocked(now, temperature);
                 }
+                mCachedHeadrooms.clear();
             }
+        }
+
+        @GuardedBy("mSamples")
+        private void updateTemperatureSampleLocked(long timeNow, Temperature temperature) {
+            // Filter out invalid temperatures. If this results in no values being stored at
+            // all, the mSamples.empty() check in getForecast() will catch it.
+            if (Float.isNaN(temperature.getValue())) {
+                return;
+            }
+            ArrayList<Sample> samples = mSamples.computeIfAbsent(temperature.getName(),
+                    k -> new ArrayList<>(RING_BUFFER_SIZE));
+            if (samples.size() == RING_BUFFER_SIZE) {
+                samples.removeFirst();
+            }
+            samples.add(new Sample(timeNow, temperature.getValue()));
         }
 
         /**
@@ -1733,7 +1979,7 @@ public class ThermalManagerService extends SystemService {
             synchronized (mSamples) {
                 mLastForecastCallTimeMillis = SystemClock.elapsedRealtime();
                 if (mSamples.isEmpty()) {
-                    updateTemperature();
+                    getAndUpdateTemperatureSamples();
                 }
 
                 // If somehow things take much longer than expected or there are no temperatures
@@ -1743,7 +1989,7 @@ public class ThermalManagerService extends SystemService {
                     FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_CALLED,
                             Binder.getCallingUid(),
                             FrameworkStatsLog.THERMAL_HEADROOM_CALLED__API_STATUS__NO_TEMPERATURE,
-                            Float.NaN);
+                            Float.NaN, forecastSeconds);
                     return Float.NaN;
                 }
 
@@ -1754,8 +2000,16 @@ public class ThermalManagerService extends SystemService {
                     FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_CALLED,
                             Binder.getCallingUid(),
                             THERMAL_HEADROOM_CALLED__API_STATUS__NO_TEMPERATURE_THRESHOLD,
-                            Float.NaN);
+                            Float.NaN, forecastSeconds);
                     return Float.NaN;
+                }
+
+                if (mCachedHeadrooms.contains(forecastSeconds)) {
+                    // TODO(b/360486877): replace with metrics
+                    Slog.d(TAG,
+                            "Headroom forecast in " + forecastSeconds + "s served from cache: "
+                                    + mCachedHeadrooms.get(forecastSeconds));
+                    return mCachedHeadrooms.get(forecastSeconds);
                 }
 
                 float maxNormalized = Float.NaN;
@@ -1771,9 +2025,15 @@ public class ThermalManagerService extends SystemService {
                         continue;
                     }
 
-                    float currentTemperature = samples.get(0).temperature;
+                    float currentTemperature = samples.getLast().temperature;
 
                     if (samples.size() < MINIMUM_SAMPLE_COUNT) {
+                        if (mSamples.size() == 1 && mCachedHeadrooms.contains(0)) {
+                            // if only one sensor name exists, then try reading the cache
+                            // TODO(b/360486877): replace with metrics
+                            Slog.d(TAG, "Headroom forecast cached: " + mCachedHeadrooms.get(0));
+                            return mCachedHeadrooms.get(0);
+                        }
                         // Don't try to forecast, just use the latest one we have
                         float normalized = normalizeTemperature(currentTemperature, threshold);
                         if (Float.isNaN(maxNormalized) || normalized > maxNormalized) {
@@ -1781,8 +2041,10 @@ public class ThermalManagerService extends SystemService {
                         }
                         continue;
                     }
-
-                    float slope = getSlopeOf(samples);
+                    float slope = 0.0f;
+                    if (forecastSeconds > 0) {
+                        slope = getSlopeOf(samples);
+                    }
                     float normalized = normalizeTemperature(
                             currentTemperature + slope * forecastSeconds * 1000, threshold);
                     if (Float.isNaN(maxNormalized) || normalized > maxNormalized) {
@@ -1793,15 +2055,33 @@ public class ThermalManagerService extends SystemService {
                     FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_CALLED,
                             Binder.getCallingUid(),
                             THERMAL_HEADROOM_CALLED__API_STATUS__NO_TEMPERATURE_THRESHOLD,
-                            Float.NaN);
+                            Float.NaN, forecastSeconds);
                 } else {
                     FrameworkStatsLog.write(FrameworkStatsLog.THERMAL_HEADROOM_CALLED,
                             Binder.getCallingUid(),
                             FrameworkStatsLog.THERMAL_HEADROOM_CALLED__API_STATUS__SUCCESS,
-                            maxNormalized);
+                            maxNormalized, forecastSeconds);
                 }
+                mCachedHeadrooms.put(forecastSeconds, maxNormalized);
                 return maxNormalized;
             }
+        }
+
+        float[] getHeadroomThresholds() {
+            synchronized (mSamples) {
+                return Arrays.copyOf(mHeadroomThresholds, mHeadroomThresholds.length);
+            }
+        }
+
+        @GuardedBy("mSamples")
+        HeadroomCallbackData getHeadroomCallbackDataLocked() {
+            final HeadroomCallbackData data = new HeadroomCallbackData(
+                    getForecast(0),
+                    getForecast(DEFAULT_FORECAST_SECONDS),
+                    DEFAULT_FORECAST_SECONDS,
+                    Arrays.copyOf(mHeadroomThresholds, mHeadroomThresholds.length));
+            Slog.d(TAG, "New headroom callback data: " + data);
+            return data;
         }
 
         @VisibleForTesting
@@ -1812,13 +2092,18 @@ public class ThermalManagerService extends SystemService {
         }
 
         @VisibleForTesting
-        class Sample {
+        static class Sample {
             public long time;
             public float temperature;
 
             Sample(long time, float temperature) {
                 this.time = time;
                 this.temperature = temperature;
+            }
+
+            @Override
+            public String toString() {
+                return "Sample[temperature=" + temperature + ", time=" + time + "]";
             }
         }
     }

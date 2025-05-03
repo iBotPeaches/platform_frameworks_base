@@ -29,7 +29,39 @@ data class CommunalWidgetItem(
     @ColumnInfo(name = "component_name") val componentName: String,
     /** Reference the id of an item persisted in the glanceable hub */
     @ColumnInfo(name = "item_id") val itemId: Long,
-)
+    /**
+     * A serial number of the user that the widget provider is associated with. For example, a work
+     * profile widget.
+     *
+     * A serial number may be different from its user id in that user ids may be recycled but serial
+     * numbers are unique until the device is wiped.
+     *
+     * Most commonly, this value would be 0 for the primary user, and 10 for the work profile.
+     */
+    @ColumnInfo(name = "user_serial_number", defaultValue = "$USER_SERIAL_NUMBER_UNDEFINED")
+    val userSerialNumber: Int,
+
+    /**
+     * The vertical span of the widget. Span_Y default value corresponds to
+     * CommunalContentSize.HALF.span
+     */
+    @Deprecated("Use spanYNew instead")
+    @ColumnInfo(name = "span_y", defaultValue = "3")
+    val spanY: Int,
+
+    /** The vertical span of the widget in grid cell units. */
+    @ColumnInfo(name = "span_y_new", defaultValue = "1") val spanYNew: Int,
+) {
+    companion object {
+        /**
+         * The user serial number associated with the widget is undefined.
+         *
+         * This should only happen for widgets migrated from V1 before user serial number was
+         * included in the schema.
+         */
+        const val USER_SERIAL_NUMBER_UNDEFINED = -1
+    }
+}
 
 @Entity(tableName = "communal_item_rank_table")
 data class CommunalItemRank(

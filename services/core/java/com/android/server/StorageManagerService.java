@@ -41,6 +41,7 @@ import static android.os.storage.OnObbStateChangeListener.ERROR_NOT_MOUNTED;
 import static android.os.storage.OnObbStateChangeListener.ERROR_PERMISSION_DENIED;
 import static android.os.storage.OnObbStateChangeListener.MOUNTED;
 import static android.os.storage.OnObbStateChangeListener.UNMOUNTED;
+import static android.mmd.flags.Flags.mmdEnabled;
 
 import static com.android.internal.util.XmlUtils.readStringAttribute;
 import static com.android.internal.util.XmlUtils.writeStringAttribute;
@@ -96,6 +97,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.os.ParcelableException;
+import android.os.PermissionEnforcer;
 import android.os.PersistableBundle;
 import android.os.Process;
 import android.os.RemoteCallbackList;
@@ -104,9 +106,11 @@ import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
+import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.storage.DiskInfo;
+import android.os.storage.ICeStorageLockEventListener;
 import android.os.storage.IObbActionListener;
 import android.os.storage.IStorageEventListener;
 import android.os.storage.IStorageManager;
@@ -123,6 +127,7 @@ import android.provider.Downloads;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.service.storage.ExternalStorageService;
+import android.sysprop.MmdProperties;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.util.ArrayMap;
@@ -139,6 +144,7 @@ import android.util.TimeUtils;
 import android.util.Xml;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.content.PackageMonitor;
 import com.android.internal.os.AppFuseMount;
@@ -151,6 +157,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
+import com.android.server.memory.ZramMaintenance;
 import com.android.server.pm.Installer;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.storage.AppFuseBridge;
@@ -184,6 +191,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -215,10 +223,13 @@ class StorageManagerService extends IStorageManager.Stub
     public static final int FAILED_MOUNT_RESET_TIMEOUT_SECONDS = 10;
 
     /** Extended timeout for the system server watchdog. */
-    private static final int SLOW_OPERATION_WATCHDOG_TIMEOUT_MS = 20 * 1000;
+    private static final int SLOW_OPERATION_WATCHDOG_TIMEOUT_MS = 30 * 1000;
 
     /** Extended timeout for the system server watchdog for vold#partition operation. */
     private static final int PARTITION_OPERATION_WATCHDOG_TIMEOUT_MS = 3 * 60 * 1000;
+
+    private static final Pattern OBB_FILE_PATH = Pattern.compile(
+            "(?i)(^/storage/[^/]+/(?:([0-9]+)/)?Android/obb/)([^/]+)/([^/]+\\.obb)");
 
     @GuardedBy("mLock")
     private final Set<Integer> mFuseMountedUser = new ArraySet<>();
@@ -601,6 +612,9 @@ class StorageManagerService extends IStorageManager.Stub
     // Not guarded by lock, always used on the ActivityManager thread
     private final SparseArray<PackageMonitor> mPackageMonitorsForUser = new SparseArray<>();
 
+    /** List of listeners registered for ce storage callbacks */
+    private final CopyOnWriteArrayList<ICeStorageLockEventListener>
+            mCeStorageEventCallbacks = new CopyOnWriteArrayList<>();
 
     class ObbState implements IBinder.DeathRecipient {
         public ObbState(String rawPath, String canonicalPath, int callingUid,
@@ -922,24 +936,28 @@ class StorageManagerService extends IStorageManager.Stub
         // Start scheduling nominally-daily fstrim operations
         MountServiceIdler.scheduleIdlePass(mContext);
 
-        // Toggle zram-enable system property in response to settings
-        mContext.getContentResolver().registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.ZRAM_ENABLED),
-            false /*notifyForDescendants*/,
-            new ContentObserver(null /* current thread */) {
-                @Override
-                public void onChange(boolean selfChange) {
-                    refreshZramSettings();
-                }
-            });
-        refreshZramSettings();
+        if (mmdEnabled() && MmdProperties.mmd_zram_enabled().orElse(false)) {
+            ZramMaintenance.startZramMaintenance(mContext);
+        } else {
+            // Toggle zram-enable system property in response to settings
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.Global.getUriFor(Settings.Global.ZRAM_ENABLED),
+                    false /*notifyForDescendants*/,
+                    new ContentObserver(null /* current thread */) {
+                        @Override
+                        public void onChange(boolean selfChange) {
+                            refreshZramSettings();
+                        }
+                    });
+            refreshZramSettings();
 
-        // Schedule zram writeback unless zram is disabled by persist.sys.zram_enabled
-        String zramPropValue = SystemProperties.get(ZRAM_ENABLED_PROPERTY);
-        if (!zramPropValue.equals("0")
-                && mContext.getResources().getBoolean(
+            // Schedule zram writeback unless zram is disabled by persist.sys.zram_enabled
+            String zramPropValue = SystemProperties.get(ZRAM_ENABLED_PROPERTY);
+            if (!zramPropValue.equals("0")
+                    && mContext.getResources().getBoolean(
                     com.android.internal.R.bool.config_zramWriteback)) {
-            ZramWriteback.scheduleZramWriteback(mContext);
+                ZramWriteback.scheduleZramWriteback(mContext);
+            }
         }
 
         configureTranscoding();
@@ -1174,6 +1192,7 @@ class StorageManagerService extends IStorageManager.Stub
 
     private void onUserUnlocking(int userId) {
         Slog.d(TAG, "onUserUnlocking " + userId);
+        Trace.instant(Trace.TRACE_TAG_SYSTEM_SERVER, "SMS.onUserUnlocking: " + userId);
 
         if (userId != UserHandle.USER_SYSTEM) {
             // Check if this user shares media with another user
@@ -1460,6 +1479,8 @@ class StorageManagerService extends IStorageManager.Stub
         @Override
         public void onVolumeCreated(String volId, int type, String diskId, String partGuid,
                 int userId) {
+            Trace.instant(Trace.TRACE_TAG_SYSTEM_SERVER,
+                    "SMS.onVolumeCreated: " + volId + ", " + userId);
             synchronized (mLock) {
                 final DiskInfo disk = mDisks.get(diskId);
                 final VolumeInfo vol = new VolumeInfo(volId, type, disk, partGuid);
@@ -2346,6 +2367,7 @@ class StorageManagerService extends IStorageManager.Stub
 
     private void mount(VolumeInfo vol) {
         try {
+            Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, "SMS.mount: " + vol.id);
             // TODO(b/135341433): Remove cautious logging when FUSE is stable
             Slog.i(TAG, "Mounting volume " + vol);
             extendWatchdogTimeout("#mount might be slow");
@@ -2357,6 +2379,8 @@ class StorageManagerService extends IStorageManager.Stub
                     vol.internalPath = internalPath;
                     ParcelFileDescriptor pfd = new ParcelFileDescriptor(fd);
                     try {
+                        Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER,
+                                "SMS.startFuseFileSystem: " + vol.id);
                         mStorageSessionController.onVolumeMount(pfd, vol);
                         return true;
                     } catch (ExternalStorageServiceException e) {
@@ -2369,6 +2393,7 @@ class StorageManagerService extends IStorageManager.Stub
                                 TimeUnit.SECONDS.toMillis(nextResetSeconds));
                         return false;
                     } finally {
+                        Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
                         try {
                             pfd.close();
                         } catch (Exception e) {
@@ -2380,6 +2405,8 @@ class StorageManagerService extends IStorageManager.Stub
             Slog.i(TAG, "Mounted volume " + vol);
         } catch (Exception e) {
             Slog.wtf(TAG, e);
+        } finally {
+            Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
         }
     }
 
@@ -2732,7 +2759,8 @@ class StorageManagerService extends IStorageManager.Stub
         boolean smartIdleMaintEnabled = DeviceConfig.getBoolean(
             DeviceConfig.NAMESPACE_STORAGE_NATIVE_BOOT,
             "smart_idle_maint_enabled",
-            DEFAULT_SMART_IDLE_MAINT_ENABLED);
+                DEFAULT_SMART_IDLE_MAINT_ENABLED)
+                && !SystemProperties.getBoolean("ro.boot.zufs_provisioned", false);
         if (smartIdleMaintEnabled) {
             mLifetimePercentThreshold = DeviceConfig.getInt(
                 DeviceConfig.NAMESPACE_STORAGE_NATIVE_BOOT,
@@ -3128,7 +3156,9 @@ class StorageManagerService extends IStorageManager.Stub
         Objects.requireNonNull(rawPath, "rawPath cannot be null");
         Objects.requireNonNull(canonicalPath, "canonicalPath cannot be null");
         Objects.requireNonNull(token, "token cannot be null");
-        Objects.requireNonNull(obbInfo, "obbIfno cannot be null");
+        Objects.requireNonNull(obbInfo, "obbInfo cannot be null");
+
+        validateObbInfo(obbInfo, rawPath);
 
         final int callingUid = Binder.getCallingUid();
         final ObbState obbState = new ObbState(rawPath, canonicalPath,
@@ -3138,6 +3168,34 @@ class StorageManagerService extends IStorageManager.Stub
 
         if (DEBUG_OBB)
             Slog.i(TAG, "Send to OBB handler: " + action.toString());
+    }
+
+    private void validateObbInfo(ObbInfo obbInfo, String rawPath) {
+        String obbFilePath;
+        try {
+            obbFilePath = new File(rawPath).getCanonicalPath();
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to resolve path" + rawPath + " : " + ex);
+        }
+
+        Matcher matcher = OBB_FILE_PATH.matcher(obbFilePath);
+
+        if (matcher.matches()) {
+            int userId = UserHandle.getUserId(Binder.getCallingUid());
+            String pathUserId = matcher.group(2);
+            String pathPackageName = matcher.group(3);
+            if ((pathUserId != null && Integer.parseInt(pathUserId) != userId)
+                    || (pathUserId == null && userId != mCurrentUserId)) {
+                throw new SecurityException(
+                        "Path " + obbFilePath + "does not correspond to calling userId " + userId);
+            }
+            if (obbInfo != null && !obbInfo.packageName.equals(pathPackageName)) {
+                throw new SecurityException("Path " + obbFilePath
+                        + " does not contain package name " + pathPackageName);
+            }
+        } else {
+            throw new SecurityException("Invalid path to Obb file : " + obbFilePath);
+        }
     }
 
     @Override
@@ -3202,7 +3260,7 @@ class StorageManagerService extends IStorageManager.Stub
         if (Binder.getCallingUid() != android.os.Process.SYSTEM_UID) {
             throw new SecurityException("no permission to commit checkpoint changes");
         }
-
+        extendWatchdogTimeout("vold#commitChanges might be slow");
         mVold.commitChanges();
     }
 
@@ -3313,6 +3371,11 @@ class StorageManagerService extends IStorageManager.Stub
 
         synchronized (mLock) {
             mCeUnlockedUsers.remove(userId);
+        }
+        if (android.os.Flags.allowPrivateProfile()
+                && android.multiuser.Flags.enablePrivateSpaceFeatures()
+                && android.multiuser.Flags.enableBiometricsToUnlockPrivateSpace()) {
+            dispatchCeStorageLockedEvent(userId);
         }
     }
 
@@ -3506,7 +3569,8 @@ class StorageManagerService extends IStorageManager.Stub
         // of the calling App
         final long token = Binder.clearCallingIdentity();
         try {
-            Context targetAppContext = mContext.createPackageContext(packageName, 0);
+            Context targetAppContext = mContext.createPackageContextAsUser(packageName,
+                    /* flags= */ 0, UserHandle.of(UserHandle.getUserId(originalUid)));
             Intent intent = new Intent(Intent.ACTION_DEFAULT);
             intent.setClassName(packageName,
                     appInfo.manageSpaceActivityName);
@@ -3597,10 +3661,16 @@ class StorageManagerService extends IStorageManager.Stub
         return mInternalStorageSize;
     }
 
-    @EnforcePermission(android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE)
     @Override
     public int getInternalStorageRemainingLifetime() throws RemoteException {
-        super.getInternalStorageRemainingLifetime_enforcePermission();
+        PermissionEnforcer.fromContext(mContext)
+            .enforcePermissionAnyOf(
+                new String[] {
+                    android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE,
+                    android.Manifest.permission.ALLOCATE_AGGRESSIVE
+                },
+                getCallingPid(),
+                getCallingUid());
         return mVold.getStorageRemainingLifetime();
     }
 
@@ -3969,7 +4039,7 @@ class StorageManagerService extends IStorageManager.Stub
                     if (resUuids.contains(rec.fsUuid)) continue;
 
                     // Treat as recent if mounted within the last week
-                    if (rec.lastSeenMillis > 0 && rec.lastSeenMillis < lastWeek) {
+                    if (rec.lastSeenMillis > 0 && rec.lastSeenMillis >= lastWeek) {
                         final StorageVolume userVol = rec.buildStorageVolume(mContext);
                         res.add(userVol);
                         resUuids.add(userVol.getUuid());
@@ -4579,6 +4649,18 @@ class StorageManagerService extends IStorageManager.Stub
         return StorageManager.MOUNT_MODE_EXTERNAL_NONE;
     }
 
+    @VisibleForTesting
+    CopyOnWriteArrayList<ICeStorageLockEventListener> getCeStorageEventCallbacks() {
+        return mCeStorageEventCallbacks;
+    }
+
+    @VisibleForTesting
+    void dispatchCeStorageLockedEvent(int userId) {
+        for (ICeStorageLockEventListener listener: mCeStorageEventCallbacks) {
+            listener.onStorageLocked(userId);
+        }
+    }
+
     private static class Callbacks extends Handler {
         private static final int MSG_STORAGE_STATE_CHANGED = 1;
         private static final int MSG_VOLUME_STATE_CHANGED = 2;
@@ -5063,6 +5145,24 @@ class StorageManagerService extends IStorageManager.Stub
                 return mInstaller.enableFsverity(authToken, filePath, packageName);
             } catch (Installer.InstallerException e) {
                 throw new IOException(e);
+            }
+        }
+
+        @Override
+        public void registerStorageLockEventListener(
+                @NonNull ICeStorageLockEventListener listener) {
+            boolean registered = mCeStorageEventCallbacks.add(listener);
+            if (!registered) {
+                Slog.w(TAG, "Failed to register listener: " + listener);
+            }
+        }
+
+        @Override
+        public void unregisterStorageLockEventListener(
+                @NonNull ICeStorageLockEventListener listener) {
+            boolean unregistered = mCeStorageEventCallbacks.remove(listener);
+            if (!unregistered) {
+                Slog.w(TAG, "Unregistering " + listener + " that was not registered");
             }
         }
     }

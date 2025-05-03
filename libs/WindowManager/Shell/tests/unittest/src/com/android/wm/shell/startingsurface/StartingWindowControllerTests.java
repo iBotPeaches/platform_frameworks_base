@@ -40,12 +40,12 @@ import com.android.internal.util.function.TriConsumer;
 import com.android.launcher3.icons.IconProvider;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.ShellTestCase;
+import com.android.wm.shell.common.DisplayInsetsController;
 import com.android.wm.shell.common.ShellExecutor;
-import com.android.wm.shell.common.TransactionPool;
+import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.sysui.ShellCommandHandler;
 import com.android.wm.shell.sysui.ShellController;
 import com.android.wm.shell.sysui.ShellInit;
-import com.android.wm.shell.sysui.ShellSharedConstants;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -65,6 +65,7 @@ public class StartingWindowControllerTests extends ShellTestCase {
 
     private @Mock Context mContext;
     private @Mock DisplayManager mDisplayManager;
+    private @Mock DisplayInsetsController mDisplayInsetsController;
     private @Mock ShellCommandHandler mShellCommandHandler;
     private @Mock ShellTaskOrganizer mTaskOrganizer;
     private @Mock ShellExecutor mMainExecutor;
@@ -83,7 +84,7 @@ public class StartingWindowControllerTests extends ShellTestCase {
         doReturn(super.mContext.getResources()).when(mContext).getResources();
         mShellInit = spy(new ShellInit(mMainExecutor));
         mShellController = spy(new ShellController(mContext, mShellInit, mShellCommandHandler,
-                mMainExecutor));
+                mDisplayInsetsController, mMainExecutor));
         mController = new StartingWindowController(mContext, mShellInit, mShellController,
                 mTaskOrganizer, mMainExecutor, mTypeAlgorithm, mIconProvider, mTransactionPool);
         mShellInit.init();
@@ -97,7 +98,7 @@ public class StartingWindowControllerTests extends ShellTestCase {
     @Test
     public void instantiateController_addExternalInterface() {
         verify(mShellController, times(1)).addExternalInterface(
-                eq(ShellSharedConstants.KEY_EXTRA_SHELL_STARTING_WINDOW), any(), any());
+                eq(IStartingWindow.DESCRIPTOR), any(), any());
     }
 
     @Test

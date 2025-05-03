@@ -17,12 +17,13 @@
 package androidx.window.extensions.layout;
 
 import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.Display.INVALID_DISPLAY;
 
-import static androidx.window.common.CommonFoldingFeature.COMMON_STATE_FLAT;
-import static androidx.window.common.CommonFoldingFeature.COMMON_STATE_HALF_OPENED;
-import static androidx.window.util.ExtensionHelper.isZero;
-import static androidx.window.util.ExtensionHelper.rotateRectToDisplayRotation;
-import static androidx.window.util.ExtensionHelper.transformToWindowSpaceRect;
+import static androidx.window.common.ExtensionHelper.isZero;
+import static androidx.window.common.ExtensionHelper.rotateRectToDisplayRotation;
+import static androidx.window.common.ExtensionHelper.transformToWindowSpaceRect;
+import static androidx.window.common.layout.CommonFoldingFeature.COMMON_STATE_FLAT;
+import static androidx.window.common.layout.CommonFoldingFeature.COMMON_STATE_HALF_OPENED;
 
 import android.app.Activity;
 import android.app.ActivityThread;
@@ -30,21 +31,29 @@ import android.app.Application;
 import android.app.WindowConfiguration;
 import android.content.ComponentCallbacks;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.hardware.display.DisplayManagerGlobal;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.StrictMode;
 import android.util.ArrayMap;
 import android.util.Log;
+import android.view.DisplayInfo;
+import android.view.Surface;
 
 import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiContext;
-import androidx.window.common.CommonFoldingFeature;
+import androidx.annotation.VisibleForTesting;
 import androidx.window.common.DeviceStateManagerFoldingFeatureProducer;
 import androidx.window.common.EmptyLifecycleCallbacksAdapter;
+import androidx.window.common.collections.ListUtil;
+import androidx.window.common.layout.CommonFoldingFeature;
 import androidx.window.extensions.core.util.function.Consumer;
+import androidx.window.extensions.util.DeduplicateConsumer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,12 +71,18 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
     private final Object mLock = new Object();
 
     @GuardedBy("mLock")
-    private final Map<Context, Consumer<WindowLayoutInfo>> mWindowLayoutChangeListeners =
+    private final Map<Context, DeduplicateConsumer<WindowLayoutInfo>> mWindowLayoutChangeListeners =
             new ArrayMap<>();
 
     @GuardedBy("mLock")
     private final DeviceStateManagerFoldingFeatureProducer mFoldingFeatureProducer;
 
+    /**
+     * The last reported folding features from the device. This is initialized in the constructor
+     * because the data change callback added to {@link #mFoldingFeatureProducer} is immediately
+     * called. This is due to current device state from the device state manager already being
+     * available in the {@link DeviceStateManagerFoldingFeatureProducer}.
+     */
     @GuardedBy("mLock")
     private final List<CommonFoldingFeature> mLastReportedFoldingFeatures = new ArrayList<>();
 
@@ -84,14 +99,35 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
 
     private final SupportedWindowFeatures mSupportedWindowFeatures;
 
+    private final DisplayStateProvider mDisplayStateProvider;
+
     public WindowLayoutComponentImpl(@NonNull Context context,
             @NonNull DeviceStateManagerFoldingFeatureProducer foldingFeatureProducer) {
+        this(context, foldingFeatureProducer, new DisplayStateProvider() {
+            @Override
+            public int getDisplayRotation(@NonNull WindowConfiguration windowConfiguration) {
+                return windowConfiguration.getDisplayRotation();
+            }
+
+            @NonNull
+            @Override
+            public DisplayInfo getDisplayInfo(int displayId) {
+                return DisplayManagerGlobal.getInstance().getDisplayInfo(displayId);
+            }
+        });
+    }
+
+    @VisibleForTesting
+    WindowLayoutComponentImpl(@NonNull Context context,
+            @NonNull DeviceStateManagerFoldingFeatureProducer foldingFeatureProducer,
+            @NonNull DisplayStateProvider displayStateProvider) {
+        mDisplayStateProvider = displayStateProvider;
         ((Application) context.getApplicationContext())
                 .registerActivityLifecycleCallbacks(new NotifyOnConfigurationChanged());
         mFoldingFeatureProducer = foldingFeatureProducer;
         mFoldingFeatureProducer.addDataChangedCallback(this::onDisplayFeaturesChanged);
-        final List<DisplayFoldFeature> displayFoldFeatures =
-                DisplayFoldFeatureUtil.extractDisplayFoldFeatures(mFoldingFeatureProducer);
+        final List<DisplayFoldFeature> displayFoldFeatures = ListUtil.map(
+                mFoldingFeatureProducer.getDisplayFeatures(), DisplayFoldFeatureUtil::translate);
         mSupportedWindowFeatures = new SupportedWindowFeatures.Builder(displayFoldFeatures).build();
     }
 
@@ -130,18 +166,17 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
             if (mWindowLayoutChangeListeners.containsKey(context)
                     // In theory this method can be called on the same consumer with different
                     // context.
-                    || mWindowLayoutChangeListeners.containsValue(consumer)) {
+                    || containsConsumer(consumer)) {
                 return;
             }
-            if (!context.isUiContext()) {
-                throw new IllegalArgumentException("Context must be a UI Context, which should be"
-                        + " an Activity, WindowContext or InputMethodService");
-            }
+            assertUiContext(context);
+            Log.d(TAG, "Register WindowLayoutInfoListener on "
+                    + dumpAllBaseContextToString(context));
             mFoldingFeatureProducer.getData((features) -> {
                 WindowLayoutInfo newWindowLayout = getWindowLayoutInfo(context, features);
                 consumer.accept(newWindowLayout);
             });
-            mWindowLayoutChangeListeners.put(context, consumer);
+            mWindowLayoutChangeListeners.put(context, new DeduplicateConsumer<>(consumer));
 
             final IBinder windowContextToken = context.getWindowContextToken();
             if (windowContextToken != null) {
@@ -153,6 +188,16 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
                 mConfigurationChangeListeners.put(windowContextToken, listener);
             }
         }
+    }
+
+    @NonNull
+    private String dumpAllBaseContextToString(@NonNull Context context) {
+        final StringBuilder builder = new StringBuilder("Context=" + context);
+        while ((context instanceof ContextWrapper wrapper) && wrapper.getBaseContext() != null) {
+            context = wrapper.getBaseContext();
+            builder.append(", of which baseContext=").append(context);
+        }
+        return builder.toString();
     }
 
     @Override
@@ -176,19 +221,35 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
     @Override
     public void removeWindowLayoutInfoListener(@NonNull Consumer<WindowLayoutInfo> consumer) {
         synchronized (mLock) {
+            DeduplicateConsumer<WindowLayoutInfo> consumerToRemove = null;
             for (Context context : mWindowLayoutChangeListeners.keySet()) {
-                if (!mWindowLayoutChangeListeners.get(context).equals(consumer)) {
+                final DeduplicateConsumer<WindowLayoutInfo> deduplicateConsumer =
+                        mWindowLayoutChangeListeners.get(context);
+                if (!deduplicateConsumer.matchesConsumer(consumer)) {
                     continue;
                 }
                 final IBinder token = context.getWindowContextToken();
+                consumerToRemove = deduplicateConsumer;
                 if (token != null) {
                     context.unregisterComponentCallbacks(mConfigurationChangeListeners.get(token));
                     mConfigurationChangeListeners.remove(token);
                 }
                 break;
             }
-            mWindowLayoutChangeListeners.values().remove(consumer);
+            if (consumerToRemove != null) {
+                mWindowLayoutChangeListeners.values().remove(consumerToRemove);
+            }
         }
+    }
+
+    @GuardedBy("mLock")
+    private boolean containsConsumer(@NonNull Consumer<WindowLayoutInfo> consumer) {
+        for (DeduplicateConsumer<WindowLayoutInfo> c : mWindowLayoutChangeListeners.values()) {
+            if (c.matchesConsumer(consumer)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @GuardedBy("mLock")
@@ -240,7 +301,8 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
         }
     }
 
-    private void onDisplayFeaturesChanged(List<CommonFoldingFeature> storedFeatures) {
+    @VisibleForTesting
+    void onDisplayFeaturesChanged(List<CommonFoldingFeature> storedFeatures) {
         synchronized (mLock) {
             mLastReportedFoldingFeatures.clear();
             mLastReportedFoldingFeatures.addAll(storedFeatures);
@@ -262,6 +324,7 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
      * @param context a proxy for the {@link android.view.Window} that contains the
      *                {@link DisplayFeature}.
      */
+    @NonNull
     private WindowLayoutInfo getWindowLayoutInfo(@NonNull @UiContext Context context,
             List<CommonFoldingFeature> storedFeatures) {
         List<DisplayFeature> displayFeatureList = getDisplayFeatures(context, storedFeatures);
@@ -283,6 +346,15 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
         }
     }
 
+    @Override
+    @NonNull
+    public WindowLayoutInfo getCurrentWindowLayoutInfo(@NonNull @UiContext Context context) {
+        assertUiContext(context);
+        synchronized (mLock) {
+            return getWindowLayoutInfo(context, mLastReportedFoldingFeatures);
+        }
+    }
+
     /**
      * Returns the {@link SupportedWindowFeatures} for the device. This list does not change over
      * time.
@@ -290,6 +362,25 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
     @NonNull
     public SupportedWindowFeatures getSupportedWindowFeatures() {
         return mSupportedWindowFeatures;
+    }
+
+    private void assertUiContext(@NonNull Context context) {
+        final IllegalArgumentException exception = new IllegalArgumentException(
+                "Context must be a UI Context with display association, which should be "
+                        + "an Activity, WindowContext or InputMethodService");
+        if (!context.isUiContext()) {
+            throw exception;
+        }
+        if (context.getAssociatedDisplayId() == INVALID_DISPLAY) {
+            // This is to identify if #isUiContext of a non-UI Context is overridden.
+            // #isUiContext is more likely to be overridden than #getAssociatedDisplayId
+            // since #isUiContext is a public API.
+            StrictMode.onIncorrectContextUsed("The given context is a UI context, "
+                    + "but it is not associated with any display. "
+                    + "This context may not receive WindowLayoutInfo updates and "
+                    + "may get an empty WindowLayoutInfo return value. "
+                    + dumpAllBaseContextToString(context), exception);
+        }
     }
 
     /** @see #getWindowLayoutInfo(Context, List) */
@@ -340,15 +431,16 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
 
         // We will transform the feature bounds to the Activity window, so using the rotation
         // from the same source (WindowConfiguration) to make sure they are synchronized.
-        final int rotation = windowConfiguration.getDisplayRotation();
+        final int rotation = mDisplayStateProvider.getDisplayRotation(windowConfiguration);
+        final DisplayInfo displayInfo = mDisplayStateProvider.getDisplayInfo(displayId);
 
         for (CommonFoldingFeature baseFeature : storedFeatures) {
             Integer state = convertToExtensionState(baseFeature.getState());
             if (state == null) {
                 continue;
             }
-            Rect featureRect = baseFeature.getRect();
-            rotateRectToDisplayRotation(displayId, rotation, featureRect);
+            final Rect featureRect = baseFeature.getRect();
+            rotateRectToDisplayRotation(displayInfo, rotation, featureRect);
             transformToWindowSpaceRect(windowConfiguration, featureRect);
 
             if (isZero(featureRect)) {
@@ -392,7 +484,18 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
      * @return true if the display features should be reported for the UI Context, false otherwise.
      */
     private boolean shouldReportDisplayFeatures(@NonNull @UiContext Context context) {
-        int displayId = context.getDisplay().getDisplayId();
+        int displayId = context.getAssociatedDisplayId();
+        if (!context.isUiContext() || displayId == INVALID_DISPLAY) {
+            // This could happen if a caller sets MutableContextWrapper's base Context to a non-UI
+            // Context.
+            StrictMode.onIncorrectContextUsed("Context is not a UI Context anymore."
+                    + " Was the base context changed? It's suggested to unregister"
+                    + " the windowLayoutInfo callback before changing the base Context."
+                    + " UI Contexts are Activity, InputMethodService or context created"
+                    + " with createWindowContext. " + dumpAllBaseContextToString(context),
+                    new UnsupportedOperationException("Context is not a UI Context anymore."
+                            + " Was the base context changed?"));
+        }
         if (displayId != DEFAULT_DISPLAY) {
             // Display features are not supported on secondary displays.
             return false;
@@ -457,5 +560,14 @@ public class WindowLayoutComponentImpl implements WindowLayoutComponent {
         @Override
         public void onLowMemory() {
         }
+    }
+
+    @VisibleForTesting
+    interface DisplayStateProvider {
+        @Surface.Rotation
+        int getDisplayRotation(@NonNull WindowConfiguration windowConfiguration);
+
+        @NonNull
+        DisplayInfo getDisplayInfo(int displayId);
     }
 }

@@ -19,21 +19,19 @@ package com.android.systemui.qs.tiles.impl.inversion.domain
 import android.content.res.Resources
 import android.content.res.Resources.Theme
 import com.android.systemui.common.shared.model.Icon
-import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.qs.tiles.base.interactor.QSTileDataToStateMapper
 import com.android.systemui.qs.tiles.impl.inversion.domain.model.ColorInversionTileModel
 import com.android.systemui.qs.tiles.viewmodel.QSTileConfig
 import com.android.systemui.qs.tiles.viewmodel.QSTileState
 import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
 
 /** Maps [ColorInversionTileModel] to [QSTileState]. */
 class ColorInversionTileMapper
 @Inject
-constructor(
-    @Main private val resources: Resources,
-    private val theme: Theme,
-) : QSTileDataToStateMapper<ColorInversionTileModel> {
+constructor(@ShadeDisplayAware private val resources: Resources, private val theme: Theme) :
+    QSTileDataToStateMapper<ColorInversionTileModel> {
     override fun map(config: QSTileConfig, data: ColorInversionTileModel): QSTileState =
         QSTileState.build(resources, theme, config.uiConfig) {
             val subtitleArray = resources.getStringArray(R.array.tile_states_inversion)
@@ -41,22 +39,13 @@ constructor(
             if (data.isEnabled) {
                 activationState = QSTileState.ActivationState.ACTIVE
                 secondaryLabel = subtitleArray[2]
-                icon = {
-                    Icon.Loaded(
-                        resources.getDrawable(R.drawable.qs_invert_colors_icon_on, theme),
-                        null
-                    )
-                }
+                iconRes = R.drawable.qs_invert_colors_icon_on
             } else {
                 activationState = QSTileState.ActivationState.INACTIVE
                 secondaryLabel = subtitleArray[1]
-                icon = {
-                    Icon.Loaded(
-                        resources.getDrawable(R.drawable.qs_invert_colors_icon_off, theme),
-                        null
-                    )
-                }
+                iconRes = R.drawable.qs_invert_colors_icon_off
             }
+            icon = Icon.Loaded(resources.getDrawable(iconRes!!, theme), null)
             contentDescription = label
             supportedActions =
                 setOf(QSTileState.UserAction.CLICK, QSTileState.UserAction.LONG_CLICK)

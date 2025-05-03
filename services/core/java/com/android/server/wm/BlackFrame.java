@@ -16,13 +16,13 @@
 
 package com.android.server.wm;
 
-import static com.android.internal.protolog.ProtoLogGroup.WM_SHOW_SURFACE_ALLOC;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_SHOW_SURFACE_ALLOC;
 
 import android.graphics.Rect;
 import android.view.Surface.OutOfResourcesException;
 import android.view.SurfaceControl;
 
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 
 import java.io.PrintWriter;
 import java.util.function.Supplier;

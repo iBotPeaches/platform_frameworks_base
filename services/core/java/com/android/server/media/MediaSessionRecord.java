@@ -16,7 +16,6 @@
 
 package com.android.server.media;
 
-import static android.media.MediaRoute2Info.PLAYBACK_VOLUME_FIXED;
 import static android.media.VolumeProvider.VOLUME_CONTROL_ABSOLUTE;
 import static android.media.VolumeProvider.VOLUME_CONTROL_FIXED;
 import static android.media.VolumeProvider.VOLUME_CONTROL_RELATIVE;
@@ -24,12 +23,13 @@ import static android.media.session.MediaController.PlaybackInfo.PLAYBACK_TYPE_L
 import static android.media.session.MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE;
 
 import android.Manifest;
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.app.ActivityManager;
 import android.app.ActivityManagerInternal;
-import android.app.ForegroundServiceDelegationOptions;
+import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.compat.CompatChanges;
 import android.compat.annotation.ChangeId;
@@ -46,9 +46,7 @@ import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.AudioSystem;
 import android.media.MediaMetadata;
-import android.media.MediaRouter2Manager;
 import android.media.Rating;
-import android.media.RoutingSessionInfo;
 import android.media.VolumeProvider;
 import android.media.session.ISession;
 import android.media.session.ISessionCallback;
@@ -79,14 +77,19 @@ import android.util.Log;
 import android.util.Slog;
 import android.view.KeyEvent;
 
+import com.android.internal.annotations.GuardedBy;
+import com.android.media.flags.Flags;
 import com.android.server.LocalServices;
 import com.android.server.uri.UriGrantsManagerInternal;
 
 import java.io.PrintWriter;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -179,9 +182,6 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
     private final MediaSessionService mService;
     private final UriGrantsManagerInternal mUgmInternal;
     private final Context mContext;
-    private final boolean mVolumeAdjustmentForRemoteGroupSessions;
-
-    private final ForegroundServiceDelegationOptions mForegroundServiceDelegationOptions;
 
     private final Object mLock = new Object();
     // This field is partially guarded by mLock. Writes and non-atomic iterations (for example:
@@ -224,6 +224,55 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
 
     private int mPolicies;
 
+    private final Runnable mUserEngagementTimeoutExpirationRunnable =
+            () -> {
+                synchronized (mLock) {
+                    updateUserEngagedStateIfNeededLocked(
+                            /* isTimeoutExpired= */ true,
+                            /* isGlobalPrioritySessionActive= */ false);
+                }
+            };
+
+    @GuardedBy("mLock")
+    private @UserEngagementState int mUserEngagementState = USER_DISENGAGED;
+
+    @IntDef({USER_PERMANENTLY_ENGAGED, USER_TEMPORARILY_ENGAGED, USER_DISENGAGED})
+    @Retention(RetentionPolicy.SOURCE)
+    private @interface UserEngagementState {}
+
+    /**
+     * Indicates that the session is {@linkplain MediaSession#isActive() active} and in one of the
+     * {@linkplain PlaybackState#isActive() active states}.
+     *
+     * @see #updateUserEngagedStateIfNeededLocked(boolean)
+     */
+    private static final int USER_PERMANENTLY_ENGAGED = 0;
+
+    /**
+     * Indicates that the session is {@linkplain MediaSession#isActive() active} and has recently
+     * switched to one of the {@linkplain PlaybackState#isActive() inactive states}.
+     *
+     * @see #updateUserEngagedStateIfNeededLocked(boolean)
+     */
+    private static final int USER_TEMPORARILY_ENGAGED = 1;
+
+    /**
+     * Indicates that the session is either not {@linkplain MediaSession#isActive() active} or in
+     * one of the {@linkplain PlaybackState#isActive() inactive states}.
+     *
+     * @see #updateUserEngagedStateIfNeededLocked(boolean)
+     */
+    private static final int USER_DISENGAGED = 2;
+
+    /**
+     * Indicates the duration of the temporary engaged state, in milliseconds.
+     *
+     * <p>When switching to an {@linkplain PlaybackState#isActive() inactive state}, the user is
+     * treated as temporarily engaged, meaning the corresponding session is only considered in an
+     * engaged state for the duration of this timeout, and only if coming from an engaged state.
+     */
+    private static final int TEMP_USER_ENGAGED_TIMEOUT_MS = 600000;
+
     public MediaSessionRecord(
             int ownerPid,
             int ownerUid,
@@ -236,7 +285,6 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             Looper handlerLooper,
             int policies)
             throws RemoteException {
-        mUniqueId = sNextMediaSessionRecordId.getAndIncrement();
         mOwnerPid = ownerPid;
         mOwnerUid = ownerUid;
         mUserId = userId;
@@ -254,33 +302,9 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
         mAudioAttrs = DEFAULT_ATTRIBUTES;
         mPolicies = policies;
         mUgmInternal = LocalServices.getService(UriGrantsManagerInternal.class);
-        mVolumeAdjustmentForRemoteGroupSessions = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_volumeAdjustmentForRemoteGroupSessions);
-
-        mForegroundServiceDelegationOptions = createForegroundServiceDelegationOptions();
 
         // May throw RemoteException if the session app is killed.
         mSessionCb.mCb.asBinder().linkToDeath(this, 0);
-    }
-
-    private ForegroundServiceDelegationOptions createForegroundServiceDelegationOptions() {
-        return new ForegroundServiceDelegationOptions.Builder()
-                .setClientPid(mOwnerPid)
-                .setClientUid(getUid())
-                .setClientPackageName(getPackageName())
-                .setClientAppThread(null)
-                .setSticky(false)
-                .setClientInstanceName(
-                        "MediaSessionFgsDelegate_"
-                                + getUid()
-                                + "_"
-                                + mOwnerPid
-                                + "_"
-                                + getPackageName())
-                .setForegroundServiceTypes(0)
-                .setDelegationService(
-                        ForegroundServiceDelegationOptions.DELEGATION_SERVICE_MEDIA_PLAYBACK)
-                .build();
     }
 
     /**
@@ -338,6 +362,11 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
     @Override
     public int getUserId() {
         return mUserId;
+    }
+
+    @Override
+    public boolean hasLinkedNotificationSupport() {
+        return true;
     }
 
     /**
@@ -430,28 +459,9 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             int stream = getVolumeStream(mAudioAttrs);
             final int volumeValue = value;
             mHandler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                mAudioManager.setStreamVolumeForUid(
-                                        stream,
-                                        volumeValue,
-                                        flags,
-                                        opPackageName,
-                                        uid,
-                                        pid,
-                                        mContext.getApplicationInfo().targetSdkVersion);
-                            } catch (IllegalArgumentException | SecurityException e) {
-                                Slog.e(
-                                        TAG,
-                                        "Cannot set volume: stream=" + stream
-                                                + ", value=" + volumeValue
-                                                + ", flags=" + flags,
-                                        e);
-                            }
-                        }
-                    });
+                    () ->
+                            setStreamVolumeForUid(
+                                    opPackageName, pid, uid, flags, stream, volumeValue));
         } else {
             if (mVolumeControlType != VOLUME_CONTROL_ABSOLUTE) {
                 if (DEBUG) {
@@ -478,6 +488,27 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             }
             // Always notify, even if the volume hasn't changed.
             mService.notifyRemoteVolumeChanged(flags, this);
+        }
+    }
+
+    private void setStreamVolumeForUid(
+            String opPackageName, int pid, int uid, int flags, int stream, int volumeValue) {
+        try {
+            mAudioManager.setStreamVolumeForUid(
+                    stream,
+                    volumeValue,
+                    flags,
+                    opPackageName,
+                    uid,
+                    pid,
+                    mContext.getApplicationInfo().targetSdkVersion);
+        } catch (IllegalArgumentException | SecurityException e) {
+            Slog.e(
+                    TAG,
+                    "Cannot set volume: stream=" + stream
+                            + ", value=" + volumeValue
+                            + ", flags=" + flags,
+                    e);
         }
     }
 
@@ -545,6 +576,8 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             mSessionCb.mCb.asBinder().unlinkToDeath(this, 0);
             mDestroyed = true;
             mPlaybackState = null;
+            updateUserEngagedStateIfNeededLocked(
+                    /* isTimeoutExpired= */ true, /* isGlobalPrioritySessionActive= */ false);
             mHandler.post(MessageHandler.MSG_DESTROYED);
         }
     }
@@ -554,6 +587,29 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
         synchronized (mLock) {
             return mDestroyed;
         }
+    }
+
+    @Override
+    public void expireTempEngaged() {
+        mHandler.post(mUserEngagementTimeoutExpirationRunnable);
+    }
+
+    @Override
+    public void onGlobalPrioritySessionActiveChanged(boolean isGlobalPrioritySessionActive) {
+        mHandler.post(
+                () -> {
+                    synchronized (mLock) {
+                        if (isGlobalPrioritySessionActive) {
+                            mHandler.removeCallbacks(mUserEngagementTimeoutExpirationRunnable);
+                        } else {
+                            if (mUserEngagementState == USER_TEMPORARILY_ENGAGED) {
+                                mHandler.postDelayed(
+                                        mUserEngagementTimeoutExpirationRunnable,
+                                        TEMP_USER_ENGAGED_TIMEOUT_MS);
+                            }
+                        }
+                    }
+                });
     }
 
     /**
@@ -594,49 +650,16 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             }
             return false;
         }
-        if (mVolumeAdjustmentForRemoteGroupSessions) {
-            if (DEBUG) {
-                Slog.d(
-                        TAG,
-                        "Volume adjustment for remote group sessions allowed so MediaSessionRecord"
-                                + " can handle volume key");
-            }
-            return true;
-        }
-        // See b/228021646 for details.
-        MediaRouter2Manager mRouter2Manager = MediaRouter2Manager.getInstance(mContext);
-        List<RoutingSessionInfo> sessions = mRouter2Manager.getRoutingSessions(mPackageName);
-        boolean foundNonSystemSession = false;
-        boolean remoteSessionAllowVolumeAdjustment = true;
-        if (DEBUG) {
-            Slog.d(
-                    TAG,
-                    "Found "
-                            + sessions.size()
-                            + " routing sessions for package name "
-                            + mPackageName);
-        }
-        for (RoutingSessionInfo session : sessions) {
-            if (DEBUG) {
-                Slog.d(TAG, "Found routingSessionInfo: " + session);
-            }
-            if (!session.isSystemSession()) {
-                foundNonSystemSession = true;
-                if (session.getVolumeHandling() == PLAYBACK_VOLUME_FIXED) {
-                    remoteSessionAllowVolumeAdjustment = false;
-                }
-            }
-        }
-        if (!foundNonSystemSession) {
-            if (DEBUG) {
-                Slog.d(
-                        TAG,
-                        "Package " + mPackageName
-                                + " has a remote media session but no associated routing session");
-            }
-        }
+        return true;
+    }
 
-        return foundNonSystemSession && remoteSessionAllowVolumeAdjustment;
+    @Override
+    boolean isLinkedToNotification(Notification notification) {
+        return notification.isMediaNotification()
+                && Objects.equals(
+                        notification.extras.getParcelable(
+                                Notification.EXTRA_MEDIA_SESSION, MediaSession.Token.class),
+                        mSessionToken);
     }
 
     @Override
@@ -688,37 +711,25 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
 
     private static String toVolumeControlTypeString(
             @VolumeProvider.ControlType int volumeControlType) {
-        switch (volumeControlType) {
-            case VOLUME_CONTROL_FIXED:
-                return "FIXED";
-            case VOLUME_CONTROL_RELATIVE:
-                return "RELATIVE";
-            case VOLUME_CONTROL_ABSOLUTE:
-                return "ABSOLUTE";
-            default:
-                return TextUtils.formatSimple("unknown(%d)", volumeControlType);
-        }
+        return switch (volumeControlType) {
+            case VOLUME_CONTROL_FIXED -> "FIXED";
+            case VOLUME_CONTROL_RELATIVE -> "RELATIVE";
+            case VOLUME_CONTROL_ABSOLUTE -> "ABSOLUTE";
+            default -> TextUtils.formatSimple("unknown(%d)", volumeControlType);
+        };
     }
 
     private static String toVolumeTypeString(@PlaybackInfo.PlaybackType int volumeType) {
-        switch (volumeType) {
-            case PLAYBACK_TYPE_LOCAL:
-                return "LOCAL";
-            case PLAYBACK_TYPE_REMOTE:
-                return "REMOTE";
-            default:
-                return TextUtils.formatSimple("unknown(%d)", volumeType);
-        }
+        return switch (volumeType) {
+            case PLAYBACK_TYPE_LOCAL -> "LOCAL";
+            case PLAYBACK_TYPE_REMOTE -> "REMOTE";
+            default -> TextUtils.formatSimple("unknown(%d)", volumeType);
+        };
     }
 
     @Override
     public String toString() {
         return mPackageName + "/" + mTag + "/" + getUniqueId() + " (userId=" + mUserId + ")";
-    }
-
-    @Override
-    public ForegroundServiceDelegationOptions getForegroundServiceDelegationOptions() {
-        return mForegroundServiceDelegationOptions;
     }
 
     private void postAdjustLocalVolume(final int stream, final int direction, final int flags,
@@ -746,52 +757,70 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             pid = callingPid;
         }
         mHandler.post(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            if (useSuggested) {
-                                if (AudioSystem.isStreamActive(stream, 0)) {
-                                    mAudioManager.adjustSuggestedStreamVolumeForUid(
-                                            stream,
-                                            direction,
-                                            flags,
-                                            opPackageName,
-                                            uid,
-                                            pid,
-                                            mContext.getApplicationInfo().targetSdkVersion);
-                                } else {
-                                    mAudioManager.adjustSuggestedStreamVolumeForUid(
-                                            AudioManager.USE_DEFAULT_STREAM_TYPE,
-                                            direction,
-                                            flags | previousFlagPlaySound,
-                                            opPackageName,
-                                            uid,
-                                            pid,
-                                            mContext.getApplicationInfo().targetSdkVersion);
-                                }
-                            } else {
-                                mAudioManager.adjustStreamVolumeForUid(
-                                        stream,
-                                        direction,
-                                        flags,
-                                        opPackageName,
-                                        uid,
-                                        pid,
-                                        mContext.getApplicationInfo().targetSdkVersion);
-                            }
-                        } catch (IllegalArgumentException | SecurityException e) {
-                            Slog.e(
-                                    TAG,
-                                    "Cannot adjust volume: direction=" + direction
-                                            + ", stream=" + stream + ", flags=" + flags
-                                            + ", opPackageName=" + opPackageName + ", uid=" + uid
-                                            + ", useSuggested=" + useSuggested
-                                            + ", previousFlagPlaySound=" + previousFlagPlaySound,
-                                    e);
-                        }
-                    }
-                });
+                () ->
+                        adjustSuggestedStreamVolumeForUid(
+                                stream,
+                                direction,
+                                flags,
+                                useSuggested,
+                                previousFlagPlaySound,
+                                opPackageName,
+                                uid,
+                                pid));
+    }
+
+    private void adjustSuggestedStreamVolumeForUid(
+            int stream,
+            int direction,
+            int flags,
+            boolean useSuggested,
+            int previousFlagPlaySound,
+            String opPackageName,
+            int uid,
+            int pid) {
+        try {
+            if (useSuggested) {
+                if (AudioSystem.isStreamActive(stream, 0)) {
+                    mAudioManager.adjustSuggestedStreamVolumeForUid(
+                            stream,
+                            direction,
+                            flags,
+                            opPackageName,
+                            uid,
+                            pid,
+                            mContext.getApplicationInfo().targetSdkVersion);
+                } else {
+                    mAudioManager.adjustSuggestedStreamVolumeForUid(
+                            AudioManager.USE_DEFAULT_STREAM_TYPE,
+                            direction,
+                            flags | previousFlagPlaySound,
+                            opPackageName,
+                            uid,
+                            pid,
+                            mContext.getApplicationInfo().targetSdkVersion);
+                }
+            } else {
+                mAudioManager.adjustStreamVolumeForUid(
+                        stream,
+                        direction,
+                        flags,
+                        opPackageName,
+                        uid,
+                        pid,
+                        mContext.getApplicationInfo().targetSdkVersion);
+            }
+        } catch (IllegalArgumentException | SecurityException e) {
+            Slog.e(
+                    TAG,
+                    "Cannot adjust volume: direction=" + direction
+                            + ", stream=" + stream
+                            + ", flags=" + flags
+                            + ", opPackageName=" + opPackageName
+                            + ", uid=" + uid
+                            + ", useSuggested=" + useSuggested
+                            + ", previousFlagPlaySound=" + previousFlagPlaySound,
+                    e);
+        }
     }
 
     private void logCallbackException(
@@ -980,6 +1009,7 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
         return -1;
     }
 
+    @NonNull
     private PlaybackInfo getVolumeAttributes() {
         int volumeType;
         AudioAttributes attributes;
@@ -999,16 +1029,14 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
                 volumeType, VOLUME_CONTROL_ABSOLUTE, max, current, attributes, null);
     }
 
-    private final Runnable mClearOptimisticVolumeRunnable = new Runnable() {
-        @Override
-        public void run() {
-            boolean needUpdate = (mOptimisticVolume != mCurrentVolume);
-            mOptimisticVolume = -1;
-            if (needUpdate) {
-                pushVolumeUpdate();
-            }
-        }
-    };
+    private final Runnable mClearOptimisticVolumeRunnable =
+            () -> {
+                boolean needUpdate = (mOptimisticVolume != mCurrentVolume);
+                mOptimisticVolume = -1;
+                if (needUpdate) {
+                    pushVolumeUpdate();
+                }
+            };
 
     @RequiresPermission(Manifest.permission.INTERACT_ACROSS_USERS)
     private static boolean componentNameExists(
@@ -1024,6 +1052,47 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
                 pm.queryBroadcastReceiversAsUser(
                         mediaButtonIntent, PackageManager.ResolveInfoFlags.of(0), userHandle);
         return !resolveInfos.isEmpty();
+    }
+
+    @GuardedBy("mLock")
+    private void updateUserEngagedStateIfNeededLocked(
+            boolean isTimeoutExpired, boolean isGlobalPrioritySessionActive) {
+        if (!Flags.enableNotifyingActivityManagerWithMediaSessionStatusChange()) {
+            return;
+        }
+        int oldUserEngagedState = mUserEngagementState;
+        int newUserEngagedState;
+        if (!isActive() || mPlaybackState == null) {
+            newUserEngagedState = USER_DISENGAGED;
+        } else if (mPlaybackState.isActive()) {
+            newUserEngagedState = USER_PERMANENTLY_ENGAGED;
+        } else if (oldUserEngagedState == USER_PERMANENTLY_ENGAGED
+                || (oldUserEngagedState == USER_TEMPORARILY_ENGAGED && !isTimeoutExpired)) {
+            newUserEngagedState = USER_TEMPORARILY_ENGAGED;
+        } else {
+            newUserEngagedState = USER_DISENGAGED;
+        }
+        if (oldUserEngagedState == newUserEngagedState) {
+            return;
+        }
+
+        mUserEngagementState = newUserEngagedState;
+        if (newUserEngagedState == USER_TEMPORARILY_ENGAGED && !isGlobalPrioritySessionActive) {
+            mHandler.postDelayed(
+                    mUserEngagementTimeoutExpirationRunnable, TEMP_USER_ENGAGED_TIMEOUT_MS);
+        } else {
+            mHandler.removeCallbacks(mUserEngagementTimeoutExpirationRunnable);
+        }
+
+        boolean wasUserEngaged = oldUserEngagedState != USER_DISENGAGED;
+        boolean isNowUserEngaged = newUserEngagedState != USER_DISENGAGED;
+        if (wasUserEngaged != isNowUserEngaged) {
+            mHandler.post(
+                    () ->
+                            mService.onSessionUserEngagementStateChange(
+                                    /* mediaSessionRecord= */ this,
+                                    /* isUserEngaged= */ isNowUserEngaged));
+        }
     }
 
     private final class SessionStub extends ISession.Stub {
@@ -1063,8 +1132,12 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
                         .logFgsApiEnd(ActivityManager.FOREGROUND_SERVICE_API_TYPE_MEDIA_PLAYBACK,
                                 callingUid, callingPid);
             }
-
-            mIsActive = active;
+            boolean isGlobalPrioritySessionActive = mService.isGlobalPrioritySessionActive();
+            synchronized (mLock) {
+                mIsActive = active;
+                updateUserEngagedStateIfNeededLocked(
+                        /* isTimeoutExpired= */ false, isGlobalPrioritySessionActive);
+            }
             long token = Binder.clearCallingIdentity();
             try {
                 mService.onSessionActiveStateChanged(MediaSessionRecord.this, mPlaybackState);
@@ -1220,8 +1293,11 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             boolean shouldUpdatePriority = ALWAYS_PRIORITY_STATES.contains(newState)
                     || (!TRANSITION_PRIORITY_STATES.contains(oldState)
                     && TRANSITION_PRIORITY_STATES.contains(newState));
+            boolean isGlobalPrioritySessionActive = mService.isGlobalPrioritySessionActive();
             synchronized (mLock) {
                 mPlaybackState = state;
+                updateUserEngagedStateIfNeededLocked(
+                        /* isTimeoutExpired= */ false, isGlobalPrioritySessionActive);
             }
             final long token = Binder.clearCallingIdentity();
             try {
@@ -1243,12 +1319,14 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
 
         @Override
         public IBinder getBinderForSetQueue() throws RemoteException {
-            return new ParcelableListBinder<QueueItem>((list) -> {
-                synchronized (mLock) {
-                    mQueue = list;
-                }
-                mHandler.post(MessageHandler.MSG_UPDATE_QUEUE);
-            });
+            return new ParcelableListBinder<QueueItem>(
+                    QueueItem.class,
+                    (list) -> {
+                        synchronized (mLock) {
+                            mQueue = list;
+                        }
+                        mHandler.post(MessageHandler.MSG_UPDATE_QUEUE);
+                    });
         }
 
         @Override
@@ -1731,6 +1809,7 @@ public class MediaSessionRecord extends MediaSessionRecordImpl implements IBinde
             return mFlags;
         }
 
+        @NonNull
         @Override
         public PlaybackInfo getVolumeAttributes() {
             return MediaSessionRecord.this.getVolumeAttributes();

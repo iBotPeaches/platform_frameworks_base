@@ -602,6 +602,15 @@ public class StatusBarManager {
     @LoggingOnly
     private static final long MEDIA_CONTROL_BLANK_TITLE = 274775190L;
 
+    /**
+     * Media controls based on {@link android.app.Notification.MediaStyle} notifications will have
+     * actions from the associated {@link androidx.media3.MediaController}, if available.
+     */
+    @ChangeId
+    @EnabledSince(targetSdkVersion = Build.VERSION_CODES.CUR_DEVELOPMENT)
+    // TODO(b/360196209): Set target SDK to Baklava once available
+    private static final long MEDIA_CONTROL_MEDIA3_ACTIONS = 360196209L;
+
     @UnsupportedAppUsage
     private Context mContext;
     private IStatusBarService mService;
@@ -1270,6 +1279,21 @@ public class StatusBarManager {
     }
 
     /**
+     * Checks whether the media controls for a given package should use a Media3 controller
+     *
+     * @param packageName App posting media controls
+     * @param user Current user handle
+     * @return true if Media3 should be used
+     *
+     * @hide
+     */
+    @RequiresPermission(allOf = {android.Manifest.permission.READ_COMPAT_CHANGE_CONFIG,
+            android.Manifest.permission.LOG_COMPAT_CHANGE})
+    public static boolean useMedia3ControllerForApp(String packageName, UserHandle user) {
+        return CompatChanges.isChangeEnabled(MEDIA_CONTROL_MEDIA3_ACTIONS, packageName, user);
+    }
+
+    /**
      * Checks whether the supplied activity can {@link Activity#startActivityForResult(Intent, int)}
      * a system activity that captures content on the screen to take a screenshot.
      *
@@ -1326,6 +1350,7 @@ public class StatusBarManager {
         private boolean mClock;
         private boolean mNotificationIcons;
         private boolean mRotationSuggestion;
+        private boolean mQuickSettings;
 
         /** @hide */
         public DisableInfo(int flags1, int flags2) {
@@ -1338,6 +1363,7 @@ public class StatusBarManager {
             mClock = (flags1 & DISABLE_CLOCK) != 0;
             mNotificationIcons = (flags1 & DISABLE_NOTIFICATION_ICONS) != 0;
             mRotationSuggestion = (flags2 & DISABLE2_ROTATE_SUGGESTIONS) != 0;
+            mQuickSettings = (flags2 & DISABLE2_QUICK_SETTINGS) != 0;
         }
 
         /** @hide */
@@ -1471,6 +1497,20 @@ public class StatusBarManager {
         }
 
         /**
+         * @hide
+         */
+        public void setQuickSettingsDisabled(boolean disabled) {
+            mQuickSettings = disabled;
+        }
+
+        /**
+         * @hide
+         */
+        public boolean isQuickSettingsDisabled() {
+            return mQuickSettings;
+        }
+
+        /**
          * @return {@code true} if no components are disabled (default state)
          * @hide
          */
@@ -1478,7 +1518,7 @@ public class StatusBarManager {
         public boolean areAllComponentsEnabled() {
             return !mStatusBarExpansion && !mNavigateHome && !mNotificationPeeking && !mRecents
                     && !mSearch && !mSystemIcons && !mClock && !mNotificationIcons
-                    && !mRotationSuggestion;
+                    && !mRotationSuggestion && !mQuickSettings;
         }
 
         /** @hide */
@@ -1492,6 +1532,7 @@ public class StatusBarManager {
             mClock = false;
             mNotificationIcons = false;
             mRotationSuggestion = false;
+            mQuickSettings = false;
         }
 
         /**
@@ -1502,7 +1543,7 @@ public class StatusBarManager {
         public boolean areAllComponentsDisabled() {
             return mStatusBarExpansion && mNavigateHome && mNotificationPeeking
                     && mRecents && mSearch && mSystemIcons && mClock && mNotificationIcons
-                    && mRotationSuggestion;
+                    && mRotationSuggestion && mQuickSettings;
         }
 
         /** @hide */
@@ -1516,6 +1557,7 @@ public class StatusBarManager {
             mClock = true;
             mNotificationIcons = true;
             mRotationSuggestion = true;
+            mQuickSettings = true;
         }
 
         @NonNull
@@ -1533,6 +1575,7 @@ public class StatusBarManager {
             sb.append(" mClock=").append(mClock ? "disabled" : "enabled");
             sb.append(" mNotificationIcons=").append(mNotificationIcons ? "disabled" : "enabled");
             sb.append(" mRotationSuggestion=").append(mRotationSuggestion ? "disabled" : "enabled");
+            sb.append(" mQuickSettings=").append(mQuickSettings ? "disabled" : "enabled");
 
             return sb.toString();
 
@@ -1557,6 +1600,7 @@ public class StatusBarManager {
             if (mClock) disable1 |= DISABLE_CLOCK;
             if (mNotificationIcons) disable1 |= DISABLE_NOTIFICATION_ICONS;
             if (mRotationSuggestion) disable2 |= DISABLE2_ROTATE_SUGGESTIONS;
+            if (mQuickSettings) disable2 |= DISABLE2_QUICK_SETTINGS;
 
             return new Pair<Integer, Integer>(disable1, disable2);
         }

@@ -21,6 +21,7 @@ import static android.view.Display.INVALID_DISPLAY;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.wm.shell.Flags.enableTaskbarNavbarUnification;
+import static com.android.wm.shell.Flags.enableTaskbarOnPhones;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -37,31 +38,31 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import android.content.res.Configuration;
-import android.testing.AndroidTestingRunner;
-import android.testing.TestableLooper.RunWithLooper;
+import android.hardware.devicestate.DeviceStateManager;
 import android.util.SparseArray;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.dx.mockito.inline.extended.StaticMockitoSession;
-import com.android.systemui.Dependency;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.dump.DumpManager;
+import com.android.systemui.kosmos.KosmosJavaAdapter;
 import com.android.systemui.model.SysUiState;
+import com.android.systemui.navigationbar.views.NavigationBar;
 import com.android.systemui.recents.OverviewProxyService;
 import com.android.systemui.settings.FakeDisplayTracker;
 import com.android.systemui.shared.recents.utilities.Utilities;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 import com.android.systemui.statusbar.CommandQueue;
-import com.android.systemui.statusbar.phone.AutoHideController;
+import com.android.systemui.statusbar.phone.AutoHideControllerStore;
 import com.android.systemui.statusbar.phone.LightBarController;
 import com.android.systemui.statusbar.policy.ConfigurationController;
+import com.android.systemui.util.concurrency.FakeExecutor;
 import com.android.systemui.util.settings.SecureSettings;
+import com.android.systemui.util.time.FakeSystemClock;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.pip.Pip;
 
@@ -75,8 +76,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.Optional;
 
 /** atest NavigationBarControllerTest */
-@RunWith(AndroidTestingRunner.class)
-@RunWithLooper
+@RunWith(AndroidJUnit4.class)
 @SmallTest
 public class NavigationBarControllerImplTest extends SysuiTestCase {
 
@@ -88,12 +88,21 @@ public class NavigationBarControllerImplTest extends SysuiTestCase {
     private StaticMockitoSession mMockitoSession;
     private FakeDisplayTracker mDisplayTracker = new FakeDisplayTracker(mContext);
 
+    private final FakeExecutor mExecutor = new FakeExecutor(new FakeSystemClock());
+
+    private final KosmosJavaAdapter mKosmos = new KosmosJavaAdapter(this);
+
+    private final AutoHideControllerStore mAutoHideControllerStore =
+            mKosmos.getAutoHideControllerStore();
+
     @Mock
     private CommandQueue mCommandQueue;
     @Mock
     private NavigationBarComponent.Factory mNavigationBarFactory;
     @Mock
     TaskbarDelegate mTaskbarDelegate;
+    @Mock
+    private DeviceStateManager mDeviceStateManager;
 
     @Before
     public void setUp() {
@@ -104,19 +113,20 @@ public class NavigationBarControllerImplTest extends SysuiTestCase {
                         mock(NavigationModeController.class),
                         mock(SysUiState.class),
                         mCommandQueue,
-                        Dependency.get(Dependency.MAIN_HANDLER),
+                        mExecutor,
                         mock(ConfigurationController.class),
                         mock(NavBarHelper.class),
                         mTaskbarDelegate,
                         mNavigationBarFactory,
                         mock(DumpManager.class),
-                        mock(AutoHideController.class),
+                        mAutoHideControllerStore,
                         mock(LightBarController.class),
                         TaskStackChangeListeners.getTestInstance(),
                         Optional.of(mock(Pip.class)),
                         Optional.of(mock(BackAnimation.class)),
                         mock(SecureSettings.class),
-                        mDisplayTracker));
+                        mDisplayTracker,
+                        mDeviceStateManager));
         initializeNavigationBars();
         mMockitoSession = mockitoSession().mockStatic(Utilities.class).startMocking();
     }
@@ -144,10 +154,11 @@ public class NavigationBarControllerImplTest extends SysuiTestCase {
 
     @Test
     public void testCreateNavigationBarsIncludeDefaultTrue() {
-        assumeFalse(enableTaskbarNavbarUnification());
+        assumeFalse(enableTaskbarNavbarUnification() && enableTaskbarOnPhones());
 
         // Large screens may be using taskbar and the logic is different
         mNavigationBarController.mIsLargeScreen = false;
+        mNavigationBarController.mIsPhone = true;
         doNothing().when(mNavigationBarController).createNavigationBar(any(), any(), any());
 
         mNavigationBarController.createNavigationBars(true, null);
@@ -292,27 +303,21 @@ public class NavigationBarControllerImplTest extends SysuiTestCase {
     }
 
     @Test
-    public void testConfigurationChange_taskbarNotInitialized() {
-        Configuration configuration = mContext.getResources().getConfiguration();
-        mNavigationBarController.mIsLargeScreen = true;
-        mNavigationBarController.onConfigChanged(configuration);
-        verify(mTaskbarDelegate, never()).onConfigurationChanged(configuration);
-    }
-
-    @Test
-    public void testConfigurationChange_taskbarInitialized() {
-        Configuration configuration = mContext.getResources().getConfiguration();
-        mNavigationBarController.mIsLargeScreen = true;
-        when(mTaskbarDelegate.isInitialized()).thenReturn(true);
-        mNavigationBarController.onConfigChanged(configuration);
-        verify(mTaskbarDelegate, times(1)).onConfigurationChanged(configuration);
-    }
-
-    @Test
     public void testShouldRenderTaskbar_taskbarNotRenderedOnPhone() {
+        assumeFalse(enableTaskbarOnPhones());
+
         mNavigationBarController.mIsLargeScreen = false;
         mNavigationBarController.mIsPhone = true;
         assertFalse(mNavigationBarController.supportsTaskbar());
+    }
+
+    @Test
+    public void testShouldRenderTaskbar_taskbarRenderedOnPhone() {
+        assumeTrue(enableTaskbarNavbarUnification() && enableTaskbarOnPhones());
+
+        mNavigationBarController.mIsLargeScreen = false;
+        mNavigationBarController.mIsPhone = true;
+        assertTrue(mNavigationBarController.supportsTaskbar());
     }
 
     @Test

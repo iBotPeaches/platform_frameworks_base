@@ -18,14 +18,20 @@ package com.android.systemui.volume;
 
 import android.content.Context;
 import android.content.res.Configuration;
-import android.os.Handler;
 import android.util.Log;
 
+import com.android.settingslib.volume.data.repository.AudioRepository;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.qs.tiles.DndTile;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.policy.ConfigurationController;
+import com.android.systemui.util.kotlin.JavaAdapter;
+import com.android.systemui.volume.domain.interactor.AudioSharingInteractor;
+import com.android.systemui.volume.shared.VolumeLogger;
+
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
 
 import java.io.PrintWriter;
 
@@ -36,28 +42,56 @@ public class VolumeUI implements CoreStartable, ConfigurationController.Configur
     private static final String TAG = "VolumeUI";
     private static boolean LOGD = Log.isLoggable(TAG, Log.DEBUG);
 
-    private final Handler mHandler = new Handler();
-
     private boolean mEnabled;
     private final Context mContext;
     private VolumeDialogComponent mVolumeComponent;
+    private AudioSharingInteractor mAudioSharingInteractor;
+    private AudioRepository mAudioRepository;
+    private JavaAdapter mJavaAdapter;
+    private VolumeLogger mVolumeLogger;
 
     @Inject
-    public VolumeUI(Context context, VolumeDialogComponent volumeDialogComponent) {
+    public VolumeUI(Context context,
+            VolumeDialogComponent volumeDialogComponent,
+            AudioRepository audioRepository,
+            AudioSharingInteractor audioSharingInteractor,
+            JavaAdapter javaAdapter,
+            VolumeLogger volumeLogger) {
         mContext = context;
         mVolumeComponent = volumeDialogComponent;
+        mAudioRepository = audioRepository;
+        mAudioSharingInteractor = audioSharingInteractor;
+        mJavaAdapter = javaAdapter;
+        mVolumeLogger = volumeLogger;
     }
 
     @Override
     public void start() {
+        mAudioRepository.init();
         boolean enableVolumeUi = mContext.getResources().getBoolean(R.bool.enable_volume_ui);
         boolean enableSafetyWarning =
-            mContext.getResources().getBoolean(R.bool.enable_safety_warning);
+                mContext.getResources().getBoolean(R.bool.enable_safety_warning);
         mEnabled = enableVolumeUi || enableSafetyWarning;
         if (!mEnabled) return;
 
         mVolumeComponent.setEnableDialogs(enableVolumeUi, enableSafetyWarning);
         setDefaultVolumeController();
+        Function1<Throwable, Unit> errorCallback = (ex) -> {
+            mVolumeLogger.onAudioSharingAvailabilityRequestedError("start()",
+                    ex.getMessage());
+            return null;
+        };
+        var unused =
+                mJavaAdapter.<Context, Boolean>callSuspend(
+                        mAudioSharingInteractor::audioSharingVolumeBarAvailable, mContext,
+                        result -> {
+                            if (result) {
+                                mAudioSharingInteractor.handlePrimaryGroupChange();
+                            }
+                            return null;
+                        },
+                        errorCallback,
+                        errorCallback);
     }
 
     @Override
@@ -68,7 +102,8 @@ public class VolumeUI implements CoreStartable, ConfigurationController.Configur
 
     @Override
     public void dump(PrintWriter pw, String[] args) {
-        pw.print("mEnabled="); pw.println(mEnabled);
+        pw.print("mEnabled=");
+        pw.println(mEnabled);
         if (!mEnabled) return;
         mVolumeComponent.dump(pw, args);
     }

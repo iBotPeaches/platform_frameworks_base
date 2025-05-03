@@ -22,6 +22,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Resources
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Bundle
@@ -46,28 +47,35 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
 import androidx.constraintlayout.widget.ConstraintSet.START
 import androidx.constraintlayout.widget.ConstraintSet.TOP
-import androidx.constraintlayout.widget.ConstraintSet.WRAP_CONTENT
 import androidx.core.view.isInvisible
+import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.internal.policy.SystemBarUtils
 import com.android.keyguard.ClockEventController
 import com.android.keyguard.KeyguardClockSwitch
-import com.android.systemui.Flags.keyguardBottomAreaRefactor
-import com.android.systemui.Flags.migrateClocksToBlueprint
 import com.android.systemui.animation.view.LaunchableImageView
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.common.ui.ConfigurationState
 import com.android.systemui.communal.ui.binder.CommunalTutorialIndicatorViewBinder
 import com.android.systemui.communal.ui.viewmodel.CommunalTutorialIndicatorViewModel
+import com.android.systemui.coroutines.newTracingContext
+import com.android.systemui.customization.R as customR
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.keyguard.KeyguardBottomAreaRefactor
+import com.android.systemui.keyguard.MigrateClocksToBlueprint
+import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
+import com.android.systemui.keyguard.shared.model.ClockSizeSetting
 import com.android.systemui.keyguard.ui.binder.KeyguardPreviewClockViewBinder
 import com.android.systemui.keyguard.ui.binder.KeyguardPreviewSmartspaceViewBinder
 import com.android.systemui.keyguard.ui.binder.KeyguardQuickAffordanceViewBinder
 import com.android.systemui.keyguard.ui.binder.KeyguardRootViewBinder
 import com.android.systemui.keyguard.ui.view.KeyguardRootView
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSection
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardBlueprintViewModel
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardBottomAreaViewModel
+import com.android.systemui.keyguard.ui.viewmodel.KeyguardClockViewModel
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardPreviewClockViewModel
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardPreviewSmartspaceViewModel
 import com.android.systemui.keyguard.ui.viewmodel.KeyguardQuickAffordancesCombinedViewModel
@@ -75,9 +83,12 @@ import com.android.systemui.keyguard.ui.viewmodel.KeyguardRootViewModel
 import com.android.systemui.keyguard.ui.viewmodel.OccludingAppDeviceEntryMessageViewModel
 import com.android.systemui.monet.ColorScheme
 import com.android.systemui.monet.Style
-import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.clocks.ClockController
+import com.android.systemui.plugins.clocks.ClockPreviewConfig
+import com.android.systemui.plugins.clocks.ThemeConfig
+import com.android.systemui.plugins.clocks.WeatherData
 import com.android.systemui.res.R
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.shared.clocks.ClockRegistry
 import com.android.systemui.shared.clocks.DefaultClockController
@@ -85,11 +96,11 @@ import com.android.systemui.shared.clocks.shared.model.ClockPreviewConstants
 import com.android.systemui.shared.keyguard.shared.model.KeyguardQuickAffordanceSlots
 import com.android.systemui.shared.quickaffordance.shared.model.KeyguardPreviewConstants
 import com.android.systemui.statusbar.KeyguardIndicationController
-import com.android.systemui.statusbar.VibratorHelper
 import com.android.systemui.statusbar.lockscreen.LockscreenSmartspaceController
 import com.android.systemui.statusbar.phone.KeyguardBottomAreaView
 import com.android.systemui.statusbar.phone.ScreenOffAnimationController
 import com.android.systemui.temporarydisplay.chipbar.ChipbarCoordinator
+import com.android.systemui.util.kotlin.DisposableHandles
 import com.android.systemui.util.settings.SecureSettings
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -100,7 +111,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONException
@@ -128,10 +138,9 @@ constructor(
     private val broadcastDispatcher: BroadcastDispatcher,
     private val lockscreenSmartspaceController: LockscreenSmartspaceController,
     private val udfpsOverlayInteractor: UdfpsOverlayInteractor,
-    private val falsingManager: FalsingManager,
-    private val vibratorHelper: VibratorHelper,
     private val indicationController: KeyguardIndicationController,
     private val keyguardRootViewModel: KeyguardRootViewModel,
+    private val keyguardBlueprintViewModel: KeyguardBlueprintViewModel,
     @Assisted bundle: Bundle,
     private val occludingAppDeviceEntryMessageViewModel: OccludingAppDeviceEntryMessageViewModel,
     private val chipbarCoordinator: ChipbarCoordinator,
@@ -140,15 +149,15 @@ constructor(
     private val secureSettings: SecureSettings,
     private val communalTutorialViewModel: CommunalTutorialIndicatorViewModel,
     private val defaultShortcutsSection: DefaultShortcutsSection,
+    private val keyguardClockInteractor: KeyguardClockInteractor,
+    private val keyguardClockViewModel: KeyguardClockViewModel,
+    private val keyguardQuickAffordanceViewBinder: KeyguardQuickAffordanceViewBinder,
 ) {
     val hostToken: IBinder? = bundle.getBinder(KEY_HOST_TOKEN)
     private val width: Int = bundle.getInt(KEY_VIEW_WIDTH)
     private val height: Int = bundle.getInt(KEY_VIEW_HEIGHT)
     private val shouldHighlightSelectedAffordance: Boolean =
-        bundle.getBoolean(
-            KeyguardPreviewConstants.KEY_HIGHLIGHT_QUICK_AFFORDANCES,
-            false,
-        )
+        bundle.getBoolean(KeyguardPreviewConstants.KEY_HIGHLIGHT_QUICK_AFFORDANCES, false)
 
     private val displayId = bundle.getInt(KEY_DISPLAY_ID, DEFAULT_DISPLAY)
     private val display: Display? = displayManager.getDisplay(displayId)
@@ -173,37 +182,40 @@ constructor(
     private lateinit var smallClockHostView: FrameLayout
     private var smartSpaceView: View? = null
 
-    private val disposables = mutableSetOf<DisposableHandle>()
+    private val disposables = DisposableHandles()
     private var isDestroyed = false
 
     private val shortcutsBindings = mutableSetOf<KeyguardQuickAffordanceViewBinder.Binding>()
 
     private val coroutineScope: CoroutineScope
-    private var themeStyle: Style? = null
+
+    @Style.Type private var themeStyle: Int? = null
 
     init {
-        coroutineScope = CoroutineScope(applicationScope.coroutineContext + Job())
-        disposables.add(DisposableHandle { coroutineScope.cancel() })
+        coroutineScope =
+            CoroutineScope(
+                applicationScope.coroutineContext +
+                    Job() +
+                    newTracingContext("KeyguardPreviewRenderer")
+            )
+        disposables += DisposableHandle { coroutineScope.cancel() }
+        clockController.setFallbackWeatherData(WeatherData.getPlaceholderWeatherData())
 
-        if (keyguardBottomAreaRefactor()) {
+        if (KeyguardBottomAreaRefactor.isEnabled) {
             quickAffordancesCombinedViewModel.enablePreviewMode(
                 initiallySelectedSlotId =
-                    bundle.getString(
-                        KeyguardPreviewConstants.KEY_INITIALLY_SELECTED_SLOT_ID,
-                    )
+                    bundle.getString(KeyguardPreviewConstants.KEY_INITIALLY_SELECTED_SLOT_ID)
                         ?: KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_START,
                 shouldHighlightSelectedAffordance = shouldHighlightSelectedAffordance,
             )
         } else {
             bottomAreaViewModel.enablePreviewMode(
                 initiallySelectedSlotId =
-                    bundle.getString(
-                        KeyguardPreviewConstants.KEY_INITIALLY_SELECTED_SLOT_ID,
-                    ),
+                    bundle.getString(KeyguardPreviewConstants.KEY_INITIALLY_SELECTED_SLOT_ID),
                 shouldHighlightSelectedAffordance = shouldHighlightSelectedAffordance,
             )
         }
-        if (migrateClocksToBlueprint()) {
+        if (MigrateClocksToBlueprint.isEnabled) {
             clockViewModel.shouldHighlightSelectedAffordance = shouldHighlightSelectedAffordance
         }
         runBlocking(mainDispatcher) {
@@ -212,9 +224,9 @@ constructor(
                     context,
                     displayManager.getDisplay(DEFAULT_DISPLAY),
                     if (hostToken == null) null else InputTransferToken(hostToken),
-                    "KeyguardPreviewRenderer"
+                    "KeyguardPreviewRenderer",
                 )
-            disposables.add(DisposableHandle { host.release() })
+            disposables += DisposableHandle { host.release() }
         }
     }
 
@@ -223,14 +235,13 @@ constructor(
             val previewContext =
                 display?.let {
                     ContextThemeWrapper(context.createDisplayContext(it), context.getTheme())
-                }
-                    ?: context
+                } ?: context
 
             val rootView = FrameLayout(previewContext)
 
             setupKeyguardRootView(previewContext, rootView)
 
-            if (!keyguardBottomAreaRefactor()) {
+            if (!KeyguardBottomAreaRefactor.isEnabled) {
                 setUpBottomArea(rootView)
             }
 
@@ -242,12 +253,12 @@ constructor(
             rootView.measure(
                 View.MeasureSpec.makeMeasureSpec(
                     displayInfo?.logicalWidth ?: windowManager.currentWindowMetrics.bounds.width(),
-                    View.MeasureSpec.EXACTLY
+                    View.MeasureSpec.EXACTLY,
                 ),
                 View.MeasureSpec.makeMeasureSpec(
                     displayInfo?.logicalHeight
                         ?: windowManager.currentWindowMetrics.bounds.height(),
-                    View.MeasureSpec.EXACTLY
+                    View.MeasureSpec.EXACTLY,
                 ),
             )
             rootView.layout(0, 0, rootView.measuredWidth, rootView.measuredHeight)
@@ -273,19 +284,45 @@ constructor(
         }
     }
 
+    fun onStartCustomizingQuickAffordances(initiallySelectedSlotId: String?) {
+        quickAffordancesCombinedViewModel.enablePreviewMode(
+            initiallySelectedSlotId = initiallySelectedSlotId,
+            shouldHighlightSelectedAffordance = true,
+        )
+    }
+
     fun onSlotSelected(slotId: String) {
-        if (keyguardBottomAreaRefactor()) {
+        if (KeyguardBottomAreaRefactor.isEnabled) {
             quickAffordancesCombinedViewModel.onPreviewSlotSelected(slotId = slotId)
         } else {
             bottomAreaViewModel.onPreviewSlotSelected(slotId = slotId)
         }
     }
 
+    fun onPreviewQuickAffordanceSelected(slotId: String, quickAffordanceId: String) {
+        quickAffordancesCombinedViewModel.onPreviewQuickAffordanceSelected(
+            slotId,
+            quickAffordanceId,
+        )
+    }
+
+    fun onDefaultPreview() {
+        quickAffordancesCombinedViewModel.onClearPreviewQuickAffordances()
+        quickAffordancesCombinedViewModel.enablePreviewMode(
+            initiallySelectedSlotId = null,
+            shouldHighlightSelectedAffordance = false,
+        )
+    }
+
+    fun onClockSizeSelected(clockSize: ClockSizeSetting) {
+        smartspaceViewModel.setOverrideClockSize(clockSize)
+    }
+
     fun destroy() {
         isDestroyed = true
         lockscreenSmartspaceController.disconnect()
-        disposables.forEach { it.dispose() }
-        if (keyguardBottomAreaRefactor()) {
+        disposables.dispose()
+        if (KeyguardBottomAreaRefactor.isEnabled) {
             shortcutsBindings.forEach { it.destroy() }
         }
     }
@@ -311,8 +348,8 @@ constructor(
      */
     private fun setUpSmartspace(previewContext: Context, parentView: ViewGroup) {
         if (
-            !lockscreenSmartspaceController.isEnabled() ||
-                !lockscreenSmartspaceController.isDateWeatherDecoupled()
+            !lockscreenSmartspaceController.isEnabled ||
+                !lockscreenSmartspaceController.isDateWeatherDecoupled
         ) {
             return
         }
@@ -324,13 +361,15 @@ constructor(
         smartSpaceView = lockscreenSmartspaceController.buildAndConnectDateView(parentView)
 
         val topPadding: Int =
-            KeyguardPreviewSmartspaceViewModel.getLargeClockSmartspaceTopPadding(
-                previewContext.resources,
+            smartspaceViewModel.getLargeClockSmartspaceTopPadding(
+                ClockPreviewConfig(
+                    previewContext,
+                    getPreviewShadeLayoutWide(display!!),
+                    SceneContainerFlag.isEnabled,
+                )
             )
-        val startPadding: Int =
-            previewContext.resources.getDimensionPixelSize(R.dimen.below_clock_padding_start)
-        val endPadding: Int =
-            previewContext.resources.getDimensionPixelSize(R.dimen.below_clock_padding_end)
+        val startPadding: Int = smartspaceViewModel.getDateWeatherStartPadding(previewContext)
+        val endPadding: Int = smartspaceViewModel.getDateWeatherEndPadding(previewContext)
 
         smartSpaceView?.let {
             it.setPaddingRelative(startPadding, topPadding, endPadding, 0)
@@ -351,15 +390,9 @@ constructor(
     @Deprecated("Deprecated as part of b/278057014")
     private fun setUpBottomArea(parentView: ViewGroup) {
         val bottomAreaView =
-            LayoutInflater.from(context)
-                .inflate(
-                    R.layout.keyguard_bottom_area,
-                    parentView,
-                    false,
-                ) as KeyguardBottomAreaView
-        bottomAreaView.init(
-            viewModel = bottomAreaViewModel,
-        )
+            LayoutInflater.from(context).inflate(R.layout.keyguard_bottom_area, parentView, false)
+                as KeyguardBottomAreaView
+        bottomAreaView.init(viewModel = bottomAreaViewModel)
         parentView.addView(
             bottomAreaView,
             FrameLayout.LayoutParams(
@@ -368,26 +401,32 @@ constructor(
             ),
         )
     }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun setupKeyguardRootView(previewContext: Context, rootView: FrameLayout) {
         val keyguardRootView = KeyguardRootView(previewContext, null)
-        if (!keyguardBottomAreaRefactor()) {
-            disposables.add(
+        if (!KeyguardBottomAreaRefactor.isEnabled) {
+            disposables +=
                 KeyguardRootViewBinder.bind(
                     keyguardRootView,
                     keyguardRootViewModel,
+                    keyguardBlueprintViewModel,
                     configuration,
                     occludingAppDeviceEntryMessageViewModel,
                     chipbarCoordinator,
                     screenOffAnimationController,
                     shadeInteractor,
-                    null, // clock provider only needed for burn in
+                    keyguardClockInteractor,
+                    keyguardClockViewModel,
                     null, // jank monitor not required for preview mode
                     null, // device entry haptics not required preview mode
                     null, // device entry haptics not required for preview mode
                     null, // falsing manager not required for preview mode
+                    null, // keyguard view mediator is not required for preview mode
+                    null, // primary bouncer interactor is not required for preview mode
+                    mainDispatcher,
+                    null,
                 )
-            )
         }
         rootView.addView(
             keyguardRootView,
@@ -397,22 +436,28 @@ constructor(
             ),
         )
 
-        setUpUdfps(previewContext, if (migrateClocksToBlueprint()) keyguardRootView else rootView)
+        setUpUdfps(
+            previewContext,
+            if (MigrateClocksToBlueprint.isEnabled) keyguardRootView else rootView,
+        )
 
-        if (keyguardBottomAreaRefactor()) {
+        if (KeyguardBottomAreaRefactor.isEnabled) {
             setupShortcuts(keyguardRootView)
         }
 
         if (!shouldHideClock) {
             setUpClock(previewContext, rootView)
-            if (migrateClocksToBlueprint()) {
+            if (MigrateClocksToBlueprint.isEnabled) {
                 KeyguardPreviewClockViewBinder.bind(
-                    context,
-                    displayId,
                     keyguardRootView,
                     clockViewModel,
-                    clockController,
-                    ::updateClockAppearance
+                    clockRegistry,
+                    ::updateClockAppearance,
+                    ClockPreviewConfig(
+                        previewContext,
+                        getPreviewShadeLayoutWide(display!!),
+                        SceneContainerFlag.isEnabled,
+                    ),
                 )
             } else {
                 KeyguardPreviewClockViewBinder.bind(
@@ -424,7 +469,19 @@ constructor(
         }
 
         setUpSmartspace(previewContext, rootView)
-        smartSpaceView?.let { KeyguardPreviewSmartspaceViewBinder.bind(it, smartspaceViewModel) }
+
+        smartSpaceView?.let {
+            KeyguardPreviewSmartspaceViewBinder.bind(
+                it,
+                smartspaceViewModel,
+                clockPreviewConfig =
+                    ClockPreviewConfig(
+                        previewContext,
+                        getPreviewShadeLayoutWide(display!!),
+                        SceneContainerFlag.isEnabled,
+                    ),
+            )
+        }
         setupCommunalTutorialIndicator(keyguardRootView)
     }
 
@@ -438,12 +495,10 @@ constructor(
 
         keyguardRootView.findViewById<LaunchableImageView?>(R.id.start_button)?.let { imageView ->
             shortcutsBindings.add(
-                KeyguardQuickAffordanceViewBinder.bind(
+                keyguardQuickAffordanceViewBinder.bind(
                     view = imageView,
                     viewModel = quickAffordancesCombinedViewModel.startButton,
                     alpha = flowOf(1f),
-                    falsingManager = falsingManager,
-                    vibratorHelper = vibratorHelper,
                 ) { message ->
                     indicationController.showTransientIndication(message)
                 }
@@ -452,12 +507,10 @@ constructor(
 
         keyguardRootView.findViewById<LaunchableImageView?>(R.id.end_button)?.let { imageView ->
             shortcutsBindings.add(
-                KeyguardQuickAffordanceViewBinder.bind(
+                keyguardQuickAffordanceViewBinder.bind(
                     view = imageView,
                     viewModel = quickAffordancesCombinedViewModel.endButton,
                     alpha = flowOf(1f),
-                    falsingManager = falsingManager,
-                    vibratorHelper = vibratorHelper,
                 ) { message ->
                     indicationController.showTransientIndication(message)
                 }
@@ -475,23 +528,20 @@ constructor(
 
         val finger =
             LayoutInflater.from(previewContext)
-                .inflate(
-                    R.layout.udfps_keyguard_preview,
-                    parentView,
-                    false,
-                ) as View
+                .inflate(R.layout.udfps_keyguard_preview, parentView, false) as View
 
         // Place the UDFPS view in the proper sensor location
-        if (migrateClocksToBlueprint()) {
-            finger.id = R.id.lock_icon_view
+        if (MigrateClocksToBlueprint.isEnabled) {
+            val lockId = KeyguardPreviewClockViewBinder.lockId
+            finger.id = lockId
             parentView.addView(finger)
             val cs = ConstraintSet()
             cs.clone(parentView as ConstraintLayout)
             cs.apply {
-                constrainWidth(R.id.lock_icon_view, sensorBounds.width())
-                constrainHeight(R.id.lock_icon_view, sensorBounds.height())
-                connect(R.id.lock_icon_view, TOP, PARENT_ID, TOP, sensorBounds.top)
-                connect(R.id.lock_icon_view, START, PARENT_ID, START, sensorBounds.left)
+                constrainWidth(lockId, sensorBounds.width())
+                constrainHeight(lockId, sensorBounds.height())
+                connect(lockId, TOP, PARENT_ID, TOP, sensorBounds.top)
+                connect(lockId, START, PARENT_ID, START, sensorBounds.left)
             }
             cs.applyTo(parentView)
         } else {
@@ -501,7 +551,7 @@ constructor(
                 sensorBounds.left,
                 sensorBounds.top,
                 sensorBounds.right,
-                sensorBounds.bottom
+                sensorBounds.bottom,
             )
             parentView.addView(finger, fingerprintLayoutParams)
         }
@@ -509,7 +559,7 @@ constructor(
 
     private fun setUpClock(previewContext: Context, parentView: ViewGroup) {
         val resources = parentView.resources
-        if (!migrateClocksToBlueprint()) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
             largeClockHostView = FrameLayout(previewContext)
             largeClockHostView.layoutParams =
                 FrameLayout.LayoutParams(
@@ -523,23 +573,17 @@ constructor(
             val layoutParams =
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.WRAP_CONTENT,
-                    resources.getDimensionPixelSize(
-                        com.android.systemui.customization.R.dimen.small_clock_height
-                    )
+                    resources.getDimensionPixelSize(customR.dimen.small_clock_height),
                 )
             layoutParams.topMargin =
-                KeyguardPreviewSmartspaceViewModel.getStatusBarHeight(resources) +
-                    resources.getDimensionPixelSize(
-                        com.android.systemui.customization.R.dimen.small_clock_padding_top
-                    )
+                SystemBarUtils.getStatusBarHeight(previewContext) +
+                    resources.getDimensionPixelSize(customR.dimen.small_clock_padding_top)
             smallClockHostView.layoutParams = layoutParams
             smallClockHostView.setPaddingRelative(
-                /* start = */ resources.getDimensionPixelSize(
-                    com.android.systemui.customization.R.dimen.clock_padding_start
-                ),
+                /* start = */ resources.getDimensionPixelSize(customR.dimen.clock_padding_start),
                 /* top = */ 0,
                 /* end = */ 0,
-                /* bottom = */ 0
+                /* bottom = */ 0,
             )
             smallClockHostView.clipChildren = false
             parentView.addView(smallClockHostView)
@@ -547,7 +591,7 @@ constructor(
         }
 
         // TODO (b/283465254): Move the listeners to KeyguardClockRepository
-        if (!migrateClocksToBlueprint()) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
             val clockChangeListener =
                 object : ClockRegistry.ClockChangeListener {
                     override fun onCurrentClockChanged() {
@@ -555,14 +599,12 @@ constructor(
                     }
                 }
             clockRegistry.registerClockChangeListener(clockChangeListener)
-            disposables.add(
-                DisposableHandle {
-                    clockRegistry.unregisterClockChangeListener(clockChangeListener)
-                }
-            )
+            disposables += DisposableHandle {
+                clockRegistry.unregisterClockChangeListener(clockChangeListener)
+            }
 
             clockController.registerListeners(parentView)
-            disposables.add(DisposableHandle { clockController.unregisterListeners() })
+            disposables += DisposableHandle { clockController.unregisterListeners() }
         }
 
         val receiver =
@@ -581,9 +623,9 @@ constructor(
                 addAction(Intent.ACTION_TIME_CHANGED)
             },
         )
-        disposables.add(DisposableHandle { broadcastDispatcher.unregisterReceiver(receiver) })
+        disposables += DisposableHandle { broadcastDispatcher.unregisterReceiver(receiver) }
 
-        if (!migrateClocksToBlueprint()) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
             val layoutChangeListener =
                 View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                     if (clockController.clock !is DefaultClockController) {
@@ -602,42 +644,61 @@ constructor(
                     }
                 }
             parentView.addOnLayoutChangeListener(layoutChangeListener)
-            disposables.add(
-                DisposableHandle { parentView.removeOnLayoutChangeListener(layoutChangeListener) }
-            )
+            disposables += DisposableHandle {
+                parentView.removeOnLayoutChangeListener(layoutChangeListener)
+            }
         }
 
         onClockChanged()
     }
 
-    private suspend fun updateClockAppearance(clock: ClockController) {
-        clockController.clock = clock
+    private suspend fun updateClockAppearance(clock: ClockController, resources: Resources) {
+        if (!MigrateClocksToBlueprint.isEnabled) {
+            clockController.clock = clock
+        }
         val colors = wallpaperColors
         if (clockRegistry.seedColor == null && colors != null) {
             // Seed color null means users do not override any color on the clock. The default
             // color will need to use wallpaper's extracted color and consider if the
             // wallpaper's color is dark or light.
+            @Style.Type
             val style = themeStyle ?: fetchThemeStyleFromSetting().also { themeStyle = it }
-            val wallpaperColorScheme = ColorScheme(colors, darkTheme = false, style)
+            val wallpaperColorScheme = ColorScheme(colors, false, style)
             val lightClockColor = wallpaperColorScheme.accent1.s100
             val darkClockColor = wallpaperColorScheme.accent2.s600
 
             // Note that when [wallpaperColors] is null, isWallpaperDark is true.
             val isWallpaperDark: Boolean =
                 (colors.colorHints.and(WallpaperColors.HINT_SUPPORTS_DARK_TEXT)) == 0
-            clock.events.onSeedColorChanged(
-                if (isWallpaperDark) lightClockColor else darkClockColor
-            )
+            val theme =
+                ThemeConfig(
+                    isWallpaperDark,
+                    if (isWallpaperDark) lightClockColor else darkClockColor,
+                )
+            clock.smallClock.events.onThemeChanged(theme)
+            clock.largeClock.events.onThemeChanged(theme)
         }
+        // In clock preview, we should have a seed color for clock
+        // before setting clock to clockEventController to avoid updateColor with seedColor == null
+        // So in update colors, it should already have the correct theme in clockFaceController
+        if (MigrateClocksToBlueprint.isEnabled) {
+            clockController.clock = clock
+        }
+        // When set clock to clockController,it will reset fontsize based on context.resources
+        // We need to override it with overlaid resources
+        clock.largeClock.events.onFontSettingChanged(
+            resources.getDimensionPixelSize(customR.dimen.large_clock_text_size).toFloat()
+        )
     }
+
     private fun onClockChanged() {
-        if (migrateClocksToBlueprint()) {
+        if (MigrateClocksToBlueprint.isEnabled) {
             return
         }
         coroutineScope.launch {
             val clock = clockRegistry.createCurrentClock()
             clockController.clock = clock
-            updateClockAppearance(clock)
+            updateClockAppearance(clock, context.resources)
             updateLargeClock(clock)
             updateSmallClock(clock)
         }
@@ -654,12 +715,11 @@ constructor(
         }
     }
 
-    private suspend fun fetchThemeStyleFromSetting(): Style {
+    @Style.Type
+    private suspend fun fetchThemeStyleFromSetting(): Int {
         val overlayPackageJson =
             withContext(backgroundDispatcher) {
-                secureSettings.getString(
-                    Settings.Secure.THEME_CUSTOMIZATION_OVERLAY_PACKAGES,
-                )
+                secureSettings.getString(Settings.Secure.THEME_CUSTOMIZATION_OVERLAY_PACKAGES)
             }
         return if (!overlayPackageJson.isNullOrEmpty()) {
             try {
@@ -678,7 +738,7 @@ constructor(
     }
 
     private fun updateLargeClock(clock: ClockController) {
-        if (migrateClocksToBlueprint()) {
+        if (MigrateClocksToBlueprint.isEnabled) {
             return
         }
         clock.largeClock.events.onTargetRegionChanged(
@@ -692,7 +752,7 @@ constructor(
     }
 
     private fun updateSmallClock(clock: ClockController) {
-        if (migrateClocksToBlueprint()) {
+        if (MigrateClocksToBlueprint.isEnabled) {
             return
         }
         clock.smallClock.events.onTargetRegionChanged(
@@ -703,6 +763,16 @@ constructor(
         }
         smallClockHostView.removeAllViews()
         smallClockHostView.addView(clock.smallClock.view)
+    }
+
+    private fun getPreviewShadeLayoutWide(display: Display): Boolean {
+        return if (display.displayId == 0) {
+            shadeInteractor.isShadeLayoutWide.value
+        } else {
+            // For the unfolded preview in a folded screen; it's landscape by default
+            // For the folded preview in an unfolded screen; it's portrait by default
+            display.name == "Inner Display"
+        }
     }
 
     companion object {

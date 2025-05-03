@@ -21,6 +21,8 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.AccessibilityTrace;
 import android.accessibilityservice.IAccessibilityServiceClient;
 import android.annotation.Nullable;
+import android.annotation.PermissionManuallyEnforced;
+import android.annotation.RequiresNoPermission;
 import android.app.UiAutomation;
 import android.content.ComponentName;
 import android.content.Context;
@@ -99,12 +101,13 @@ class UiAutomationManager {
             SystemActionPerformer systemActionPerformer,
             AccessibilityWindowManager awm, int flags) {
         accessibilityServiceInfo.setComponentName(COMPONENT_NAME);
-        Slogf.i(LOG_TAG, "Registering UiTestAutomationService (id=%s) when called by user %d",
-                accessibilityServiceInfo.getId(), Binder.getCallingUserHandle().getIdentifier());
+        Slogf.i(LOG_TAG, "Registering UiTestAutomationService (id=%s, flags=0x%x) when"
+                        + " called by user %d",
+                accessibilityServiceInfo.getId(), flags,
+                Binder.getCallingUserHandle().getIdentifier());
         if (mUiAutomationService != null) {
             throw new IllegalStateException(
-                    "UiAutomationService " + mUiAutomationService.mServiceInterface
-                            + "already registered!");
+                    "UiAutomationService " + mUiAutomationService.mClient + "already registered!");
         }
 
         try {
@@ -126,19 +129,15 @@ class UiAutomationManager {
                 mainHandler, mLock, securityPolicy, systemSupport, trace, windowManagerInternal,
                 systemActionPerformer, awm);
         mUiAutomationServiceOwner = owner;
-        mUiAutomationService.mServiceInterface = serviceClient;
+        mUiAutomationService.mClient = serviceClient;
         try {
-            mUiAutomationService.mServiceInterface.asBinder().linkToDeath(mUiAutomationService,
-                    0);
+            mUiAutomationService.mClient.asBinder().linkToDeath(mUiAutomationService, 0);
         } catch (RemoteException re) {
             Slog.e(LOG_TAG, "Failed registering death link: " + re);
             destroyUiAutomationService();
             return;
         }
 
-        if (!Flags.addWindowTokenWithoutLock()) {
-            mUiAutomationService.addWindowTokensForAllDisplays();
-        }
         // UiAutomationService#connectServiceUnknownThread posts to a handler
         // so this call should return immediately.
         mUiAutomationService.connectServiceUnknownThread();
@@ -148,10 +147,10 @@ class UiAutomationManager {
         synchronized (mLock) {
             if (useAccessibility()
                     && ((mUiAutomationService == null)
-                    || (serviceClient == null)
-                    || (mUiAutomationService.mServiceInterface == null)
-                    || (serviceClient.asBinder()
-                    != mUiAutomationService.mServiceInterface.asBinder()))) {
+                            || (serviceClient == null)
+                            || (mUiAutomationService.mClient == null)
+                            || (serviceClient.asBinder()
+                                    != mUiAutomationService.mClient.asBinder()))) {
                 throw new IllegalStateException("UiAutomationService " + serviceClient
                         + " not registered!");
             }
@@ -229,8 +228,7 @@ class UiAutomationManager {
     private void destroyUiAutomationService() {
         synchronized (mLock) {
             if (mUiAutomationService != null) {
-                mUiAutomationService.mServiceInterface.asBinder().unlinkToDeath(
-                        mUiAutomationService, 0);
+                mUiAutomationService.mClient.asBinder().unlinkToDeath(mUiAutomationService, 0);
                 mUiAutomationService.onRemoved();
                 mUiAutomationService.resetLocked();
                 mUiAutomationService = null;
@@ -245,7 +243,6 @@ class UiAutomationManager {
         }
     }
 
-    @SuppressWarnings("MissingPermissionAnnotation")
     private class UiAutomationService extends AbstractAccessibilityServiceConnection {
         private final Handler mMainHandler;
 
@@ -271,42 +268,48 @@ class UiAutomationManager {
 
         void connectServiceUnknownThread() {
             // This needs to be done on the main thread
-            mMainHandler.post(() -> {
-                try {
-                    final IAccessibilityServiceClient serviceInterface;
-                    final UiAutomationService uiAutomationService;
-                    synchronized (mLock) {
-                        serviceInterface = mServiceInterface;
-                        uiAutomationService = mUiAutomationService;
-                        if (serviceInterface == null) {
-                            mService = null;
-                        } else {
-                            mService = mServiceInterface.asBinder();
-                            mService.linkToDeath(this, 0);
+            mMainHandler.post(
+                    () -> {
+                        try {
+                            final IAccessibilityServiceClient client;
+                            final UiAutomationService uiAutomationService;
+                            synchronized (mLock) {
+                                client = mClient;
+                                uiAutomationService = mUiAutomationService;
+                                if (client == null) {
+                                    mClientBinder = null;
+                                } else {
+                                    mClientBinder = mClient.asBinder();
+                                    mClientBinder.linkToDeath(this, 0);
+                                }
+                            }
+                            // If the client is null, the UiAutomation has been shut down on
+                            // another thread.
+                            if (client != null && uiAutomationService != null) {
+                                uiAutomationService.addWindowTokensForAllDisplays();
+                                if (mTrace.isA11yTracingEnabledForTypes(
+                                        AccessibilityTrace.FLAGS_ACCESSIBILITY_SERVICE_CLIENT)) {
+                                    mTrace.logTrace(
+                                            "UiAutomationService.connectServiceUnknownThread",
+                                            AccessibilityTrace.FLAGS_ACCESSIBILITY_SERVICE_CLIENT,
+                                            "serviceConnection="
+                                                    + this
+                                                    + ";connectionId="
+                                                    + mId
+                                                    + "windowToken="
+                                                    + mOverlayWindowTokens.get(
+                                                            Display.DEFAULT_DISPLAY));
+                                }
+                                client.init(
+                                        this,
+                                        mId,
+                                        mOverlayWindowTokens.get(Display.DEFAULT_DISPLAY));
+                            }
+                        } catch (RemoteException re) {
+                            Slog.w(LOG_TAG, "Error initializing connection", re);
+                            destroyUiAutomationService();
                         }
-                    }
-                    // If the serviceInterface is null, the UiAutomation has been shut down on
-                    // another thread.
-                    if (serviceInterface != null) {
-                        if (Flags.addWindowTokenWithoutLock() && uiAutomationService != null) {
-                            uiAutomationService.addWindowTokensForAllDisplays();
-                        }
-                        if (mTrace.isA11yTracingEnabledForTypes(
-                                AccessibilityTrace.FLAGS_ACCESSIBILITY_SERVICE_CLIENT)) {
-                            mTrace.logTrace("UiAutomationService.connectServiceUnknownThread",
-                                    AccessibilityTrace.FLAGS_ACCESSIBILITY_SERVICE_CLIENT,
-                                    "serviceConnection=" + this + ";connectionId=" + mId
-                                    + "windowToken="
-                                    + mOverlayWindowTokens.get(Display.DEFAULT_DISPLAY));
-                        }
-                        serviceInterface.init(this, mId,
-                                mOverlayWindowTokens.get(Display.DEFAULT_DISPLAY));
-                    }
-                } catch (RemoteException re) {
-                    Slog.w(LOG_TAG, "Error initializing connection", re);
-                    destroyUiAutomationService();
-                }
-            });
+                    });
         }
 
         @Override
@@ -325,6 +328,7 @@ class UiAutomationManager {
             return true;
         }
 
+        @PermissionManuallyEnforced
         @Override
         public void dump(FileDescriptor fd, final PrintWriter pw, String[] args) {
             if (!DumpUtils.checkDumpPermission(mContext, LOG_TAG, pw)) return;
@@ -337,31 +341,37 @@ class UiAutomationManager {
         }
 
         // Since this isn't really an accessibility service, several methods are just stubbed here.
+        @RequiresNoPermission
         @Override
         public boolean setSoftKeyboardShowMode(int mode) {
             return false;
         }
 
+        @RequiresNoPermission
         @Override
         public int getSoftKeyboardShowMode() {
             return 0;
         }
 
+        @RequiresNoPermission
         @Override
         public boolean switchToInputMethod(String imeId) {
             return false;
         }
 
+        @RequiresNoPermission
         @Override
         public int setInputMethodEnabled(String imeId, boolean enabled) {
             return AccessibilityService.SoftKeyboardController.ENABLE_IME_FAIL_UNKNOWN;
         }
 
+        @RequiresNoPermission
         @Override
         public boolean isAccessibilityButtonAvailable() {
             return false;
         }
 
+        @RequiresNoPermission
         @Override
         public void disableSelf() {}
 
@@ -382,6 +392,7 @@ class UiAutomationManager {
         @Override
         public void onFingerprintGesture(int gesture) {}
 
+        @RequiresNoPermission
         @Override
         public void takeScreenshot(int displayId, RemoteCallback callback) {}
     }

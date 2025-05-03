@@ -1,0 +1,26 @@
+{
+  "presubmit": [
+    {
+      "name": "FrameworksVcnTests"
+    },
+    {
+      "name": "CtsVcnTestCases"
+    }
+  ],
+  "postsubmit": [
+    {
+      "name": "FrameworksVcnTests"
+    },
+    {
+      "name": "CtsVcnTestCases"
+    }
+  ],
+  "tethering-mainline-presubmit": [
+    {
+      "name": "FrameworksVcnTests"
+    },
+    {
+      "name": "CtsVcnTestCases"
+    }
+  ]
+}

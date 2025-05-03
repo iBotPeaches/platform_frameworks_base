@@ -17,6 +17,7 @@
 package com.android.systemui.flags;
 
 import static com.android.systemui.Flags.exampleFlag;
+import static com.android.systemui.Flags.classicFlagsMultiUser;
 import static com.android.systemui.Flags.sysuiTeamfood;
 import static com.android.systemui.flags.FlagManager.ACTION_GET_FLAGS;
 import static com.android.systemui.flags.FlagManager.ACTION_SET_FLAG;
@@ -25,6 +26,7 @@ import static com.android.systemui.flags.FlagManager.EXTRA_NAME;
 import static com.android.systemui.flags.FlagManager.EXTRA_VALUE;
 import static com.android.systemui.flags.FlagsCommonModule.ALL_FLAGS;
 import static com.android.systemui.shared.Flags.exampleSharedFlag;
+
 import static java.util.Objects.requireNonNull;
 
 import android.content.BroadcastReceiver;
@@ -40,6 +42,7 @@ import androidx.annotation.Nullable;
 
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Main;
+import com.android.systemui.settings.UserTracker;
 import com.android.systemui.util.settings.GlobalSettings;
 
 import java.io.PrintWriter;
@@ -48,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import javax.inject.Inject;
@@ -71,7 +75,6 @@ public class FeatureFlagsClassicDebug implements FeatureFlagsClassic {
     static final String TAG = "SysUIFlags";
 
     private final FlagManager mFlagManager;
-    private final Context mContext;
     private final GlobalSettings mGlobalSettings;
     private final Resources mResources;
     private final SystemPropertiesHelper mSystemProperties;
@@ -81,6 +84,8 @@ public class FeatureFlagsClassicDebug implements FeatureFlagsClassic {
     private final Map<String, String> mStringFlagCache = new ConcurrentHashMap<>();
     private final Map<String, Integer> mIntFlagCache = new ConcurrentHashMap<>();
     private final Restarter mRestarter;
+    private final UserTracker mUserTracker;
+    private final Executor mMainExecutor;
 
     private final ServerFlagReader.ChangeListener mOnPropertiesChanged =
             new ServerFlagReader.ChangeListener() {
@@ -115,6 +120,18 @@ public class FeatureFlagsClassicDebug implements FeatureFlagsClassic {
                 }
             };
 
+    private final UserTracker.Callback mUserChangedCallback =
+            new UserTracker.Callback() {
+                @Override
+                public void onUserChanged(int newUser, @NonNull Context userContext) {
+                    mContext.unregisterReceiver(mReceiver);
+                    mContext = userContext;
+                    registerReceiver();
+                }
+            };
+
+    private Context mContext;
+
     @Inject
     public FeatureFlagsClassicDebug(
             FlagManager flagManager,
@@ -124,28 +141,43 @@ public class FeatureFlagsClassicDebug implements FeatureFlagsClassic {
             @Main Resources resources,
             ServerFlagReader serverFlagReader,
             @Named(ALL_FLAGS) Map<String, Flag<?>> allFlags,
-            Restarter restarter) {
+            Restarter restarter,
+            UserTracker userTracker,
+            @Main Executor executor) {
         mFlagManager = flagManager;
-        mContext = context;
+        if (classicFlagsMultiUser()) {
+            mContext = userTracker.createCurrentUserContext(context);
+        } else {
+            mContext = context;
+        }
         mGlobalSettings = globalSettings;
         mResources = resources;
         mSystemProperties = systemProperties;
         mServerFlagReader = serverFlagReader;
         mAllFlags = allFlags;
         mRestarter = restarter;
+        mUserTracker = userTracker;
+        mMainExecutor = executor;
     }
 
     /** Call after construction to setup listeners. */
     void init() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(ACTION_SET_FLAG);
-        filter.addAction(ACTION_GET_FLAGS);
         mFlagManager.setOnSettingsChangedAction(
                 suppressRestart -> restartSystemUI(suppressRestart, "Settings changed"));
         mFlagManager.setClearCacheAction(this::removeFromCache);
+        registerReceiver();
+        if (classicFlagsMultiUser()) {
+            mUserTracker.addCallback(mUserChangedCallback, mMainExecutor);
+        }
+        mServerFlagReader.listenForChanges(mAllFlags.values(), mOnPropertiesChanged);
+    }
+
+    void registerReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_SET_FLAG);
+        filter.addAction(ACTION_GET_FLAGS);
         mContext.registerReceiver(mReceiver, filter, null, null,
                 Context.RECEIVER_EXPORTED_UNAUDITED);
-        mServerFlagReader.listenForChanges(mAllFlags.values(), mOnPropertiesChanged);
     }
 
     @Override

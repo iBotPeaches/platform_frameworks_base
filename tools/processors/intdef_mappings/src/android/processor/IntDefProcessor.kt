@@ -30,7 +30,7 @@ import javax.lang.model.SourceVersion
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic.Kind
-import javax.tools.StandardLocation.CLASS_OUTPUT
+import javax.tools.StandardLocation.SOURCE_OUTPUT
 import kotlin.collections.set
 
 /**
@@ -126,7 +126,7 @@ class IntDefProcessor : AbstractProcessor() {
     @Throws(IOException::class)
     private fun outputToFile(annotationTypeToIntDefMapping: Map<String, IntDefMapping>) {
         val resource = processingEnv.filer.createResource(
-                CLASS_OUTPUT, "com.android.winscope", outputName)
+                SOURCE_OUTPUT, "com.android.winscope", outputName)
         val writer = resource.openWriter()
         serializeTo(annotationTypeToIntDefMapping, writer)
         writer.close()
@@ -155,35 +155,35 @@ class IntDefProcessor : AbstractProcessor() {
         ) {
             val indent = "  "
 
-            writer.appendln("{")
+            writer.appendLine("{")
 
             val intDefTypesCount = annotationTypeToIntDefMapping.size
             var currentIntDefTypesCount = 0
             for ((field, intDefMapping) in annotationTypeToIntDefMapping) {
-                writer.appendln("""$indent"$field": {""")
+                writer.appendLine("""$indent"$field": {""")
 
                 // Start IntDef
 
-                writer.appendln("""$indent$indent"flag": ${intDefMapping.flag},""")
+                writer.appendLine("""$indent$indent"flag": ${intDefMapping.flag},""")
 
-                writer.appendln("""$indent$indent"values": {""")
+                writer.appendLine("""$indent$indent"values": {""")
                 intDefMapping.entries.joinTo(writer, separator = ",\n") { (value, identifier) ->
                     """$indent$indent$indent"$value": "$identifier""""
                 }
-                writer.appendln()
-                writer.appendln("$indent$indent}")
+                writer.appendLine()
+                writer.appendLine("$indent$indent}")
 
                 // End IntDef
 
                 writer.append("$indent}")
                 if (++currentIntDefTypesCount < intDefTypesCount) {
-                    writer.appendln(",")
+                    writer.appendLine(",")
                 } else {
-                    writer.appendln("")
+                    writer.appendLine("")
                 }
             }
 
-            writer.appendln("}")
+            writer.appendLine("}")
         }
     }
 }

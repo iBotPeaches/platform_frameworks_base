@@ -32,6 +32,7 @@ import android.widget.Button;
 
 import androidx.annotation.Nullable;
 
+import com.android.server.display.feature.flags.Flags;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.plugins.qs.QSTile;
@@ -42,6 +43,7 @@ import com.android.systemui.qs.external.CustomTile;
 import com.android.systemui.qs.tileimpl.QSTileImpl.DrawableIcon;
 import com.android.systemui.res.R;
 import com.android.systemui.settings.UserTracker;
+import com.android.systemui.shade.ShadeDisplayAware;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,7 +70,7 @@ public class TileQueryHelper {
 
     @Inject
     public TileQueryHelper(
-            Context context,
+            @ShadeDisplayAware Context context,
             UserTracker userTracker,
             @Main Executor mainExecutor,
             @Background Executor bgExecutor
@@ -116,6 +118,10 @@ public class TileQueryHelper {
         final ArrayList<QSTile> tilesToAdd = new ArrayList<>();
         possibleTiles.remove("cell");
         possibleTiles.remove("wifi");
+        if (Flags.evenDimmer() && mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_evenDimmerEnabled)) {
+            possibleTiles.remove("reduce_brightness");
+        }
 
         for (String spec : possibleTiles) {
             // Only add current and stock tiles that can be created from QSFactoryImpl.

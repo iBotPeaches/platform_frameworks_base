@@ -17,7 +17,9 @@
 package com.android.server.media;
 
 import static android.content.pm.PackageManager.GET_RESOLVED_FILTER;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
+import android.Manifest;
 import android.annotation.NonNull;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -56,6 +58,7 @@ final class MediaRoute2ProviderWatcher {
     private final PackageManager mPackageManager;
 
     private final ArrayList<MediaRoute2ProviderServiceProxy> mProxies = new ArrayList<>();
+    private final Runnable mScanPackagesRunnable = this::scanPackages;
     private boolean mRunning;
 
     MediaRoute2ProviderWatcher(Context context,
@@ -106,7 +109,7 @@ final class MediaRoute2ProviderWatcher {
             mRunning = false;
 
             mContext.unregisterReceiver(mScanPackagesReceiver);
-            mHandler.removeCallbacks(this::scanPackages);
+            mHandler.removeCallbacks(mScanPackagesRunnable);
 
             // Stop all providers.
             for (int i = mProxies.size() - 1; i >= 0; i--) {
@@ -129,22 +132,38 @@ final class MediaRoute2ProviderWatcher {
             ServiceInfo serviceInfo = resolveInfo.serviceInfo;
             if (serviceInfo != null) {
                 boolean isSelfScanOnlyProvider = false;
+                boolean supportsSystemMediaRouting = false;
                 Iterator<String> categoriesIterator = resolveInfo.filter.categoriesIterator();
                 if (categoriesIterator != null) {
                     while (categoriesIterator.hasNext()) {
+                        String category = categoriesIterator.next();
                         isSelfScanOnlyProvider |=
-                                MediaRoute2ProviderService.CATEGORY_SELF_SCAN_ONLY.equals(
-                                        categoriesIterator.next());
+                                MediaRoute2ProviderService.CATEGORY_SELF_SCAN_ONLY.equals(category);
+                        supportsSystemMediaRouting |=
+                                MediaRoute2ProviderService.SERVICE_INTERFACE_SYSTEM_MEDIA.equals(
+                                        category);
                     }
                 }
                 int sourceIndex = findProvider(serviceInfo.packageName, serviceInfo.name);
                 if (sourceIndex < 0) {
+                    supportsSystemMediaRouting &= Flags.enableMirroringInMediaRouter2();
+                    supportsSystemMediaRouting &=
+                            mPackageManager.checkPermission(
+                                            Manifest.permission.MODIFY_AUDIO_ROUTING,
+                                            serviceInfo.packageName)
+                                    == PERMISSION_GRANTED;
                     MediaRoute2ProviderServiceProxy proxy =
                             new MediaRoute2ProviderServiceProxy(
                                     mContext,
+                                    mHandler.getLooper(),
                                     new ComponentName(serviceInfo.packageName, serviceInfo.name),
                                     isSelfScanOnlyProvider,
+                                    supportsSystemMediaRouting,
                                     mUserId);
+                    Slog.i(
+                            TAG,
+                            "Enabling proxy for MediaRoute2ProviderService: "
+                                    + proxy.mComponentName);
                     proxy.start(/* rebindIfDisconnected= */ false);
                     mProxies.add(targetIndex++, proxy);
                     mCallback.onAddProviderService(proxy);
@@ -162,6 +181,9 @@ final class MediaRoute2ProviderWatcher {
         if (targetIndex < mProxies.size()) {
             for (int i = mProxies.size() - 1; i >= targetIndex; i--) {
                 MediaRoute2ProviderServiceProxy proxy = mProxies.get(i);
+                Slog.i(
+                        TAG,
+                        "Disabling proxy for MediaRoute2ProviderService: " + proxy.mComponentName);
                 mCallback.onRemoveProviderService(proxy);
                 mProxies.remove(proxy);
                 proxy.stop();
@@ -181,8 +203,8 @@ final class MediaRoute2ProviderWatcher {
     }
 
     private void postScanPackagesIfNeeded() {
-        if (!mHandler.hasCallbacks(this::scanPackages)) {
-            mHandler.post(this::scanPackages);
+        if (!mHandler.hasCallbacks(mScanPackagesRunnable)) {
+            mHandler.post(mScanPackagesRunnable);
         }
     }
 

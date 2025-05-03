@@ -23,6 +23,7 @@ import static android.content.pm.PackageManager.FLAG_PERMISSION_SYSTEM_FIXED;
 import static android.content.pm.PackageManager.FLAG_PERMISSION_USER_FIXED;
 import static android.content.pm.PackageManager.FLAG_PERMISSION_USER_SET;
 import static android.os.Build.VERSION_CODES.S;
+import static android.permission.flags.Flags.FLAG_SHOULD_REGISTER_ATTRIBUTION_SOURCE;
 import static android.permission.flags.Flags.serverSideAttributionRegistration;
 
 import android.Manifest;
@@ -111,7 +112,7 @@ public final class PermissionManager {
     public static final int PERMISSION_GRANTED = 0;
 
     /**
-     * The permission is denied. Applicable only to runtime and app op permissions.
+     * The permission is denied. Applicable only to runtime permissions.
      * <p>
      * The app isn't expecting the permission to be denied so that a "no-op" action should be taken,
      * such as returning an empty result.
@@ -238,6 +239,16 @@ public final class PermissionManager {
     @SystemApi
     public static final String EXTRA_PERMISSION_USAGES =
             "android.permission.extra.PERMISSION_USAGES";
+
+    /**
+     * Specify what permissions are device aware. Only device aware permissions can be granted to
+     * a remote device.
+     * @hide
+     */
+    public static final Set<String> DEVICE_AWARE_PERMISSIONS =
+            Flags.deviceAwarePermissionsEnabled()
+                    ? Set.of(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+                    : Collections.emptySet();
 
     private final @NonNull Context mContext;
 
@@ -1652,6 +1663,8 @@ public final class PermissionManager {
      *
      * @hide
      */
+    @TestApi
+    @FlaggedApi(FLAG_SHOULD_REGISTER_ATTRIBUTION_SOURCE)
     public boolean isRegisteredAttributionSource(@NonNull AttributionSource source) {
         try {
             return mPermissionManager.isRegisteredAttributionSource(source.asState());
@@ -1659,6 +1672,21 @@ public final class PermissionManager {
             e.rethrowFromSystemServer();
         }
         return false;
+    }
+
+    /**
+     * Gets the number of currently registered attribution sources for a particular UID. This should
+     * only be used for testing purposes.
+     * @hide
+     */
+    @RequiresPermission(Manifest.permission.UPDATE_APP_OPS_STATS)
+    public int getRegisteredAttributionSourceCountForTest(int uid) {
+        try {
+            return mPermissionManager.getRegisteredAttributionSourceCount(uid);
+        } catch (RemoteException e) {
+            e.rethrowFromSystemServer();
+        }
+        return -1;
     }
 
     /**
@@ -1688,20 +1716,14 @@ public final class PermissionManager {
 
     private static int checkPermissionUncached(@Nullable String permission, int pid, int uid,
             int deviceId) {
+        final int appId = UserHandle.getAppId(uid);
+        if (appId == Process.ROOT_UID || appId == Process.SYSTEM_UID) {
+            return PackageManager.PERMISSION_GRANTED;
+        }
         final IActivityManager am = ActivityManager.getService();
         if (am == null) {
-            // Well this is super awkward; we somehow don't have an active ActivityManager
-            // instance. If we're testing a root or system UID, then they totally have whatever
-            // permission this is.
-            final int appId = UserHandle.getAppId(uid);
-            if (appId == Process.ROOT_UID || appId == Process.SYSTEM_UID) {
-                if (sShouldWarnMissingActivityManager) {
-                    Slog.w(LOG_TAG, "Missing ActivityManager; assuming " + uid + " holds "
-                            + permission);
-                    sShouldWarnMissingActivityManager = false;
-                }
-                return PackageManager.PERMISSION_GRANTED;
-            }
+            // We don't have an active ActivityManager instance and the calling UID is not root or
+            // system, so we don't grant this permission.
             Slog.w(LOG_TAG, "Missing ActivityManager; assuming " + uid + " does not hold "
                     + permission);
             return PackageManager.PERMISSION_DENIED;
@@ -1767,13 +1789,45 @@ public final class PermissionManager {
         }
     }
 
-    /** @hide */
-    public static final String CACHE_KEY_PACKAGE_INFO = "cache_key.package_info";
+    // The legacy system property "package_info" had two purposes: to invalidate PIC caches and to
+    // signal that package information, and therefore permissions, might have changed.
+    // AudioSystem is the only client of the signaling behavior.  The "separate permissions
+    // notification" feature splits the two behaviors into two system property names.
+    //
+    // If the feature is disabled (legacy behavior) then the two system property names have the
+    // same value.  This means there is only one system property in use.
+    //
+    // If the feature is enabled, then the two system property names have different values, which
+    // means there is a system property used by PIC and a system property used for signaling.  The
+    // legacy value is hard-coded in native code that relies on the signaling behavior, so the
+    // system property name for signaling is the legacy property name, and the system property
+    // name for PIC is new.
+    private static String getPackageInfoCacheKey() {
+        if (PropertyInvalidatedCache.separatePermissionNotificationsEnabled()) {
+            return PropertyInvalidatedCache.createSystemCacheKey("package_info_cache");
+        } else {
+            return CACHE_KEY_PACKAGE_INFO_NOTIFY;
+        }
+    }
+
+    /**
+     * The system property that is used to notify clients that package information, and therefore
+     * permissions, may have changed.
+     * @hide
+     */
+    public static final String CACHE_KEY_PACKAGE_INFO_NOTIFY =
+            PropertyInvalidatedCache.createSystemCacheKey("package_info");
+
+    /**
+     * The system property that is used to invalidate PIC caches.
+     * @hide
+     */
+    public static final String CACHE_KEY_PACKAGE_INFO_CACHE = getPackageInfoCacheKey();
 
     /** @hide */
     private static final PropertyInvalidatedCache<PermissionQuery, Integer> sPermissionCache =
             new PropertyInvalidatedCache<PermissionQuery, Integer>(
-                    2048, CACHE_KEY_PACKAGE_INFO, "checkPermission") {
+                    2048, CACHE_KEY_PACKAGE_INFO_CACHE, "checkPermission") {
                 @Override
                 public Integer recompute(PermissionQuery query) {
                     return checkPermissionUncached(query.permission, query.pid, query.uid,
@@ -1788,6 +1842,9 @@ public final class PermissionManager {
 
     /**
      * Gets the permission states for requested package and persistent device.
+     * <p>
+     * <strong>Note: </strong>Default device permissions are not inherited in this API. Returns the
+     * exact permission states for the requested device.
      *
      * @param packageName name of the package you are checking against
      * @param persistentDeviceId id of the persistent device you are checking against
@@ -1797,7 +1854,11 @@ public final class PermissionManager {
      */
     @SystemApi
     @NonNull
-    @RequiresPermission(android.Manifest.permission.GET_RUNTIME_PERMISSIONS)
+    @RequiresPermission(anyOf = {
+            android.Manifest.permission.GRANT_RUNTIME_PERMISSIONS,
+            android.Manifest.permission.REVOKE_RUNTIME_PERMISSIONS,
+            android.Manifest.permission.GET_RUNTIME_PERMISSIONS
+    })
     @FlaggedApi(Flags.FLAG_DEVICE_AWARE_PERMISSION_APIS_ENABLED)
     public Map<String, PermissionState> getAllPermissionStates(@NonNull String packageName,
             @NonNull String persistentDeviceId) {
@@ -1884,7 +1945,7 @@ public final class PermissionManager {
     private static PropertyInvalidatedCache<PackageNamePermissionQuery, Integer>
             sPackageNamePermissionCache =
             new PropertyInvalidatedCache<PackageNamePermissionQuery, Integer>(
-                    16, CACHE_KEY_PACKAGE_INFO, "checkPackageNamePermission") {
+                    16, CACHE_KEY_PACKAGE_INFO_CACHE, "checkPackageNamePermission") {
                 @Override
                 public Integer recompute(PackageNamePermissionQuery query) {
                     return checkPackageNamePermissionUncached(
@@ -2073,5 +2134,29 @@ public final class PermissionManager {
                 return new PermissionState[size];
             }
         };
+
+        /** @hide */
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PermissionState that = (PermissionState) o;
+            return mGranted == that.mGranted && mFlags == that.mFlags;
+        }
+
+        /** @hide */
+        @Override
+        public int hashCode() {
+            return Objects.hash(mGranted, mFlags);
+        }
+
+        /** @hide */
+        @Override
+        public String toString() {
+            return "PermissionState{"
+                    + "mGranted=" + mGranted
+                    + ", mFlags=" + mFlags
+                    + '}';
+        }
     }
 }

@@ -18,11 +18,11 @@ package com.android.wm.shell.flicker.pip.apps
 
 import android.Manifest
 import android.platform.test.annotations.Postsubmit
-import android.tools.traces.component.ComponentNameMatcher
 import android.tools.device.apphelpers.YouTubeAppHelper
 import android.tools.flicker.junit.FlickerParametersRunnerFactory
 import android.tools.flicker.legacy.FlickerBuilder
 import android.tools.flicker.legacy.LegacyFlickerTest
+import android.tools.traces.component.ComponentNameMatcher
 import androidx.test.filters.RequiresDevice
 import org.junit.Assume
 import org.junit.FixMethodOrder
@@ -34,7 +34,7 @@ import org.junit.runners.Parameterized
 /**
  * Test entering pip from YouTube app by interacting with the app UI
  *
- * To run this test: `atest WMShellFlickerTests:YouTubeEnterPipTest`
+ * To run this test: `atest WMShellFlickerTestsPipAppsCSuite:YouTubeEnterPipTest`
  *
  * Actions:
  * ```
@@ -57,23 +57,23 @@ import org.junit.runners.Parameterized
 @Parameterized.UseParametersRunnerFactory(FlickerParametersRunnerFactory::class)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 open class YouTubeEnterPipTest(flicker: LegacyFlickerTest) : AppsEnterPipTransition(flicker) {
-    override val standardAppHelper: YouTubeAppHelper = YouTubeAppHelper(instrumentation)
+    override val pipApp: YouTubeAppHelper = YouTubeAppHelper(instrumentation)
 
     override val permissions: Array<String> = arrayOf(Manifest.permission.POST_NOTIFICATIONS)
 
     override val defaultEnterPip: FlickerBuilder.() -> Unit = {
         setup {
-            standardAppHelper.launchViaIntent(
+            pipApp.launchViaIntent(
                 wmHelper,
-                YouTubeAppHelper.getYoutubeVideoIntent("HPcEAtoXXLA"),
+                YouTubeAppHelper.getYoutubeVideoIntent("3KtWfp0UopM"),
                 ComponentNameMatcher(YouTubeAppHelper.PACKAGE_NAME, "")
             )
-            standardAppHelper.waitForVideoPlaying()
+            pipApp.waitForVideoPlaying()
         }
     }
 
     override val defaultTeardown: FlickerBuilder.() -> Unit = {
-        teardown { standardAppHelper.exit(wmHelper) }
+        teardown { pipApp.exit(wmHelper) }
     }
 
     override val thisTransition: FlickerBuilder.() -> Unit = { transitions { tapl.goHome() } }

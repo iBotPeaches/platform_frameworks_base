@@ -17,7 +17,7 @@
 package com.android.systemui.qs.tiles.viewmodel
 
 import android.os.UserHandle
-import kotlinx.coroutines.flow.SharedFlow
+import com.android.systemui.plugins.qs.TileDetailsViewModel
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -31,12 +31,16 @@ import kotlinx.coroutines.flow.StateFlow
 interface QSTileViewModel {
 
     /** State of the tile to be shown by the view. */
-    val state: SharedFlow<QSTileState>
+    val state: StateFlow<QSTileState?>
 
     val config: QSTileConfig
 
     /** Specifies whether this device currently supports this tile. */
     val isAvailable: StateFlow<Boolean>
+
+    /** Specifies the [TileDetailsViewModel] for constructing the corresponding details view. */
+    val detailsViewModel: TileDetailsViewModel?
+        get() = null
 
     /**
      * Notifies about the user change. Implementations should avoid using 3rd party userId sources
@@ -62,9 +66,7 @@ interface QSTileViewModel {
 }
 
 /**
- * Returns the immediate state of the tile or null if the state haven't been collected yet. Favor
- * reactive consumption over the [currentState], because there is no guarantee that current value
- * would be available at any time.
+ * Returns the immediate state of the tile or null if the state haven't been collected yet.
  */
 val QSTileViewModel.currentState: QSTileState?
-    get() = state.replayCache.lastOrNull()
+    get() = state.value

@@ -79,6 +79,8 @@ public class AccessibilityWindowManager {
 
     private static int sNextWindowId;
 
+    private final Region mTmpRegion = new Region();
+
     private final Object mLock;
     private final Handler mHandler;
     private final WindowManagerInternal mWindowManagerInternal;
@@ -432,18 +434,23 @@ public class AccessibilityWindowManager {
         }
 
         /**
-         * Callbacks from window manager when there's an accessibility change in windows.
+         * Called when the windows for accessibility changed.
          *
-         * @param forceSend Send the windows for accessibility even if they haven't changed.
-         * @param topFocusedDisplayId The display Id which has the top focused window.
+         * @param forceSend             Send the windows for accessibility even if they haven't
+         *                              changed.
+         * @param topFocusedDisplayId   The display Id which has the top focused window.
          * @param topFocusedWindowToken The window token of top focused window.
-         * @param windows The windows for accessibility.
+         * @param screenSize            The size of the display that the change happened.
+         * @param accessibilityWindows  The windows for accessibility.
          */
         @Override
-        public void onWindowsForAccessibilityChanged(boolean forceSend, int topFocusedDisplayId,
-                IBinder topFocusedWindowToken, @NonNull List<WindowInfo> windows) {
+        public void onAccessibilityWindowsChanged(boolean forceSend, int topFocusedDisplayId,
+                @NonNull IBinder topFocusedWindowToken, @NonNull Point screenSize,
+                @NonNull List<AccessibilityWindow> accessibilityWindows) {
             synchronized (mLock) {
-                updateWindowsByWindowAttributesLocked(windows);
+                final List<WindowInfo> windows =
+                        createWindowInfoListLocked(screenSize, accessibilityWindows);
+
                 if (DEBUG) {
                     Slogf.i(LOG_TAG, "mDisplayId=%d, topFocusedDisplayId=%d, currentUserId=%d, "
                                     + "visibleBgUsers=%s", mDisplayId, topFocusedDisplayId,
@@ -458,14 +465,15 @@ public class AccessibilityWindowManager {
                         Slogf.i(LOG_TAG, "%d windows changed: %s", windows.size(), windowsInfo);
                     }
                 }
-                if (shouldUpdateWindowsLocked(forceSend, windows)) {
+
+                if (forceSend || shouldUpdateWindowsLocked(windows)) {
                     mTopFocusedDisplayId = topFocusedDisplayId;
                     if (!isProxyed(topFocusedDisplayId)) {
                         mLastNonProxyTopFocusedDisplayId = topFocusedDisplayId;
                     }
                     mTopFocusedWindowToken = topFocusedWindowToken;
                     if (DEBUG) {
-                        Slogf.d(LOG_TAG, "onWindowsForAccessibilityChanged(): updating windows for "
+                        Slogf.d(LOG_TAG, "onAccessibilityWindowsChanged(): updating windows for "
                                         + "display %d and token %s",
                                 topFocusedDisplayId, topFocusedWindowToken);
                     }
@@ -475,39 +483,15 @@ public class AccessibilityWindowManager {
                             windows);
                     // Someone may be waiting for the windows - advertise it.
                     mLock.notifyAll();
-                }
-                else if (DEBUG) {
-                    Slogf.d(LOG_TAG, "onWindowsForAccessibilityChanged(): NOT updating windows for "
+                } else if (DEBUG) {
+                    Slogf.d(LOG_TAG, "onAccessibilityWindowsChanged(): NOT updating windows for "
                                     + "display %d and token %s",
                             topFocusedDisplayId, topFocusedWindowToken);
                 }
             }
         }
 
-        /**
-         * Called when the windows for accessibility changed. This is called if
-         * {@link com.android.server.accessibility.Flags.FLAG_COMPUTE_WINDOW_CHANGES_ON_A11Y} is
-         * true.
-         *
-         * @param forceSend             Send the windows for accessibility even if they haven't
-         *                              changed.
-         * @param topFocusedDisplayId   The display Id which has the top focused window.
-         * @param topFocusedWindowToken The window token of top focused window.
-         * @param screenSize            The size of the display that the change happened.
-         * @param windows               The windows for accessibility.
-         */
-        @Override
-        public void onAccessibilityWindowsChanged(boolean forceSend, int topFocusedDisplayId,
-                @NonNull IBinder topFocusedWindowToken, @NonNull Point screenSize,
-                @NonNull List<AccessibilityWindow> windows) {
-            // TODO(b/322444245): Get a screenSize from DisplayManager#getDisplay(int)
-            //  .getRealSize().
-            final List<WindowInfo> windowInfoList = createWindowInfoList(screenSize, windows);
-            onWindowsForAccessibilityChanged(forceSend, topFocusedDisplayId,
-                    topFocusedWindowToken, windowInfoList);
-        }
-
-        private static List<WindowInfo> createWindowInfoList(@NonNull Point screenSize,
+        private List<WindowInfo> createWindowInfoListLocked(@NonNull Point screenSize,
                 @NonNull List<AccessibilityWindow> visibleWindows) {
             final Set<IBinder> addedWindows = new ArraySet<>();
             final List<WindowInfo> windows = new ArrayList<>();
@@ -516,19 +500,28 @@ public class AccessibilityWindowManager {
             final Region regionInWindow = new Region();
             final Region touchableRegionInScreen = new Region();
 
+            final int userId = mAccessibilityUserManager.getCurrentUserIdLocked();
+
             // Iterate until we figure out what is touchable for the entire screen.
             boolean focusedWindowAdded = false;
             final Region unaccountedSpace = new Region(0, 0, screenSize.x, screenSize.y);
             for (final AccessibilityWindow a11yWindow : visibleWindows) {
                 a11yWindow.getTouchableRegionInWindow(regionInWindow);
-                if (windowMattersToAccessibility(a11yWindow, regionInWindow, unaccountedSpace)) {
-                    final WindowInfo window = a11yWindow.getWindowInfo();
-                    if (window.token != null) {
+
+                final WindowInfo window = a11yWindow.getWindowInfo();
+                final int windowId = window.token != null
+                        ? findWindowIdLocked(userId, window.token)
+                        : AccessibilityWindowInfo.UNDEFINED_WINDOW_ID;
+
+                if (windowMattersToAccessibilityLocked(a11yWindow, windowId, regionInWindow,
+                        unaccountedSpace)) {
+                    if (windowId >= 0) {
                         // Even if token is null, the window will be used in calculating visible
                         // windows, but is excluded from the accessibility window list.
-                        // TODO(b/322444245): We can call #updateWindowWithWindowAttributes() here.
                         window.regionInScreen.set(regionInWindow);
                         window.layer = addedWindows.size();
+                        updateWindowWithWindowAttributes(window, mWindowAttributes.get(windowId));
+
                         windows.add(window);
                         addedWindows.add(window.token);
                     }
@@ -577,12 +570,8 @@ public class AccessibilityWindowManager {
             return windows;
         }
 
-        private static boolean windowMattersToAccessibility(AccessibilityWindow a11yWindow,
-                Region regionInScreen, Region unaccountedSpace) {
-            if (a11yWindow.ignoreRecentsAnimationForAccessibility()) {
-                return false;
-            }
-
+        private boolean windowMattersToAccessibilityLocked(AccessibilityWindow a11yWindow,
+                int windowId, Region regionInScreen, Region unaccountedSpace) {
             if (a11yWindow.isFocused()) {
                 return true;
             }
@@ -595,8 +584,12 @@ public class AccessibilityWindowManager {
                 return false;
             }
 
+            if (isEmbeddedHierarchyWindowsLocked(windowId)) {
+                return false;
+            }
+
             // If the window is completely covered by other windows - ignore.
-            if (unaccountedSpace.quickReject(regionInScreen)) {
+            if (!mTmpRegion.op(unaccountedSpace, regionInScreen, Region.Op.INTERSECT)) {
                 return false;
             }
 
@@ -640,16 +633,6 @@ public class AccessibilityWindowManager {
             return true;
         }
 
-        private void updateWindowsByWindowAttributesLocked(List<WindowInfo> windows) {
-            for (int i = windows.size() - 1; i >= 0; i--) {
-                final WindowInfo windowInfo = windows.get(i);
-                final IBinder token = windowInfo.token;
-                final int windowId = findWindowIdLocked(
-                        mAccessibilityUserManager.getCurrentUserIdLocked(), token);
-                updateWindowWithWindowAttributes(windowInfo, mWindowAttributes.get(windowId));
-            }
-        }
-
         private void updateWindowWithWindowAttributes(@NonNull WindowInfo windowInfo,
                 @Nullable AccessibilityWindowAttributes attributes) {
             if (attributes == null) {
@@ -659,12 +642,7 @@ public class AccessibilityWindowManager {
             windowInfo.locales = attributes.getLocales();
         }
 
-        private boolean shouldUpdateWindowsLocked(boolean forceSend,
-                @NonNull List<WindowInfo> windows) {
-            if (forceSend) {
-                return true;
-            }
-
+        private boolean shouldUpdateWindowsLocked(@NonNull List<WindowInfo> windows) {
             final int windowCount = windows.size();
             if (VERBOSE) {
                 Slogf.v(LOG_TAG,
@@ -854,20 +832,12 @@ public class AccessibilityWindowManager {
                         != AccessibilityWindowInfo.UNDEFINED_WINDOW_ID;
             }
 
-            boolean hasWindowIgnore = false;
             if (windowCount > 0) {
-                for (int i = 0; i < windowCount; i++) {
-                    final WindowInfo windowInfo = windows.get(i);
-                    final AccessibilityWindowInfo window;
-                    if (mTrackingWindows) {
-                        window = populateReportedWindowLocked(userId, windowInfo, oldWindowsById);
-                        if (window == null) {
-                            hasWindowIgnore = true;
-                        }
-                    } else {
-                        window = null;
-                    }
-                    if (window != null) {
+                if (mTrackingWindows) {
+                    for (int i = 0; i < windowCount; i++) {
+                        final WindowInfo windowInfo = windows.get(i);
+                        final AccessibilityWindowInfo window =
+                                populateReportedWindowLocked(userId, windowInfo, oldWindowsById);
 
                         // Flip layers in list to be consistent with AccessibilityService#getWindows
                         window.setLayer(windowCount - 1 - window.getLayer());
@@ -892,13 +862,6 @@ public class AccessibilityWindowManager {
                     }
                 }
                 final int accessibilityWindowCount = mWindows.size();
-                // Re-order the window layer of all windows in the windows list because there's
-                // window not been added into the windows list.
-                if (hasWindowIgnore) {
-                    for (int i = 0; i < accessibilityWindowCount; i++) {
-                        mWindows.get(i).setLayer(accessibilityWindowCount - 1 - i);
-                    }
-                }
                 if (isTopFocusedDisplay) {
                     if (mTouchInteractionInProgress && activeWindowGone) {
                         mActiveWindowId = mTopFocusedWindowId;
@@ -975,14 +938,6 @@ public class AccessibilityWindowManager {
         private AccessibilityWindowInfo populateReportedWindowLocked(int userId,
                 WindowInfo window, SparseArray<AccessibilityWindowInfo> oldWindowsById) {
             final int windowId = findWindowIdLocked(userId, window.token);
-            if (windowId < 0) {
-                return null;
-            }
-
-            // Don't need to add the embedded hierarchy windows into the accessibility windows list.
-            if (isEmbeddedHierarchyWindowsLocked(windowId)) {
-                return null;
-            }
             final AccessibilityWindowInfo reportedWindow = AccessibilityWindowInfo.obtain();
 
             reportedWindow.setId(windowId);
@@ -1601,7 +1556,7 @@ public class AccessibilityWindowManager {
                 return getWindowTokensForUserLocked(userId).keyAt(userIndex);
             }
         }
-        return -1;
+        return AccessibilityWindowInfo.UNDEFINED_WINDOW_ID;
     }
 
     /**
@@ -2038,8 +1993,11 @@ public class AccessibilityWindowManager {
      * @param windowId The windowId
      * @return The display ID
      */
-    public int getDisplayIdByUserIdAndWindowIdLocked(int userId, int windowId) {
-        final IBinder windowToken = getWindowTokenForUserAndWindowIdLocked(userId, windowId);
+    public int getDisplayIdByUserIdAndWindowId(int userId, int windowId) {
+        final IBinder windowToken;
+        synchronized (mLock) {
+            windowToken = getWindowTokenForUserAndWindowIdLocked(userId, windowId);
+        }
         if (traceWMEnabled()) {
             logTraceWM("getDisplayIdForWindow", "token=" + windowToken);
         }

@@ -16,32 +16,41 @@
 
 package com.android.systemui.bouncer.domain.interactor
 
-import android.content.Context
+import android.app.StatusBarManager.SESSION_KEYGUARD
+import com.android.app.tracing.coroutines.asyncTraced as async
+import com.android.compose.animation.scene.SceneKey
+import com.android.internal.logging.UiEventLogger
 import com.android.systemui.authentication.domain.interactor.AuthenticationInteractor
 import com.android.systemui.authentication.domain.interactor.AuthenticationResult
-import com.android.systemui.authentication.shared.model.AuthenticationMethodModel
 import com.android.systemui.authentication.shared.model.AuthenticationMethodModel.Password
 import com.android.systemui.authentication.shared.model.AuthenticationMethodModel.Pattern
 import com.android.systemui.authentication.shared.model.AuthenticationMethodModel.Pin
 import com.android.systemui.authentication.shared.model.AuthenticationMethodModel.Sim
+import com.android.systemui.authentication.shared.model.BouncerInputSide
 import com.android.systemui.bouncer.data.repository.BouncerRepository
+import com.android.systemui.bouncer.shared.logging.BouncerUiEvent
 import com.android.systemui.classifier.FalsingClassifier
 import com.android.systemui.classifier.domain.interactor.FalsingInteractor
+import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryFaceAuthInteractor
+import com.android.systemui.log.SessionTracker
 import com.android.systemui.power.domain.interactor.PowerInteractor
-import com.android.systemui.res.R
+import com.android.systemui.scene.domain.interactor.SceneBackInteractor
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.shade.ShadeDisplayAware
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 /** Encapsulates business logic and application state accessing use-cases. */
 @SysUISingleton
@@ -49,16 +58,18 @@ class BouncerInteractor
 @Inject
 constructor(
     @Application private val applicationScope: CoroutineScope,
-    @Application private val applicationContext: Context,
     private val repository: BouncerRepository,
     private val authenticationInteractor: AuthenticationInteractor,
     private val deviceEntryFaceAuthInteractor: DeviceEntryFaceAuthInteractor,
     private val falsingInteractor: FalsingInteractor,
     private val powerInteractor: PowerInteractor,
-    private val simBouncerInteractor: SimBouncerInteractor,
+    private val uiEventLogger: UiEventLogger,
+    private val sessionTracker: SessionTracker,
+    sceneBackInteractor: SceneBackInteractor,
+    @ShadeDisplayAware private val configurationInteractor: ConfigurationInteractor,
 ) {
-    /** The user-facing message to show in the bouncer when lockout is not active. */
-    val message: StateFlow<String?> = repository.message
+    private val _onIncorrectBouncerInput = MutableSharedFlow<Unit>()
+    val onIncorrectBouncerInput: SharedFlow<Unit> = _onIncorrectBouncerInput
 
     /** Whether the auto confirm feature is enabled for the currently-selected user. */
     val isAutoConfirmEnabled: StateFlow<Boolean> = authenticationInteractor.isAutoConfirmEnabled
@@ -74,8 +85,47 @@ constructor(
         authenticationInteractor.isPinEnhancedPrivacyEnabled
 
     /** Whether the user switcher should be displayed within the bouncer UI on large screens. */
-    val isUserSwitcherVisible: Boolean
-        get() = repository.isUserSwitcherVisible
+    val isUserSwitcherVisible: Flow<Boolean> =
+        authenticationInteractor.authenticationMethod.map { authMethod ->
+            when (authMethod) {
+                Sim -> false
+                else -> repository.isUserSwitcherEnabledInConfig
+            }
+        }
+
+    /**
+     * Whether one handed bouncer mode is supported on large screen devices. This allows user to
+     * double tap on the half of the screen to bring the bouncer input to that side of the screen.
+     */
+    val isOneHandedModeSupported: Flow<Boolean> =
+        combine(
+            isUserSwitcherVisible,
+            authenticationInteractor.authenticationMethod,
+            configurationInteractor.onAnyConfigurationChange,
+        ) { userSwitcherVisible, authMethod, _ ->
+            userSwitcherVisible ||
+                (repository.isOneHandedBouncerSupportedInConfig && (authMethod !is Password))
+        }
+
+    /**
+     * Preferred side of the screen where the input area on the bouncer should be. This is
+     * applicable for large screen devices (foldables and tablets).
+     */
+    val preferredBouncerInputSide: Flow<BouncerInputSide?> =
+        combine(
+            configurationInteractor.onAnyConfigurationChange,
+            repository.preferredBouncerInputSide,
+        ) { _, _ ->
+            // always read the setting as that can change outside of this
+            // repository (tests/manual testing)
+            val preferredInputSide = repository.getPreferredInputSideSetting()
+            when {
+                preferredInputSide != null -> preferredInputSide
+                repository.isUserSwitcherEnabledInConfig -> BouncerInputSide.RIGHT
+                repository.isOneHandedBouncerSupportedInConfig -> BouncerInputSide.LEFT
+                else -> null
+            }
+        }
 
     private val _onImeHiddenByUser = MutableSharedFlow<Unit>()
     /** Emits a [Unit] each time the IME (keyboard) is hidden by the user. */
@@ -88,6 +138,18 @@ constructor(
                 !successfullyAuthenticated && authenticationInteractor.lockoutEndTimestamp != null
             }
             .map {}
+
+    /** X coordinate of the last recorded touch position on the lockscreen. */
+    val lastRecordedLockscreenTouchPosition = repository.lastRecordedLockscreenTouchPosition
+
+    /** Value between 0-1 that specifies by how much the bouncer UI should be scaled down. */
+    val scale: StateFlow<Float> = repository.scale.asStateFlow()
+
+    /** The scene to show when bouncer is dismissed. */
+    val dismissDestination: Flow<SceneKey> =
+        sceneBackInteractor.backScene
+            .filter { it != Scenes.Bouncer }
+            .map { it ?: Scenes.Lockscreen }
 
     /** Notifies that the user has places down a pointer, not necessarily dragging just yet. */
     fun onDown() {
@@ -119,23 +181,35 @@ constructor(
         )
     }
 
-    fun setMessage(message: String?) {
-        repository.message.value = message
+    /** Update the preferred input side for the bouncer. */
+    fun setPreferredBouncerInputSide(inputSide: BouncerInputSide) {
+        repository.setPreferredBouncerInputSide(inputSide)
     }
 
     /**
-     * Resets the user-facing message back to the default according to the current authentication
-     * method.
+     * Record the x coordinate of the last touch position on the lockscreen. This will be used to
+     * determine which side of the bouncer the input area should be shown.
      */
-    fun resetMessage() {
-        applicationScope.launch {
-            setMessage(promptMessage(authenticationInteractor.getAuthenticationMethod()))
-        }
+    fun recordKeyguardTouchPosition(x: Float) {
+        // todo (b/375245685) investigate why this is not working as expected when it is
+        //  wired up with SBKVM
+        repository.recordLockscreenTouchPosition(x)
     }
 
-    /** Removes the user-facing message. */
-    fun clearMessage() {
-        setMessage(null)
+    fun onBackEventProgressed(progress: Float) {
+        // this is applicable only for compose bouncer without flexiglass
+        SceneContainerFlag.assertInLegacyMode()
+        repository.scale.value = (mapBackEventProgressToScale(progress))
+    }
+
+    fun onBackEventCancelled() {
+        // this is applicable only for compose bouncer without flexiglass
+        SceneContainerFlag.assertInLegacyMode()
+        repository.scale.value = DEFAULT_SCALE
+    }
+
+    fun resetScale() {
+        repository.scale.value = DEFAULT_SCALE
     }
 
     /**
@@ -176,27 +250,25 @@ constructor(
                 .async { authenticationInteractor.authenticate(input, tryAutoConfirm) }
                 .await()
 
-        if (authenticationInteractor.lockoutEndTimestamp != null) {
-            clearMessage()
-        } else if (
+        if (
             authResult == AuthenticationResult.FAILED ||
                 (authResult == AuthenticationResult.SKIPPED && !tryAutoConfirm)
         ) {
-            showWrongInputMessage()
+            _onIncorrectBouncerInput.emit(Unit)
         }
-        return authResult
-    }
 
-    /**
-     * Shows the a message notifying the user that their credentials input is wrong.
-     *
-     * Callers should use this instead of [authenticate] when they know ahead of time that an auth
-     * attempt will fail but aren't interested in the other side effects like triggering lockout.
-     * For example, if the user entered a pattern that's too short, the system can show the error
-     * message without having the attempt trigger lockout.
-     */
-    private suspend fun showWrongInputMessage() {
-        setMessage(wrongInputMessage(authenticationInteractor.getAuthenticationMethod()))
+        if (authenticationInteractor.getAuthenticationMethod() in setOf(Pin, Password, Pattern)) {
+            if (authResult == AuthenticationResult.SUCCEEDED) {
+                uiEventLogger.log(BouncerUiEvent.BOUNCER_PASSWORD_SUCCESS)
+            } else if (authResult == AuthenticationResult.FAILED) {
+                uiEventLogger.log(
+                    BouncerUiEvent.BOUNCER_PASSWORD_FAILURE,
+                    sessionTracker.getSessionId(SESSION_KEYGUARD),
+                )
+            }
+        }
+
+        return authResult
     }
 
     /** Notifies that the input method editor (software keyboard) has been hidden by the user. */
@@ -204,22 +276,14 @@ constructor(
         _onImeHiddenByUser.emit(Unit)
     }
 
-    private fun promptMessage(authMethod: AuthenticationMethodModel): String {
-        return when (authMethod) {
-            is Sim -> simBouncerInteractor.getDefaultMessage()
-            is Pin -> applicationContext.getString(R.string.keyguard_enter_your_pin)
-            is Password -> applicationContext.getString(R.string.keyguard_enter_your_password)
-            is Pattern -> applicationContext.getString(R.string.keyguard_enter_your_pattern)
-            else -> ""
-        }
+    private fun mapBackEventProgressToScale(progress: Float): Float {
+        // TODO(b/263819310): Update the interpolator to match spec.
+        return MIN_BACK_SCALE + (1 - MIN_BACK_SCALE) * (1 - progress)
     }
 
-    private fun wrongInputMessage(authMethod: AuthenticationMethodModel): String {
-        return when (authMethod) {
-            is Pin -> applicationContext.getString(R.string.kg_wrong_pin)
-            is Password -> applicationContext.getString(R.string.kg_wrong_password)
-            is Pattern -> applicationContext.getString(R.string.kg_wrong_pattern)
-            else -> ""
-        }
+    companion object {
+        // How much the view scales down to during back gestures.
+        private const val MIN_BACK_SCALE: Float = 0.9f
+        private const val DEFAULT_SCALE: Float = 1.0f
     }
 }

@@ -23,6 +23,7 @@ import static android.view.Display.Mode.INVALID_MODE_ID;
 import static com.android.server.display.mode.DisplayModeDirector.SYNCHRONIZED_REFRESH_RATE_TOLERANCE;
 import static com.android.server.display.mode.Vote.PRIORITY_LIMIT_MODE;
 import static com.android.server.display.mode.Vote.PRIORITY_SYNCHRONIZED_REFRESH_RATE;
+import static com.android.server.display.mode.Vote.PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE;
 import static com.android.server.display.mode.Vote.PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE;
 import static com.android.server.display.mode.VotesStorage.GLOBAL_ID;
 
@@ -39,6 +40,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.Resources;
 import android.hardware.display.DisplayManager;
+import android.hardware.display.DisplayManagerInternal;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.DeviceConfigInterface;
@@ -112,6 +114,8 @@ public class DisplayObserverTest {
     private Resources mResources;
     @Mock
     private DisplayManagerFlags mDisplayManagerFlags;
+    @Mock
+    private DisplayModeDirector.DisplayDeviceConfigProvider mDisplayDeviceConfigProvider;
     private int mExternalDisplayUserPreferredModeId = INVALID_MODE_ID;
     private int mInternalDisplayUserPreferredModeId = INVALID_MODE_ID;
     private Display mDefaultDisplay;
@@ -185,6 +189,7 @@ public class DisplayObserverTest {
     @Test
     public void testExternalDisplay_voteUserPreferredMode() {
         when(mDisplayManagerFlags.isUserPreferredModeVoteEnabled()).thenReturn(true);
+        when(mDisplayManagerFlags.isUserRefreshRateForExternalDisplayEnabled()).thenReturn(false);
         var preferredMode = mExternalDisplayModes[5];
         mExternalDisplayUserPreferredModeId = preferredMode.getModeId();
         var expectedVote = Vote.forSize(
@@ -211,6 +216,108 @@ public class DisplayObserverTest {
         expectedVote = Vote.forSize(
                         preferredMode.getPhysicalWidth(),
                         preferredMode.getPhysicalHeight());
+        mObserver.onDisplayChanged(EXTERNAL_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(expectedVote);
+
+        // Testing that the vote is removed.
+        mObserver.onDisplayRemoved(EXTERNAL_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+    }
+
+    /** Vote for user preferred mode */
+    @Test
+    public void testDefaultDisplay_voteUserPreferredMode() {
+        when(mDisplayManagerFlags.isUserPreferredModeVoteEnabled()).thenReturn(true);
+        when(mDisplayManagerFlags.isUserRefreshRateForExternalDisplayEnabled()).thenReturn(true);
+        var preferredMode = mInternalDisplayModes[5];
+        mInternalDisplayUserPreferredModeId = preferredMode.getModeId();
+        var expectedVote = Vote.forSize(
+                        preferredMode.getPhysicalWidth(),
+                        preferredMode.getPhysicalHeight());
+        init();
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        mObserver.onDisplayAdded(EXTERNAL_DISPLAY);
+        mObserver.onDisplayAdded(DEFAULT_DISPLAY);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(expectedVote);
+
+        mInternalDisplayUserPreferredModeId = INVALID_MODE_ID;
+        mObserver.onDisplayChanged(EXTERNAL_DISPLAY);
+        mObserver.onDisplayChanged(DEFAULT_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+
+        preferredMode = mInternalDisplayModes[4];
+        mInternalDisplayUserPreferredModeId = preferredMode.getModeId();
+        expectedVote = Vote.forSize(
+                        preferredMode.getPhysicalWidth(),
+                        preferredMode.getPhysicalHeight());
+        mObserver.onDisplayChanged(EXTERNAL_DISPLAY);
+        mObserver.onDisplayChanged(DEFAULT_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(expectedVote);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+
+        // Testing that the vote is removed.
+        mObserver.onDisplayRemoved(EXTERNAL_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(expectedVote);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+    }
+
+    /** Vote for user preferred mode with refresh rate, synchronization vote must be disabled */
+    @Test
+    public void testExternalDisplay_voteUserPreferredMode_withRefreshRate() {
+        when(mDisplayManagerFlags.isUserPreferredModeVoteEnabled()).thenReturn(true);
+        when(mDisplayManagerFlags.isDisplaysRefreshRatesSynchronizationEnabled()).thenReturn(false);
+        when(mDisplayManagerFlags.isUserRefreshRateForExternalDisplayEnabled()).thenReturn(true);
+        var preferredMode = mExternalDisplayModes[5];
+        mExternalDisplayUserPreferredModeId = preferredMode.getModeId();
+        var expectedVote = Vote.forSizeAndPhysicalRefreshRatesRange(
+                        preferredMode.getPhysicalWidth(),
+                        preferredMode.getPhysicalHeight(),
+                        preferredMode.getPhysicalWidth(),
+                        preferredMode.getPhysicalHeight(),
+                        preferredMode.getRefreshRate(),
+                        preferredMode.getRefreshRate());
+        init();
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        mObserver.onDisplayAdded(EXTERNAL_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(expectedVote);
+
+        mExternalDisplayUserPreferredModeId = INVALID_MODE_ID;
+        mObserver.onDisplayChanged(EXTERNAL_DISPLAY);
+        assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+        assertThat(getVote(EXTERNAL_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
+                .isEqualTo(null);
+
+        preferredMode = mExternalDisplayModes[4];
+        mExternalDisplayUserPreferredModeId = preferredMode.getModeId();
+        expectedVote = Vote.forSizeAndPhysicalRefreshRatesRange(
+                        preferredMode.getPhysicalWidth(),
+                        preferredMode.getPhysicalHeight(),
+                        preferredMode.getPhysicalWidth(),
+                        preferredMode.getPhysicalHeight(),
+                        preferredMode.getRefreshRate(),
+                        preferredMode.getRefreshRate());
         mObserver.onDisplayChanged(EXTERNAL_DISPLAY);
         assertThat(getVote(DEFAULT_DISPLAY, PRIORITY_USER_SETTING_DISPLAY_PREFERRED_SIZE))
                 .isEqualTo(null);
@@ -357,9 +464,14 @@ public class DisplayObserverTest {
                 .thenReturn(true);
         init();
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(null);
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(null);
         mObserver.onDisplayAdded(EXTERNAL_DISPLAY);
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(
                 Vote.forPhysicalRefreshRates(
+                        MAX_REFRESH_RATE - SYNCHRONIZED_REFRESH_RATE_TOLERANCE,
+                        MAX_REFRESH_RATE + SYNCHRONIZED_REFRESH_RATE_TOLERANCE));
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(
+                Vote.forRenderFrameRates(
                         MAX_REFRESH_RATE - SYNCHRONIZED_REFRESH_RATE_TOLERANCE,
                         MAX_REFRESH_RATE + SYNCHRONIZED_REFRESH_RATE_TOLERANCE));
 
@@ -367,6 +479,7 @@ public class DisplayObserverTest {
         mObserver.onDisplayRemoved(EXTERNAL_DISPLAY);
 
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(null);
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(null);
     }
 
     /** External display added, disabled feature refresh rates synchronization */
@@ -380,8 +493,10 @@ public class DisplayObserverTest {
                 .thenReturn(true);
         init();
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(null);
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(null);
         mObserver.onDisplayAdded(EXTERNAL_DISPLAY);
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(null);
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(null);
     }
 
     /** External display not applied refresh rates synchronization, because
@@ -394,8 +509,10 @@ public class DisplayObserverTest {
         when(mDisplayManagerFlags.isDisplaysRefreshRatesSynchronizationEnabled()).thenReturn(true);
         init();
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(null);
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(null);
         mObserver.onDisplayAdded(EXTERNAL_DISPLAY);
         assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_REFRESH_RATE)).isEqualTo(null);
+        assertThat(getVote(GLOBAL_ID, PRIORITY_SYNCHRONIZED_RENDER_FRAME_RATE)).isEqualTo(null);
     }
 
     private void init() {
@@ -404,7 +521,8 @@ public class DisplayObserverTest {
             assertThat(mObserver).isNull();
             mObserver = invocation.getArgument(0);
             return null;
-        }).when(mInjector).registerDisplayListener(any(), any());
+        }).when(mInjector).registerDisplayListener(
+                any(DisplayModeDirector.DisplayObserver.class), any());
 
         doAnswer(c -> {
             DisplayInfo info = c.getArgument(1);
@@ -426,8 +544,12 @@ public class DisplayObserverTest {
             return true;
         }).when(mInjector).getDisplayInfo(eq(EXTERNAL_DISPLAY), /*displayInfo=*/ any());
 
-        doAnswer(c -> mock(SensorManagerInternal.class)).when(mInjector).getSensorManagerInternal();
+        doAnswer(c -> mock(SensorManagerInternal.class))
+                .when(mInjector).getSensorManagerInternal();
         doAnswer(c -> mock(DeviceConfigInterface.class)).when(mInjector).getDeviceConfig();
+        doAnswer(c -> mock(DisplayManagerInternal.class))
+                .when(mInjector).getDisplayManagerInternal();
+
 
         mDefaultDisplay = mock(Display.class);
         when(mDefaultDisplay.getDisplayId()).thenReturn(DEFAULT_DISPLAY);
@@ -441,7 +563,8 @@ public class DisplayObserverTest {
 
         when(mInjector.getDisplays()).thenReturn(new Display[] {mDefaultDisplay, mExternalDisplay});
 
-        mDmd = new DisplayModeDirector(mContext, mHandler, mInjector, mDisplayManagerFlags);
+        mDmd = new DisplayModeDirector(mContext, mHandler, mInjector,
+                mDisplayManagerFlags, mDisplayDeviceConfigProvider);
         mDmd.start(null);
         assertThat(mObserver).isNotNull();
     }

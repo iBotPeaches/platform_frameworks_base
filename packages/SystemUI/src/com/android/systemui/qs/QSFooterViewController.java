@@ -16,17 +16,20 @@
 
 package com.android.systemui.qs;
 
+import static com.android.systemui.Flags.gsfQuickSettings;
+
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.android.systemui.res.R;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.qs.dagger.QSScope;
+import com.android.systemui.res.R;
 import com.android.systemui.retail.domain.interactor.RetailModeInteractor;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.util.ViewController;
@@ -64,6 +67,9 @@ public class QSFooterViewController extends ViewController<QSFooterView> impleme
         mRetailModeInteractor = retailModeInteractor;
 
         mBuildText = mView.findViewById(R.id.build);
+        if (gsfQuickSettings()) {
+            mBuildText.setTypeface(Typeface.create("gsf-body-medium", Typeface.NORMAL));
+        }
         mPageIndicator = mView.findViewById(R.id.footer_page_indicator);
         mEditButton = mView.findViewById(android.R.id.edit);
     }

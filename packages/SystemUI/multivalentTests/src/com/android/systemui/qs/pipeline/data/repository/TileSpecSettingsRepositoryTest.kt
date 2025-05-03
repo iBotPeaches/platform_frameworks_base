@@ -91,7 +91,7 @@ class TileSpecSettingsRepositoryTest : SysuiTestCase() {
                 context.resources,
                 logger,
                 retailModeRepository,
-                userTileSpecRepositoryFactory
+                userTileSpecRepositoryFactory,
             )
     }
 
@@ -201,6 +201,36 @@ class TileSpecSettingsRepositoryTest : SysuiTestCase() {
 
             assertThat(tiles!!)
                 .containsExactlyElementsIn(DEFAULT_TILES.toTileSpecs() + startingTiles)
+        }
+
+    @Test
+    fun prependDefault_noChangesWhenInRetail() =
+        testScope.runTest {
+            val user = 0
+            retailModeRepository.setRetailMode(true)
+            val startingTiles = "a"
+            storeTilesForUser(startingTiles, user)
+
+            runCurrent()
+            underTest.prependDefault(user)
+            runCurrent()
+
+            assertThat(loadTilesForUser(user)).isEqualTo(startingTiles)
+        }
+
+    @Test
+    fun resetsDefault() =
+        testScope.runTest {
+            val tiles by collectLastValue(underTest.tilesSpecs(0))
+
+            val startingTiles = listOf(TileSpec.create("e"), TileSpec.create("f"))
+
+            underTest.setTiles(0, startingTiles)
+            runCurrent()
+
+            underTest.resetToDefault(0)
+
+            assertThat(tiles!!).containsExactlyElementsIn(DEFAULT_TILES.toTileSpecs())
         }
 
     private fun TestScope.storeTilesForUser(specs: String, forUser: Int) {

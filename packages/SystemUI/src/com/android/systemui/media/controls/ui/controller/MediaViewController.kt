@@ -16,41 +16,73 @@
 
 package com.android.systemui.media.controls.ui.controller
 
+import android.animation.Animator
+import android.animation.AnimatorInflater
+import android.animation.AnimatorSet
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.drawable.Drawable
+import android.provider.Settings
+import android.view.View
+import android.view.animation.Interpolator
 import androidx.annotation.VisibleForTesting
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.constraintlayout.widget.ConstraintSet.MATCH_CONSTRAINT
+import com.android.app.animation.Interpolators
 import com.android.app.tracing.traceSection
+import com.android.systemui.Flags
+import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.media.controls.ui.animation.ColorSchemeTransition
+import com.android.systemui.media.controls.ui.animation.MetadataAnimationHandler
+import com.android.systemui.media.controls.ui.binder.MediaControlViewBinder
+import com.android.systemui.media.controls.ui.binder.MediaRecommendationsViewBinder
+import com.android.systemui.media.controls.ui.binder.SeekBarObserver
 import com.android.systemui.media.controls.ui.controller.MediaCarouselController.Companion.calculateAlpha
 import com.android.systemui.media.controls.ui.view.GutsViewHolder
 import com.android.systemui.media.controls.ui.view.MediaHostState
 import com.android.systemui.media.controls.ui.view.MediaViewHolder
 import com.android.systemui.media.controls.ui.view.RecommendationViewHolder
-import com.android.systemui.media.controls.util.MediaFlags
+import com.android.systemui.media.controls.ui.viewmodel.MediaControlViewModel
+import com.android.systemui.media.controls.ui.viewmodel.SeekBarViewModel
 import com.android.systemui.res.R
+import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.statusbar.policy.ConfigurationController
+import com.android.systemui.surfaceeffects.PaintDrawCallback
+import com.android.systemui.surfaceeffects.loadingeffect.LoadingEffect
+import com.android.systemui.surfaceeffects.loadingeffect.LoadingEffectView
+import com.android.systemui.surfaceeffects.ripple.MultiRippleController
+import com.android.systemui.surfaceeffects.turbulencenoise.TurbulenceNoiseAnimationConfig
+import com.android.systemui.surfaceeffects.turbulencenoise.TurbulenceNoiseController
+import com.android.systemui.surfaceeffects.turbulencenoise.TurbulenceNoiseShader
+import com.android.systemui.surfaceeffects.turbulencenoise.TurbulenceNoiseView
 import com.android.systemui.util.animation.MeasurementInput
 import com.android.systemui.util.animation.MeasurementOutput
 import com.android.systemui.util.animation.TransitionLayout
 import com.android.systemui.util.animation.TransitionLayoutController
 import com.android.systemui.util.animation.TransitionViewState
+import com.android.systemui.util.concurrency.DelayableExecutor
+import com.android.systemui.util.settings.GlobalSettings
 import java.lang.Float.max
 import java.lang.Float.min
+import java.util.Random
 import javax.inject.Inject
 
 /**
  * A class responsible for controlling a single instance of a media player handling interactions
  * with the view instance and keeping the media view states up to date.
  */
-class MediaViewController
+open class MediaViewController
 @Inject
 constructor(
     private val context: Context,
     private val configurationController: ConfigurationController,
     private val mediaHostStatesManager: MediaHostStatesManager,
     private val logger: MediaViewLogger,
-    private val mediaFlags: MediaFlags,
+    private val seekBarViewModel: SeekBarViewModel,
+    @Main private val mainExecutor: DelayableExecutor,
+    private val globalSettings: GlobalSettings,
 ) {
 
     /**
@@ -59,7 +91,7 @@ constructor(
      */
     enum class TYPE {
         PLAYER,
-        RECOMMENDATION
+        RECOMMENDATION,
     }
 
     companion object {
@@ -69,6 +101,8 @@ constructor(
     /** A listener when the current dimensions of the player change */
     lateinit var sizeChangedListener: () -> Unit
     lateinit var configurationChangeListener: () -> Unit
+    lateinit var recsConfigurationChangeListener: (MediaViewController, TransitionLayout) -> Unit
+    var locationChangeListener: (Int) -> Unit = {}
     private var firstRefresh: Boolean = true
     @VisibleForTesting private var transitionLayout: TransitionLayout? = null
     private val layoutController = TransitionLayoutController()
@@ -85,10 +119,18 @@ constructor(
      * The ending location of the view where it ends when all animations and transitions have
      * finished
      */
-    @MediaLocation var currentEndLocation: Int = -1
+    @MediaLocation
+    var currentEndLocation: Int = MediaHierarchyManager.LOCATION_UNKNOWN
+        set(value) {
+            if (field != value) {
+                field = value
+                if (!SceneContainerFlag.isEnabled) return
+                locationChangeListener(value)
+            }
+        }
 
     /** The starting location of the view where it starts for all animations and transitions */
-    @MediaLocation private var currentStartLocation: Int = -1
+    @MediaLocation private var currentStartLocation: Int = MediaHierarchyManager.LOCATION_UNKNOWN
 
     /** The progress of the transition or 1.0 if there is no transition happening */
     private var currentTransitionProgress: Float = 1.0f
@@ -130,6 +172,75 @@ constructor(
             return transitionLayout?.translationY ?: 0.0f
         }
 
+    /** Whether artwork is bound. */
+    var isArtworkBound: Boolean = false
+
+    /** previous background artwork */
+    var prevArtwork: Drawable? = null
+
+    /** Whether scrubbing time can show */
+    var canShowScrubbingTime: Boolean = false
+
+    /** Whether user is touching the seek bar to change the position */
+    var isScrubbing: Boolean = false
+
+    var isSeekBarEnabled: Boolean = false
+
+    /** Not visible value for previous button when scrubbing */
+    private var prevNotVisibleValue = ConstraintSet.GONE
+    private var isPrevButtonAvailable = false
+
+    /** Not visible value for next button when scrubbing */
+    private var nextNotVisibleValue = ConstraintSet.GONE
+    private var isNextButtonAvailable = false
+
+    /** View holders for controller */
+    var recommendationViewHolder: RecommendationViewHolder? = null
+    var mediaViewHolder: MediaViewHolder? = null
+
+    private lateinit var seekBarObserver: SeekBarObserver
+    private lateinit var turbulenceNoiseController: TurbulenceNoiseController
+    private lateinit var loadingEffect: LoadingEffect
+    private lateinit var turbulenceNoiseAnimationConfig: TurbulenceNoiseAnimationConfig
+    private lateinit var noiseDrawCallback: PaintDrawCallback
+    private lateinit var stateChangedCallback: LoadingEffect.AnimationStateChangedCallback
+    internal lateinit var metadataAnimationHandler: MetadataAnimationHandler
+    internal lateinit var colorSchemeTransition: ColorSchemeTransition
+    internal lateinit var multiRippleController: MultiRippleController
+
+    private val scrubbingChangeListener =
+        object : SeekBarViewModel.ScrubbingChangeListener {
+            override fun onScrubbingChanged(scrubbing: Boolean) {
+                if (!SceneContainerFlag.isEnabled) return
+                if (isScrubbing == scrubbing) return
+                isScrubbing = scrubbing
+                updateDisplayForScrubbingChange()
+            }
+        }
+
+    private val enabledChangeListener =
+        object : SeekBarViewModel.EnabledChangeListener {
+            override fun onEnabledChanged(enabled: Boolean) {
+                if (!SceneContainerFlag.isEnabled) return
+                if (isSeekBarEnabled == enabled) return
+                isSeekBarEnabled = enabled
+                MediaControlViewBinder.updateSeekBarVisibility(expandedLayout, isSeekBarEnabled)
+            }
+        }
+
+    /**
+     * Sets the listening state of the player.
+     *
+     * Should be set to true when the QS panel is open. Otherwise, false. This is a signal to avoid
+     * unnecessary work when the QS panel is closed.
+     *
+     * @param listening True when player should be active. Otherwise, false.
+     */
+    fun setListening(listening: Boolean) {
+        if (!SceneContainerFlag.isEnabled) return
+        seekBarViewModel.listening = listening
+    }
+
     /** A callback for config changes */
     private val configurationListener =
         object : ConfigurationController.ConfigurationListener {
@@ -160,7 +271,17 @@ constructor(
                             )
                         )
                     }
-                    if (this@MediaViewController::configurationChangeListener.isInitialized) {
+                    if (SceneContainerFlag.isEnabled) {
+                        if (
+                            this@MediaViewController::recsConfigurationChangeListener.isInitialized
+                        ) {
+                            transitionLayout?.let {
+                                recsConfigurationChangeListener.invoke(this@MediaViewController, it)
+                            }
+                        }
+                    } else if (
+                        this@MediaViewController::configurationChangeListener.isInitialized
+                    ) {
                         configurationChangeListener.invoke()
                         refreshState()
                     }
@@ -173,14 +294,14 @@ constructor(
         object : MediaHostStatesManager.Callback {
             override fun onHostStateChanged(
                 @MediaLocation location: Int,
-                mediaHostState: MediaHostState
+                mediaHostState: MediaHostState,
             ) {
                 if (location == currentEndLocation || location == currentStartLocation) {
                     setCurrentState(
                         currentStartLocation,
                         currentEndLocation,
                         currentTransitionProgress,
-                        applyImmediately = false
+                        applyImmediately = false,
                     )
                 }
             }
@@ -192,6 +313,7 @@ constructor(
      */
     var collapsedLayout = ConstraintSet()
         @VisibleForTesting set
+
     /**
      * The expanded constraint set used to render a collapsed player. If it is modified, make sure
      * to call [refreshState]
@@ -221,6 +343,14 @@ constructor(
      * Notify this controller that the view has been removed and all listeners should be destroyed
      */
     fun onDestroy() {
+        if (SceneContainerFlag.isEnabled) {
+            if (this::seekBarObserver.isInitialized) {
+                seekBarViewModel.progress.removeObserver(seekBarObserver)
+            }
+            seekBarViewModel.removeScrubbingChangeListener(scrubbingChangeListener)
+            seekBarViewModel.removeEnabledChangeListener(enabledChangeListener)
+            seekBarViewModel.onDestroy()
+        }
         mediaHostStatesManager.removeController(this)
         configurationController.removeCallback(configurationListener)
     }
@@ -312,7 +442,7 @@ constructor(
     /** Apply squishFraction to a copy of viewState such that the cached version is untouched. */
     internal fun squishViewState(
         viewState: TransitionViewState,
-        squishFraction: Float
+        squishFraction: Float,
     ): TransitionViewState {
         val squishedViewState = viewState.copy()
         val squishedHeight = (squishedViewState.measureHeight * squishFraction).toInt()
@@ -328,13 +458,13 @@ constructor(
             MediaViewHolder.expandedBottomActionIds,
             squishedViewState.measureHeight.toFloat(),
             squishedViewState,
-            squishFraction
+            squishFraction,
         )
         calculateWidgetGroupAlphaForSquishiness(
             MediaViewHolder.detailIds,
             squishedViewState.measureHeight.toFloat(),
             squishedViewState,
-            squishFraction
+            squishFraction,
         )
         // recommendation card
         val titlesTop =
@@ -342,13 +472,13 @@ constructor(
                 RecommendationViewHolder.mediaTitlesAndSubtitlesIds,
                 squishedViewState.measureHeight.toFloat(),
                 squishedViewState,
-                squishFraction
+                squishFraction,
             )
         calculateWidgetGroupAlphaForSquishiness(
             RecommendationViewHolder.mediaContainersIds,
             titlesTop,
             squishedViewState,
-            squishFraction
+            squishFraction,
         )
         return squishedViewState
     }
@@ -387,7 +517,7 @@ constructor(
         widgetGroupIds: Set<Int>,
         groupEndPosition: Float,
         squishedViewState: TransitionViewState,
-        squishFraction: Float
+        squishFraction: Float,
     ): Float {
         val nonsquishedHeight = squishedViewState.measureHeight
         var groupTop = squishedViewState.measureHeight.toFloat()
@@ -417,7 +547,7 @@ constructor(
                         calculateAlpha(
                             squishFraction,
                             startPosition / nonsquishedHeight,
-                            endPosition / nonsquishedHeight
+                            endPosition / nonsquishedHeight,
                         )
                 }
             }
@@ -432,10 +562,10 @@ constructor(
     @VisibleForTesting
     fun obtainViewState(
         state: MediaHostState?,
-        isGutsAnimation: Boolean = false
+        isGutsAnimation: Boolean = false,
     ): TransitionViewState? {
-        if (mediaFlags.isSceneContainerEnabled()) {
-            return obtainSceneContainerViewState()
+        if (SceneContainerFlag.isEnabled) {
+            return obtainSceneContainerViewState(state)
         }
 
         if (state == null || state.measurementInput == null) {
@@ -476,7 +606,7 @@ constructor(
                 transitionLayout!!.calculateViewState(
                     state.measurementInput!!,
                     constraintSetForExpansion(state.expansion),
-                    TransitionViewState()
+                    TransitionViewState(),
                 )
 
             setGutsViewState(result)
@@ -523,7 +653,7 @@ constructor(
             logger.logMediaLocation("attach $type", currentStartLocation, currentEndLocation)
             this.transitionLayout = transitionLayout
             layoutController.attach(transitionLayout)
-            if (currentEndLocation == -1) {
+            if (currentEndLocation == MediaHierarchyManager.LOCATION_UNKNOWN) {
                 return
             }
             // Set the previously set state immediately to the view, now that it's finally attached
@@ -531,9 +661,198 @@ constructor(
                 startLocation = currentStartLocation,
                 endLocation = currentEndLocation,
                 transitionProgress = currentTransitionProgress,
-                applyImmediately = true
+                applyImmediately = true,
             )
         }
+
+    fun attachPlayer(mediaViewHolder: MediaViewHolder) {
+        if (!SceneContainerFlag.isEnabled) return
+        this.mediaViewHolder = mediaViewHolder
+
+        // Setting up seek bar.
+        seekBarObserver = SeekBarObserver(mediaViewHolder)
+        seekBarViewModel.progress.observeForever(seekBarObserver)
+        seekBarViewModel.attachTouchHandlers(mediaViewHolder.seekBar)
+        seekBarViewModel.setScrubbingChangeListener(scrubbingChangeListener)
+        seekBarViewModel.setEnabledChangeListener(enabledChangeListener)
+
+        val mediaCard = mediaViewHolder.player
+        attach(mediaViewHolder.player, TYPE.PLAYER)
+
+        val turbulenceNoiseView = mediaViewHolder.turbulenceNoiseView
+        turbulenceNoiseController = TurbulenceNoiseController(turbulenceNoiseView)
+
+        multiRippleController = MultiRippleController(mediaViewHolder.multiRippleView)
+
+        // Metadata Animation
+        val titleText = mediaViewHolder.titleText
+        val artistText = mediaViewHolder.artistText
+        val explicitIndicator = mediaViewHolder.explicitIndicator
+        val enter =
+            loadAnimator(
+                mediaCard.context,
+                R.anim.media_metadata_enter,
+                Interpolators.EMPHASIZED_DECELERATE,
+                titleText,
+                artistText,
+                explicitIndicator,
+            )
+        val exit =
+            loadAnimator(
+                mediaCard.context,
+                R.anim.media_metadata_exit,
+                Interpolators.EMPHASIZED_ACCELERATE,
+                titleText,
+                artistText,
+                explicitIndicator,
+            )
+        metadataAnimationHandler = MetadataAnimationHandler(exit, enter)
+
+        colorSchemeTransition =
+            ColorSchemeTransition(
+                mediaCard.context,
+                mediaViewHolder,
+                multiRippleController,
+                turbulenceNoiseController,
+            )
+
+        // For Turbulence noise.
+        val loadingEffectView = mediaViewHolder.loadingEffectView
+        noiseDrawCallback =
+            object : PaintDrawCallback {
+                override fun onDraw(paint: Paint) {
+                    loadingEffectView.draw(paint)
+                }
+            }
+        stateChangedCallback =
+            object : LoadingEffect.AnimationStateChangedCallback {
+                override fun onStateChanged(
+                    oldState: LoadingEffect.AnimationState,
+                    newState: LoadingEffect.AnimationState,
+                ) {
+                    if (newState === LoadingEffect.AnimationState.NOT_PLAYING) {
+                        loadingEffectView.visibility = View.INVISIBLE
+                    } else {
+                        loadingEffectView.visibility = View.VISIBLE
+                    }
+                }
+            }
+    }
+
+    fun updateAnimatorDurationScale() {
+        if (!SceneContainerFlag.isEnabled) return
+        if (this::seekBarObserver.isInitialized) {
+            seekBarObserver.animationEnabled =
+                globalSettings.getFloat(Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+        }
+    }
+
+    /** update view with the needed UI changes when user touches seekbar. */
+    private fun updateDisplayForScrubbingChange() {
+        mainExecutor.execute {
+            val isTimeVisible = canShowScrubbingTime && isScrubbing
+            mediaViewHolder!!.let {
+                MediaControlViewBinder.setVisibleAndAlpha(
+                    expandedLayout,
+                    it.scrubbingTotalTimeView.id,
+                    isTimeVisible,
+                )
+                MediaControlViewBinder.setVisibleAndAlpha(
+                    expandedLayout,
+                    it.scrubbingElapsedTimeView.id,
+                    isTimeVisible,
+                )
+            }
+
+            MediaControlViewModel.SEMANTIC_ACTIONS_HIDE_WHEN_SCRUBBING.forEach { id ->
+                val isButtonVisible: Boolean
+                val notVisibleValue: Int
+                when (id) {
+                    R.id.actionPrev -> {
+                        isButtonVisible = isPrevButtonAvailable && !isTimeVisible
+                        notVisibleValue = prevNotVisibleValue
+                    }
+                    R.id.actionNext -> {
+                        isButtonVisible = isNextButtonAvailable && !isTimeVisible
+                        notVisibleValue = nextNotVisibleValue
+                    }
+                    else -> {
+                        isButtonVisible = !isTimeVisible
+                        notVisibleValue = ConstraintSet.GONE
+                    }
+                }
+                mediaViewHolder!!.let {
+                    MediaControlViewBinder.setSemanticButtonVisibleAndAlpha(
+                        it.getAction(id),
+                        expandedLayout,
+                        collapsedLayout,
+                        isButtonVisible,
+                        notVisibleValue,
+                        showInCollapsed = true,
+                    )
+                }
+            }
+
+            if (!metadataAnimationHandler.isRunning) {
+                refreshState()
+            }
+        }
+    }
+
+    fun attachRecommendations(recommendationViewHolder: RecommendationViewHolder) {
+        if (!SceneContainerFlag.isEnabled) return
+        this.recommendationViewHolder = recommendationViewHolder
+
+        attach(recommendationViewHolder.recommendations, TYPE.RECOMMENDATION)
+        recsConfigurationChangeListener =
+            MediaRecommendationsViewBinder::updateRecommendationsVisibility
+    }
+
+    fun bindSeekBar(onSeek: () -> Unit, onBindSeekBar: (SeekBarViewModel) -> Unit) {
+        if (!SceneContainerFlag.isEnabled) return
+        seekBarViewModel.logSeek = onSeek
+        onBindSeekBar(seekBarViewModel)
+    }
+
+    fun setUpTurbulenceNoise() {
+        if (!SceneContainerFlag.isEnabled) return
+        mediaViewHolder!!.let {
+            if (!this::turbulenceNoiseAnimationConfig.isInitialized) {
+                turbulenceNoiseAnimationConfig =
+                    createTurbulenceNoiseConfig(
+                        it.loadingEffectView,
+                        it.turbulenceNoiseView,
+                        colorSchemeTransition,
+                    )
+            }
+            if (Flags.shaderlibLoadingEffectRefactor()) {
+                if (!this::loadingEffect.isInitialized) {
+                    loadingEffect =
+                        LoadingEffect(
+                            TurbulenceNoiseShader.Companion.Type.SIMPLEX_NOISE,
+                            turbulenceNoiseAnimationConfig,
+                            noiseDrawCallback,
+                            stateChangedCallback,
+                        )
+                }
+                colorSchemeTransition.loadingEffect = loadingEffect
+                loadingEffect.play()
+                mainExecutor.executeDelayed(
+                    loadingEffect::finish,
+                    MediaControlViewModel.TURBULENCE_NOISE_PLAY_MS_DURATION,
+                )
+            } else {
+                turbulenceNoiseController.play(
+                    TurbulenceNoiseShader.Companion.Type.SIMPLEX_NOISE,
+                    turbulenceNoiseAnimationConfig,
+                )
+                mainExecutor.executeDelayed(
+                    turbulenceNoiseController::finish,
+                    MediaControlViewModel.TURBULENCE_NOISE_PLAY_MS_DURATION,
+                )
+            }
+        }
+    }
 
     /**
      * Obtain a measurement for a given location. This makes sure that the state is up to date and
@@ -601,7 +920,7 @@ constructor(
                             startViewState,
                             startHostState.disappearParameters,
                             transitionProgress,
-                            tmpState
+                            tmpState,
                         )
                 }
             } else if (startHostState != null && !startHostState.visible) {
@@ -612,7 +931,7 @@ constructor(
                         endViewState,
                         endHostState.disappearParameters,
                         1.0f - transitionProgress,
-                        tmpState
+                        tmpState,
                     )
             } else if (transitionProgress == 1.0f || startViewState == null) {
                 // We're at the end. Let's use that state
@@ -626,13 +945,13 @@ constructor(
                         startViewState,
                         endViewState,
                         transitionProgress,
-                        tmpState
+                        tmpState,
                     )
             }
             logger.logMediaSize(
                 "setCurrentState (progress $transitionProgress)",
                 result.width,
-                result.height
+                result.height,
             )
             layoutController.setState(
                 result,
@@ -647,7 +966,7 @@ constructor(
     private fun updateViewStateSize(
         viewState: TransitionViewState?,
         location: Int,
-        outState: TransitionViewState
+        outState: TransitionViewState,
     ): TransitionViewState? {
         var result = viewState?.copy(outState) ?: return null
         val state = mediaHostStatesManager.mediaHostStates[location]
@@ -701,15 +1020,19 @@ constructor(
     }
 
     /** Get a view state based on the width and height set by the scene */
-    private fun obtainSceneContainerViewState(): TransitionViewState? {
+    private fun obtainSceneContainerViewState(state: MediaHostState?): TransitionViewState? {
         logger.logMediaSize("scene container", widthInSceneContainerPx, heightInSceneContainerPx)
+
+        if (state?.measurementInput == null) {
+            return null
+        }
 
         // Similar to obtainViewState: Let's create a new measurement
         val result =
             transitionLayout?.calculateViewState(
                 MeasurementInput(widthInSceneContainerPx, heightInSceneContainerPx),
-                expandedLayout,
-                TransitionViewState()
+                if (state.expansion > 0) expandedLayout else collapsedLayout,
+                TransitionViewState(),
             )
         result?.let {
             // And then ensure the guts visibility is set correctly
@@ -729,8 +1052,8 @@ constructor(
      */
     private fun obtainViewStateForLocation(@MediaLocation location: Int): TransitionViewState? {
         val mediaHostState = mediaHostStatesManager.mediaHostStates[location] ?: return null
-        if (mediaFlags.isSceneContainerEnabled()) {
-            return obtainSceneContainerViewState()
+        if (SceneContainerFlag.isEnabled) {
+            return obtainSceneContainerViewState(mediaHostState)
         }
 
         val viewState = obtainViewState(mediaHostState)
@@ -760,10 +1083,11 @@ constructor(
     /** Clear all existing measurements and refresh the state to match the view. */
     fun refreshState() =
         traceSection("MediaViewController#refreshState") {
-            if (mediaFlags.isSceneContainerEnabled()) {
+            if (SceneContainerFlag.isEnabled) {
+                val hostState = mediaHostStatesManager.mediaHostStates[currentEndLocation]
                 // We don't need to recreate measurements for scene container, since it's a known
                 // size. Just get the view state and update the layout controller
-                obtainSceneContainerViewState()?.let {
+                obtainSceneContainerViewState(hostState)?.let {
                     // Get scene container state, then setCurrentState
                     layoutController.setState(
                         state = it,
@@ -787,9 +1111,78 @@ constructor(
                 currentStartLocation,
                 currentEndLocation,
                 currentTransitionProgress,
-                applyImmediately = true
+                applyImmediately = true,
             )
         }
+
+    @VisibleForTesting
+    protected open fun loadAnimator(
+        context: Context,
+        animId: Int,
+        motionInterpolator: Interpolator?,
+        vararg targets: View?,
+    ): AnimatorSet {
+        val animators = ArrayList<Animator>()
+        for (target in targets) {
+            val animator = AnimatorInflater.loadAnimator(context, animId) as AnimatorSet
+            animator.childAnimations[0].interpolator = motionInterpolator
+            animator.setTarget(target)
+            animators.add(animator)
+        }
+        val result = AnimatorSet()
+        result.playTogether(animators)
+        return result
+    }
+
+    private fun createTurbulenceNoiseConfig(
+        loadingEffectView: LoadingEffectView,
+        turbulenceNoiseView: TurbulenceNoiseView,
+        colorSchemeTransition: ColorSchemeTransition,
+    ): TurbulenceNoiseAnimationConfig {
+        val targetView: View =
+            if (Flags.shaderlibLoadingEffectRefactor()) {
+                loadingEffectView
+            } else {
+                turbulenceNoiseView
+            }
+        val width = targetView.width
+        val height = targetView.height
+        val random = Random()
+        return TurbulenceNoiseAnimationConfig(
+            gridCount = 2.14f,
+            TurbulenceNoiseAnimationConfig.DEFAULT_LUMINOSITY_MULTIPLIER,
+            random.nextFloat(),
+            random.nextFloat(),
+            random.nextFloat(),
+            noiseMoveSpeedX = 0.42f,
+            noiseMoveSpeedY = 0f,
+            TurbulenceNoiseAnimationConfig.DEFAULT_NOISE_SPEED_Z,
+            // Color will be correctly updated in ColorSchemeTransition.
+            colorSchemeTransition.accentPrimary.currentColor,
+            screenColor = Color.BLACK,
+            width.toFloat(),
+            height.toFloat(),
+            TurbulenceNoiseAnimationConfig.DEFAULT_MAX_DURATION_IN_MILLIS,
+            easeInDuration = 1350f,
+            easeOutDuration = 1350f,
+            targetView.context.resources.displayMetrics.density,
+            lumaMatteBlendFactor = 0.26f,
+            lumaMatteOverallBrightness = 0.09f,
+            shouldInverseNoiseLuminosity = false,
+        )
+    }
+
+    fun setUpPrevButtonInfo(isAvailable: Boolean, notVisibleValue: Int = ConstraintSet.GONE) {
+        if (!SceneContainerFlag.isEnabled) return
+        isPrevButtonAvailable = isAvailable
+        prevNotVisibleValue = notVisibleValue
+    }
+
+    fun setUpNextButtonInfo(isAvailable: Boolean, notVisibleValue: Int = ConstraintSet.GONE) {
+        if (!SceneContainerFlag.isEnabled) return
+        isNextButtonAvailable = isAvailable
+        nextNotVisibleValue = notVisibleValue
+    }
 }
 
 /** An internal key for the cache of mediaViewStates. This is a subset of the full host state. */
@@ -797,5 +1190,5 @@ private data class CacheKey(
     var widthMeasureSpec: Int = -1,
     var heightMeasureSpec: Int = -1,
     var expansion: Float = 0.0f,
-    var gutsVisible: Boolean = false
+    var gutsVisible: Boolean = false,
 )

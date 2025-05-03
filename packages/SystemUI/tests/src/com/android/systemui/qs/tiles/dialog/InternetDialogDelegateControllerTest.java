@@ -5,6 +5,8 @@ import static android.provider.Settings.Global.AIRPLANE_MODE_ON;
 import static android.telephony.SignalStrength.NUM_SIGNAL_STRENGTH_BINS;
 import static android.telephony.SignalStrength.SIGNAL_STRENGTH_GREAT;
 import static android.telephony.SignalStrength.SIGNAL_STRENGTH_POOR;
+import static android.telephony.SubscriptionManager.PROFILE_CLASS_PROVISIONING;
+
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.settingslib.wifi.WifiUtils.getHotspotIconResource;
 import static com.android.systemui.qs.tiles.dialog.InternetDialogController.TOAST_PARAMS_HORIZONTAL_WEIGHT;
@@ -12,7 +14,9 @@ import static com.android.systemui.qs.tiles.dialog.InternetDialogController.TOAS
 import static com.android.wifitrackerlib.WifiEntry.WIFI_LEVEL_MAX;
 import static com.android.wifitrackerlib.WifiEntry.WIFI_LEVEL_MIN;
 import static com.android.wifitrackerlib.WifiEntry.WIFI_LEVEL_UNREACHABLE;
+
 import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +42,7 @@ import android.graphics.drawable.Drawable;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.telephony.ServiceState;
@@ -46,7 +52,6 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyDisplayInfo;
 import android.telephony.TelephonyManager;
-import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.testing.TestableResources;
 import android.text.TextUtils;
@@ -54,8 +59,10 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.logging.UiEventLogger;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.settingslib.wifi.WifiUtils;
@@ -96,7 +103,7 @@ import java.util.Locale;
 import java.util.Map;
 
 @SmallTest
-@RunWith(AndroidTestingRunner.class)
+@RunWith(AndroidJUnit4.class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 public class InternetDialogDelegateControllerTest extends SysuiTestCase {
 
@@ -155,7 +162,7 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
     @Mock
     InternetDialogController.InternetDialogCallback mInternetDialogCallback;
     @Mock
-    private WindowManager mWindowManager;
+    private ViewCaptureAwareWindowManager mWindowManager;
     @Mock
     private ToastFactory mToastFactory;
     @Mock
@@ -176,6 +183,8 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
     private WifiStateWorker mWifiStateWorker;
     @Mock
     private SignalStrength mSignalStrength;
+    @Mock
+    private WifiConfiguration mWifiConfiguration;
 
     private FakeFeatureFlags mFlags = new FakeFeatureFlags();
 
@@ -211,7 +220,9 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
         when(mAccessPointController.getMergedCarrierEntry()).thenReturn(mMergedCarrierEntry);
         when(mSubscriptionManager.getActiveSubscriptionIdList()).thenReturn(new int[]{SUB_ID});
         when(SubscriptionManager.getDefaultDataSubscriptionId()).thenReturn(SUB_ID);
-        when(mToastFactory.createToast(any(), anyString(), anyString(), anyInt(), anyInt()))
+        SubscriptionInfo info = mock(SubscriptionInfo.class);
+        when(mSubscriptionManager.getActiveSubscriptionInfo(SUB_ID)).thenReturn(info);
+        when(mToastFactory.createToast(any(), any(), anyString(), anyString(), anyInt(), anyInt()))
             .thenReturn(mSystemUIToast);
         when(mSystemUIToast.getView()).thenReturn(mToastView);
         when(mSystemUIToast.getGravity()).thenReturn(GRAVITY_FLAGS);
@@ -223,8 +234,9 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
                 mSubscriptionManager, mTelephonyManager, mWifiManager,
                 mConnectivityManager, mHandler, mExecutor, mBroadcastDispatcher,
                 mock(KeyguardUpdateMonitor.class), mGlobalSettings, mKeyguardStateController,
-                mWindowManager, mToastFactory, mWorkerHandler, mCarrierConfigTracker,
-                mLocationController, mDialogTransitionAnimator, mWifiStateWorker, mFlags);
+                mWindowManager, mToastFactory, mWorkerHandler,
+                mCarrierConfigTracker, mLocationController, mDialogTransitionAnimator,
+                mWifiStateWorker, mFlags);
         mSubscriptionManager.addOnSubscriptionsChangedListener(mExecutor,
                 mInternetDialogController.mOnSubscriptionsChangedListener);
         mInternetDialogController.onStart(mInternetDialogCallback, true);
@@ -248,7 +260,8 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
 
     @Test
     public void connectCarrierNetwork_mergedCarrierEntryCanConnect_connectAndCreateSysUiToast() {
-        when(mTelephonyManager.isDataEnabled()).thenReturn(true);
+        InternetDialogController spyController = spy(mInternetDialogController);
+        when(spyController.isMobileDataEnabled()).thenReturn(true);
         when(mKeyguardStateController.isUnlocked()).thenReturn(true);
         when(mConnectivityManager.getActiveNetwork()).thenReturn(mNetwork);
         when(mConnectivityManager.getNetworkCapabilities(mNetwork))
@@ -260,43 +273,46 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
         mTestableResources.addOverride(R.string.wifi_wont_autoconnect_for_now,
             TOAST_MESSAGE_STRING);
 
-        mInternetDialogController.connectCarrierNetwork();
+        spyController.connectCarrierNetwork();
 
         verify(mMergedCarrierEntry).connect(null /* callback */, false /* showToast */);
-        verify(mToastFactory).createToast(any(), eq(TOAST_MESSAGE_STRING), anyString(), anyInt(),
-            anyInt());
+        verify(mToastFactory).createToast(any(), any(), eq(TOAST_MESSAGE_STRING), anyString(),
+                anyInt(), anyInt());
     }
 
     @Test
     public void connectCarrierNetwork_mergedCarrierEntryCanConnect_doNothingWhenSettingsOff() {
-        when(mTelephonyManager.isDataEnabled()).thenReturn(false);
-
+        InternetDialogController spyController = spy(mInternetDialogController);
+        when(spyController.isMobileDataEnabled()).thenReturn(false);
         mTestableResources.addOverride(R.string.wifi_wont_autoconnect_for_now,
             TOAST_MESSAGE_STRING);
-        mInternetDialogController.connectCarrierNetwork();
+
+        spyController.connectCarrierNetwork();
 
         verify(mMergedCarrierEntry, never()).connect(null /* callback */, false /* showToast */);
-        verify(mToastFactory, never()).createToast(any(), anyString(), anyString(), anyInt(),
+        verify(mToastFactory, never()).createToast(any(), any(), anyString(), anyString(), anyInt(),
             anyInt());
     }
 
     @Test
     public void connectCarrierNetwork_mergedCarrierEntryCanConnect_doNothingWhenKeyguardLocked() {
-        when(mTelephonyManager.isDataEnabled()).thenReturn(true);
+        InternetDialogController spyController = spy(mInternetDialogController);
+        when(spyController.isMobileDataEnabled()).thenReturn(true);
         when(mKeyguardStateController.isUnlocked()).thenReturn(false);
 
         mTestableResources.addOverride(R.string.wifi_wont_autoconnect_for_now,
             TOAST_MESSAGE_STRING);
-        mInternetDialogController.connectCarrierNetwork();
+        spyController.connectCarrierNetwork();
 
         verify(mMergedCarrierEntry, never()).connect(null /* callback */, false /* showToast */);
-        verify(mToastFactory, never()).createToast(any(), anyString(), anyString(), anyInt(),
+        verify(mToastFactory, never()).createToast(any(), any(), anyString(), anyString(), anyInt(),
             anyInt());
     }
 
     @Test
     public void connectCarrierNetwork_mergedCarrierEntryCanConnect_doNothingWhenMobileIsPrimary() {
-        when(mTelephonyManager.isDataEnabled()).thenReturn(true);
+        InternetDialogController spyController = spy(mInternetDialogController);
+        when(spyController.isMobileDataEnabled()).thenReturn(true);
         when(mKeyguardStateController.isUnlocked()).thenReturn(true);
         when(mConnectivityManager.getActiveNetwork()).thenReturn(mNetwork);
         when(mConnectivityManager.getNetworkCapabilities(mNetwork))
@@ -309,7 +325,7 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
         mInternetDialogController.connectCarrierNetwork();
 
         verify(mMergedCarrierEntry, never()).connect(null /* callback */, false /* showToast */);
-        verify(mToastFactory, never()).createToast(any(), anyString(), anyString(), anyInt(),
+        verify(mToastFactory, never()).createToast(any(), any(), anyString(), anyString(), anyInt(),
             anyInt());
     }
 
@@ -434,10 +450,9 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
         when(mWifiStateWorker.isWifiEnabled()).thenReturn(true);
         spyController.onAccessPointsChanged(null /* accessPoints */);
 
-        doReturn(SUB_ID2).when(spyController).getActiveAutoSwitchNonDdsSubId();
+        doReturn(SUB_ID).when(spyController).getActiveAutoSwitchNonDdsSubId();
         doReturn(ServiceState.STATE_OUT_OF_SERVICE).when(mServiceState).getState();
-        doReturn(mServiceState).when(mTelephonyManager).getServiceState();
-        doReturn(TelephonyManager.DATA_DISCONNECTED).when(mTelephonyManager).getDataState();
+        spyController.mSubIdServiceState.put(SUB_ID2, mServiceState);
 
         assertFalse(TextUtils.equals(spyController.getSubtitleText(false),
                 getResourcesString("all_network_unavailable")));
@@ -457,8 +472,7 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
         spyController.onAccessPointsChanged(null /* accessPoints */);
 
         doReturn(ServiceState.STATE_OUT_OF_SERVICE).when(mServiceState).getState();
-        doReturn(mServiceState).when(mTelephonyManager).getServiceState();
-        doReturn(TelephonyManager.DATA_DISCONNECTED).when(mTelephonyManager).getDataState();
+        spyController.mSubIdServiceState.put(SUB_ID, mServiceState);
 
         assertTrue(TextUtils.equals(spyController.getSubtitleText(false),
                 getResourcesString("all_network_unavailable")));
@@ -475,17 +489,19 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
         fakeAirplaneModeEnabled(false);
         when(mWifiStateWorker.isWifiEnabled()).thenReturn(true);
         mInternetDialogController.onAccessPointsChanged(null /* accessPoints */);
+        InternetDialogController spyController = spy(mInternetDialogController);
 
         doReturn(ServiceState.STATE_IN_SERVICE).when(mServiceState).getState();
-        doReturn(mServiceState).when(mTelephonyManager).getServiceState();
-
-        when(mTelephonyManager.isDataEnabled()).thenReturn(false);
+        spyController.mSubIdServiceState.put(SUB_ID, mServiceState);
 
         assertThat(mInternetDialogController.getSubtitleText(false))
                 .isEqualTo(getResourcesString("non_carrier_network_unavailable"));
 
         // if the Wi-Fi disallow config, then don't return Wi-Fi related string.
         mInternetDialogController.mCanConfigWifi = false;
+
+        when(spyController.isMobileDataEnabled()).thenReturn(false);
+
 
         assertThat(mInternetDialogController.getSubtitleText(false))
                 .isNotEqualTo(getResourcesString("non_carrier_network_unavailable"));
@@ -876,6 +892,34 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
     }
 
     @Test
+    public void getActiveAutoSwitchNonDdsSubId_registerCallbackForExistedSubId_notRegister() {
+        mFlags.set(Flags.QS_SECONDARY_DATA_SUB_INFO, true);
+
+        // Adds non DDS subId
+        SubscriptionInfo info = mock(SubscriptionInfo.class);
+        doReturn(SUB_ID2).when(info).getSubscriptionId();
+        doReturn(false).when(info).isOpportunistic();
+        when(mSubscriptionManager.getActiveSubscriptionInfo(anyInt())).thenReturn(info);
+
+        mInternetDialogController.getActiveAutoSwitchNonDdsSubId();
+
+        // 1st time is onStart(), 2nd time is getActiveAutoSwitchNonDdsSubId()
+        verify(mTelephonyManager, times(2)).registerTelephonyCallback(any(), any());
+        assertThat(mInternetDialogController.mSubIdTelephonyCallbackMap.size()).isEqualTo(2);
+
+        // Adds non DDS subId again
+        doReturn(SUB_ID2).when(info).getSubscriptionId();
+        doReturn(false).when(info).isOpportunistic();
+        when(mSubscriptionManager.getActiveSubscriptionInfo(anyInt())).thenReturn(info);
+
+        mInternetDialogController.getActiveAutoSwitchNonDdsSubId();
+
+        // Does not add due to cached subInfo in mSubIdTelephonyCallbackMap.
+        verify(mTelephonyManager, times(2)).registerTelephonyCallback(any(), any());
+        assertThat(mInternetDialogController.mSubIdTelephonyCallbackMap.size()).isEqualTo(2);
+    }
+
+    @Test
     public void getMobileNetworkSummary() {
         mFlags.set(Flags.QS_SECONDARY_DATA_SUB_INFO, true);
         Resources res1 = mock(Resources.class);
@@ -1037,9 +1081,19 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
     }
 
     @Test
+    public void getConfiguratorQrCodeGeneratorIntentOrNull_configurationNull_returnNull() {
+        mFlags.set(Flags.SHARE_WIFI_QS_BUTTON, true);
+        when(mConnectedEntry.canShare()).thenReturn(true);
+        when(mConnectedEntry.getWifiConfiguration()).thenReturn(null);
+        assertThat(mInternetDialogController.getConfiguratorQrCodeGeneratorIntentOrNull(
+                mConnectedEntry)).isNull();
+    }
+
+    @Test
     public void getConfiguratorQrCodeGeneratorIntentOrNull_wifiShareable() {
         mFlags.set(Flags.SHARE_WIFI_QS_BUTTON, true);
         when(mConnectedEntry.canShare()).thenReturn(true);
+        when(mConnectedEntry.getWifiConfiguration()).thenReturn(mWifiConfiguration);
         assertThat(mInternetDialogController.getConfiguratorQrCodeGeneratorIntentOrNull(
                 mConnectedEntry)).isNotNull();
     }
@@ -1067,19 +1121,62 @@ public class InternetDialogDelegateControllerTest extends SysuiTestCase {
     }
 
     @Test
-    public void hasActiveSubId_activeSubIdListIsEmpty_returnFalse() {
-        when(mSubscriptionManager.getActiveSubscriptionIdList()).thenReturn(new int[]{});
+    public void hasActiveSubIdOnDds_noDds_returnFalse() {
+        when(SubscriptionManager.getDefaultDataSubscriptionId())
+                .thenReturn(SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+
         mInternetDialogController.mOnSubscriptionsChangedListener.onSubscriptionsChanged();
 
-        assertThat(mInternetDialogController.hasActiveSubId()).isFalse();
+        assertThat(mInternetDialogController.hasActiveSubIdOnDds()).isFalse();
     }
 
     @Test
-    public void hasActiveSubId_activeSubIdListNotEmpty_returnTrue() {
-        when(mSubscriptionManager.getActiveSubscriptionIdList()).thenReturn(new int[]{SUB_ID});
+    public void hasActiveSubIdOnDds_activeDds_returnTrue() {
         mInternetDialogController.mOnSubscriptionsChangedListener.onSubscriptionsChanged();
 
-        assertThat(mInternetDialogController.hasActiveSubId()).isTrue();
+        assertThat(mInternetDialogController.hasActiveSubIdOnDds()).isTrue();
+    }
+
+    @Test
+    public void hasActiveSubIdOnDds_activeDdsAndHasProvisioning_returnFalse() {
+        when(SubscriptionManager.getDefaultDataSubscriptionId())
+                .thenReturn(SUB_ID);
+        SubscriptionInfo info = mock(SubscriptionInfo.class);
+        when(info.isEmbedded()).thenReturn(true);
+        when(info.getProfileClass()).thenReturn(PROFILE_CLASS_PROVISIONING);
+        when(mSubscriptionManager.getActiveSubscriptionInfo(SUB_ID)).thenReturn(info);
+
+        mInternetDialogController.mOnSubscriptionsChangedListener.onSubscriptionsChanged();
+
+        assertThat(mInternetDialogController.hasActiveSubIdOnDds()).isFalse();
+    }
+
+    @Test
+    public void hasActiveSubIdOnDds_activeDdsAndIsOnlyNonTerrestrialNetwork_returnFalse() {
+        when(SubscriptionManager.getDefaultDataSubscriptionId())
+                .thenReturn(SUB_ID);
+        SubscriptionInfo info = mock(SubscriptionInfo.class);
+        when(info.isEmbedded()).thenReturn(true);
+        when(info.isOnlyNonTerrestrialNetwork()).thenReturn(true);
+        when(mSubscriptionManager.getActiveSubscriptionInfo(SUB_ID)).thenReturn(info);
+
+        mInternetDialogController.mOnSubscriptionsChangedListener.onSubscriptionsChanged();
+
+        assertFalse(mInternetDialogController.hasActiveSubIdOnDds());
+    }
+
+    @Test
+    public void hasActiveSubIdOnDds_activeDdsAndIsNotOnlyNonTerrestrialNetwork_returnTrue() {
+        when(SubscriptionManager.getDefaultDataSubscriptionId())
+                .thenReturn(SUB_ID);
+        SubscriptionInfo info = mock(SubscriptionInfo.class);
+        when(info.isEmbedded()).thenReturn(true);
+        when(info.isOnlyNonTerrestrialNetwork()).thenReturn(false);
+        when(mSubscriptionManager.getActiveSubscriptionInfo(SUB_ID)).thenReturn(info);
+
+        mInternetDialogController.mOnSubscriptionsChangedListener.onSubscriptionsChanged();
+
+        assertTrue(mInternetDialogController.hasActiveSubIdOnDds());
     }
 
     private String getResourcesString(String name) {

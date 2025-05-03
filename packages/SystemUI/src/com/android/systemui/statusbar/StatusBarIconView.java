@@ -56,17 +56,18 @@ import androidx.core.graphics.ColorUtils;
 import com.android.app.animation.Interpolators;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.statusbar.StatusBarIcon;
+import com.android.internal.statusbar.StatusBarIcon.Shape;
 import com.android.internal.util.ContrastColorUtil;
+import com.android.systemui.Flags;
+import com.android.systemui.modes.shared.ModesUiIcons;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.notification.NotificationContentDescription;
 import com.android.systemui.statusbar.notification.NotificationDozeHelper;
 import com.android.systemui.statusbar.notification.NotificationUtils;
-import com.android.systemui.statusbar.notification.shared.NotificationIconContainerRefactor;
 import com.android.systemui.util.drawable.DrawableSize;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -92,6 +93,8 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
     public static final int STATE_ICON = 0;
     public static final int STATE_DOT = 1;
     public static final int STATE_HIDDEN = 2;
+
+    public static final float APP_ICON_SCALE = .75f;
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({STATE_ICON, STATE_DOT, STATE_HIDDEN})
@@ -143,11 +146,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
     @VisibleForTesting float mScaleToFitNewIconSize = 1;
     private StatusBarIcon mIcon;
     @ViewDebug.ExportedProperty private String mSlot;
-    private Drawable mNumberBackground;
-    private Paint mNumberPain;
-    private int mNumberX;
-    private int mNumberY;
-    private String mNumberText;
     private StatusBarNotification mNotification;
     private final boolean mBlocked;
     private Configuration mConfiguration;
@@ -179,8 +177,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
     private float[] mMatrix;
     private ColorMatrixColorFilter mMatrixColorFilter;
     private Runnable mLayoutRunnable;
-    private boolean mDismissed;
-    private Runnable mOnDismissListener;
     private boolean mIncreasedSize;
     private boolean mShowsConversation;
     private float mDozeAmount;
@@ -196,10 +192,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         mDozer = new NotificationDozeHelper();
         mBlocked = blocked;
         mSlot = slot;
-        mNumberPain = new Paint();
-        mNumberPain.setTextAlign(Paint.Align.CENTER);
-        mNumberPain.setColor(context.getColor(R.drawable.notification_number_text_color));
-        mNumberPain.setAntiAlias(true);
         setNotification(sbn);
         setScaleType(ScaleType.CENTER);
         mConfiguration = new Configuration(context.getResources().getConfiguration());
@@ -208,21 +200,28 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         initializeDecorColor();
         reloadDimens();
         maybeUpdateIconScaleDimens();
+
+        if (Flags.statusBarMonochromeIconsFix()) {
+            setCropToPadding(true);
+        }
     }
 
     /** Should always be preceded by {@link #reloadDimens()} */
     @VisibleForTesting
     public void maybeUpdateIconScaleDimens() {
-        // We do not resize and scale system icons (on the right), only notification icons (on the
-        // left).
-        if (isNotification()) {
-            updateIconScaleForNotifications();
+        // We scale notification icons (on the left) plus icons on the right that explicitly
+        // want FIXED_SPACE.
+        boolean useNonSystemIconScaling = isNotification()
+                || (ModesUiIcons.isEnabled() && mIcon != null && mIcon.shape == Shape.FIXED_SPACE);
+
+        if (useNonSystemIconScaling) {
+            updateIconScaleForNonSystemIcons();
         } else {
             updateIconScaleForSystemIcons();
         }
     }
 
-    private void updateIconScaleForNotifications() {
+    private void updateIconScaleForNonSystemIcons() {
         float iconScale;
         // we need to scale the image size to be same as the original size
         // (fit mOriginalStatusBarIconSize), then we can scale it with mScaleToFitNewIconSize
@@ -401,8 +400,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
                 && mIcon.iconLevel == icon.iconLevel;
         final boolean visibilityEquals = mIcon != null
                 && mIcon.visible == icon.visible;
-        final boolean numberEquals = mIcon != null
-                && mIcon.number == icon.number;
         mIcon = icon.clone();
         setContentDescription(icon.contentDescription);
         if (!iconEquals) {
@@ -415,20 +412,8 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         if (!levelEquals) {
             setImageLevel(icon.iconLevel);
         }
-
-        if (!numberEquals) {
-            if (icon.number > 0 && getContext().getResources().getBoolean(
-                        R.bool.config_statusBarShowNumber)) {
-                if (mNumberBackground == null) {
-                    mNumberBackground = getContext().getResources().getDrawable(
-                            R.drawable.ic_notification_overlay);
-                }
-                placeNumber();
-            } else {
-                mNumberBackground = null;
-                mNumberText = null;
-            }
-            invalidate();
+        if (ModesUiIcons.isEnabled() && icon.shape == Shape.FIXED_SPACE) {
+            setScaleType(ScaleType.FIT_CENTER);
         }
         if (!visibilityEquals) {
             setVisibility(icon.visible && !mBlocked ? VISIBLE : GONE);
@@ -489,12 +474,7 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
      */
     private Drawable getIcon(Context sysuiContext,
             Context context, StatusBarIcon statusBarIcon) {
-        int userId = statusBarIcon.user.getIdentifier();
-        if (userId == UserHandle.USER_ALL) {
-            userId = UserHandle.USER_SYSTEM;
-        }
-
-        Drawable icon = statusBarIcon.icon.loadDrawableAsUser(context, userId);
+        Drawable icon = loadDrawable(context, statusBarIcon);
 
         TypedValue typedValue = new TypedValue();
         sysuiContext.getResources().getValue(R.dimen.status_bar_icon_scale_factor,
@@ -521,6 +501,25 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         return new ScalingDrawableWrapper(icon, scaleFactor);
     }
 
+    @Nullable
+    private Drawable loadDrawable(Context context, StatusBarIcon statusBarIcon) {
+        if (ModesUiIcons.isEnabled() && statusBarIcon.preloadedIcon != null) {
+            Drawable.ConstantState cached = statusBarIcon.preloadedIcon.getConstantState();
+            if (cached != null) {
+                return cached.newDrawable(mContext.getResources()).mutate();
+            } else {
+                return statusBarIcon.preloadedIcon.mutate();
+            }
+        } else {
+            int userId = statusBarIcon.user.getIdentifier();
+            if (userId == UserHandle.USER_ALL) {
+                userId = UserHandle.USER_SYSTEM;
+            }
+
+            return statusBarIcon.icon.loadDrawableAsUser(context, userId);
+        }
+    }
+
     public StatusBarIcon getStatusBarIcon() {
         return mIcon;
     }
@@ -530,14 +529,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         super.onInitializeAccessibilityEvent(event);
         if (isNotification()) {
             event.setParcelableData(mNotification.getNotification());
-        }
-    }
-
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
-        if (mNumberBackground != null) {
-            placeNumber();
         }
     }
 
@@ -575,10 +566,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
             canvas.restore();
         }
 
-        if (mNumberBackground != null) {
-            mNumberBackground.draw(canvas);
-            canvas.drawText(mNumberText, mNumberX, mNumberY, mNumberPain);
-        }
         if (mDotAppearAmount != 0.0f) {
             float radius;
             float alpha = Color.alpha(mDecorColor) / 255.f;
@@ -604,39 +591,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         super.debug(depth);
         Log.d("View", debugIndent(depth) + "slot=" + mSlot);
         Log.d("View", debugIndent(depth) + "icon=" + mIcon);
-    }
-
-    void placeNumber() {
-        final String str;
-        final int tooBig = getContext().getResources().getInteger(
-                android.R.integer.status_bar_notification_info_maxnum);
-        if (mIcon.number > tooBig) {
-            str = getContext().getResources().getString(
-                        android.R.string.status_bar_notification_info_overflow);
-        } else {
-            NumberFormat f = NumberFormat.getIntegerInstance();
-            str = f.format(mIcon.number);
-        }
-        mNumberText = str;
-
-        final int w = getWidth();
-        final int h = getHeight();
-        final Rect r = new Rect();
-        mNumberPain.getTextBounds(str, 0, str.length(), r);
-        final int tw = r.right - r.left;
-        final int th = r.bottom - r.top;
-        mNumberBackground.getPadding(r);
-        int dw = r.left + tw + r.right;
-        if (dw < mNumberBackground.getMinimumWidth()) {
-            dw = mNumberBackground.getMinimumWidth();
-        }
-        mNumberX = w-r.right-((dw-r.right-r.left)/2);
-        int dh = r.top + th + r.bottom;
-        if (dh < mNumberBackground.getMinimumWidth()) {
-            dh = mNumberBackground.getMinimumWidth();
-        }
-        mNumberY = h-r.bottom-((dh-r.top-th-r.bottom)/2);
-        mNumberBackground.setBounds(w-dw, h-dh, w, h);
     }
 
     @Override
@@ -943,12 +897,7 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         return mDotAppearAmount;
     }
 
-    public void setDozing(boolean dozing, boolean animate, long delay) {
-        setDozing(dozing, animate, delay, /* onChildCompleted= */ null);
-    }
-
     public void setTintAlpha(float tintAlpha) {
-        if (NotificationIconContainerRefactor.isUnexpectedlyInLegacyMode()) return;
         setDozeAmount(tintAlpha);
     }
 
@@ -956,15 +905,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
         mDozeAmount = dozeAmount;
         updateDecorColor();
         updateIconColor();
-    }
-
-    public void setDozing(boolean dozing, boolean animate, long delay,
-            @Nullable Runnable endRunnable) {
-        NotificationIconContainerRefactor.assertInLegacyMode();
-        mDozer.setDozing(f -> {
-            setDozeAmount(f);
-            updateAllowAnimation();
-        }, dozing, animate, delay, this, endRunnable);
     }
 
     private void updateAllowAnimation() {
@@ -1012,21 +952,6 @@ public class StatusBarIconView extends AnimatedImageView implements StatusIconDi
 
     public void executeOnLayout(Runnable runnable) {
         mLayoutRunnable = runnable;
-    }
-
-    public void setDismissed() {
-        mDismissed = true;
-        if (mOnDismissListener != null) {
-            mOnDismissListener.run();
-        }
-    }
-
-    public boolean isDismissed() {
-        return mDismissed;
-    }
-
-    public void setOnDismissListener(Runnable onDismissListener) {
-        mOnDismissListener = onDismissListener;
     }
 
     @Override

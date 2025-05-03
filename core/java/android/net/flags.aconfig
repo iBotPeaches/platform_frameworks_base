@@ -5,13 +5,6 @@ container: "system"
 # Flags used for module APIs must be in aconfig files under each modules
 
 flag {
-  name: "ipsec_transform_state"
-  namespace: "core_networking_ipsec"
-  description: "The flag controls the access for getIpSecTransformState and IpSecTransformState"
-  bug: "308011229"
-}
-
-flag {
     name: "powered_off_finding_platform"
     namespace: "nearby"
     description: "Controls whether the Powered Off Finding feature is enabled"
@@ -34,4 +27,29 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+  is_exported: true
+}
+
+flag {
+  name: "x509_extensions_certificate_transparency"
+  is_exported: true
+  namespace: "network_security"
+  description: "Flag to use checkServerTrusted to verify SCTs in OCSP and TLS Data"
+  bug: "319829948"
+}
+
+flag {
+  name: "mdns_improvement_for_25q2"
+  is_exported: true
+  namespace: "android_core_networking"
+  description: "Flag for MDNS quality, reliability and performance improvement in 25Q2"
+  bug: "373270045"
+}
+
+flag {
+  name: "vpn_type_oem_service_and_legacy"
+  namespace: "android_core_networking"
+  is_exported: false
+  description: "Flags the TYPE_VPN_OEM_SERVICE and TYPE_VPN_OEM_LEGACY VpnManager API constants"
+  bug: "389829981"
 }

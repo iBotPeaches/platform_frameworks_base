@@ -21,10 +21,19 @@ import static android.content.Intent.ACTION_SCREEN_ON;
 import static android.content.Intent.EXTRA_USER_ID;
 import static android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.pm.LauncherUserInfo.PRIVATE_SPACE_ENTRYPOINT_HIDDEN;
+import static android.content.pm.PackageManager.FEATURE_AUTOMOTIVE;
+import static android.content.pm.PackageManager.FEATURE_EMBEDDED;
+import static android.content.pm.PackageManager.FEATURE_LEANBACK;
+import static android.content.pm.PackageManager.FEATURE_WATCH;
+import static android.os.UserHandle.USER_SYSTEM;
 import static android.os.UserManager.DEV_CREATE_OVERRIDE_PROPERTY;
 import static android.os.UserManager.DISALLOW_USER_SWITCH;
 import static android.os.UserManager.SYSTEM_USER_MODE_EMULATION_PROPERTY;
 import static android.os.UserManager.USER_OPERATION_ERROR_UNKNOWN;
+import static android.os.UserManager.USER_OPERATION_ERROR_USER_RESTRICTED;
+import static android.os.UserManager.USER_TYPE_PROFILE_PRIVATE;
+import static android.provider.Settings.Secure.HIDE_PRIVATESPACE_ENTRY_POINT;
 
 import static com.android.internal.app.SetScreenLockDialogActivity.EXTRA_ORIGIN_USER_ID;
 import static com.android.internal.app.SetScreenLockDialogActivity.LAUNCH_REASON_DISABLE_QUIET_MODE;
@@ -53,10 +62,13 @@ import android.app.ActivityManager;
 import android.app.ActivityManagerInternal;
 import android.app.ActivityManagerNative;
 import android.app.ActivityOptions;
+import android.app.AlarmManager;
 import android.app.BroadcastOptions;
 import android.app.IActivityManager;
 import android.app.IStopUserCallback;
 import android.app.KeyguardManager;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.StatsManager;
 import android.app.admin.DevicePolicyEventLogger;
@@ -142,6 +154,8 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.app.SetScreenLockDialogActivity;
 import com.android.internal.logging.MetricsLogger;
+import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
+import com.android.internal.notification.SystemNotificationChannels;
 import com.android.internal.os.BackgroundThread;
 import com.android.internal.os.RoSystemProperties;
 import com.android.internal.util.DumpUtils;
@@ -183,6 +197,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -276,6 +291,10 @@ public class UserManagerService extends IUserManager.Stub {
     private static final String RESTRICTIONS_FILE_PREFIX = "res_";
     private static final String XML_SUFFIX = ".xml";
 
+    private static final String CUSTOM_BIOMETRIC_PROMPT_LOGO_RES_ID_KEY = "custom_logo_res_id";
+    private static final String CUSTOM_BIOMETRIC_PROMPT_LOGO_DESCRIPTION_KEY =
+            "custom_logo_description";
+
     private static final int ALLOWED_FLAGS_FOR_CREATE_USERS_PERMISSION =
             UserInfo.FLAG_MANAGED_PROFILE
             | UserInfo.FLAG_PROFILE
@@ -313,13 +332,24 @@ public class UserManagerService extends IUserManager.Stub {
      */
     private static final long PRIVATE_SPACE_AUTO_LOCK_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 
+    /**
+     * The time duration (in milliseconds) of the window length for the auto-lock message alarm
+     */
+    private static final long PRIVATE_SPACE_AUTO_LOCK_INACTIVITY_ALARM_WINDOW_MS =
+            TimeUnit.SECONDS.toMillis(55);
+
     // Tron counters
     private static final String TRON_GUEST_CREATED = "users_guest_created";
     private static final String TRON_USER_CREATED = "users_user_created";
     private static final String TRON_DEMO_CREATED = "users_demo_created";
 
+    // The boot user strategy for HSUM.
+    private static final int BOOT_TO_PREVIOUS_OR_FIRST_SWITCHABLE_USER = 0;
+    private static final int BOOT_TO_HSU_FOR_PROVISIONED_DEVICE = 1;
+
     private final Context mContext;
     private final PackageManagerService mPm;
+
 
     /**
      * Lock for packages. If using with {@link #mUsersLock}, {@link #mPackagesLock} should be
@@ -357,6 +387,10 @@ public class UserManagerService extends IUserManager.Stub {
 
     /** Count down latch to wait while boot user is not set.*/
     private final CountDownLatch mBootUserLatch = new CountDownLatch(1);
+
+    /** Current boot phase. */
+    private @SystemService.BootPhase int mCurrentBootPhase;
+
     /**
      * Internal non-parcelable wrapper for UserInfo that is not exposed to other system apps.
      */
@@ -543,8 +577,15 @@ public class UserManagerService extends IUserManager.Stub {
 
     private KeyguardManager.KeyguardLockedStateListener mKeyguardLockedStateListener;
 
-    /** Token to identify and remove already scheduled private space auto-lock messages */
-    private static final Object PRIVATE_SPACE_AUTO_LOCK_MESSAGE_TOKEN = new Object();
+    /**
+     * {@link android.app.AlarmManager.OnAlarmListener} to schedule an alarm to enable
+     * auto-locking private space after screen timeout
+     */
+    private PrivateSpaceAutoLockTimer mPrivateSpaceAutoLockTimer;
+
+    /** Tag representing the alarm manager timer for auto-locking private space */
+    private static final String PRIVATE_SPACE_AUTO_LOCK_TIMER_TAG = "PrivateSpaceAutoLockTimer";
+
 
     /** Content observer to get callbacks for privte space autolock settings changes */
     private final SettingsObserver mPrivateSpaceAutoLockSettingsObserver;
@@ -562,7 +603,7 @@ public class UserManagerService extends IUserManager.Stub {
                     int autoLockPreference =
                             Settings.Secure.getIntForUser(mContext.getContentResolver(),
                                     Settings.Secure.PRIVATE_SPACE_AUTO_LOCK,
-                                    Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_NEVER,
+                                    Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_AFTER_DEVICE_RESTART,
                                     getMainUserIdUnchecked());
                     Slog.i(LOG_TAG, "Auto-lock settings changed to " + autoLockPreference);
                     setOrUpdateAutoLockPreferenceForPrivateProfile(autoLockPreference);
@@ -595,48 +636,99 @@ public class UserManagerService extends IUserManager.Stub {
         public void onReceive(Context context, Intent intent) {
             if (isAutoLockForPrivateSpaceEnabled()) {
                 if (ACTION_SCREEN_OFF.equals(intent.getAction())) {
-                    maybeScheduleMessageToAutoLockPrivateSpace();
+                    maybeScheduleAlarmToAutoLockPrivateSpace();
                 } else if (ACTION_SCREEN_ON.equals(intent.getAction())) {
-                    // Remove any queued messages since the device is interactive again
-                    mHandler.removeCallbacksAndMessages(PRIVATE_SPACE_AUTO_LOCK_MESSAGE_TOKEN);
+                    Slog.d(LOG_TAG, "SCREEN_ON broadcast received, "
+                            + "removing pending alarms to auto-lock private space");
+                    // Remove any pending alarm since the device is interactive again
+                    cancelPendingAutoLockAlarms();
                 }
             }
         }
     };
 
+    private void cancelPendingAutoLockAlarms() {
+        final AlarmManager alarmManager = mContext.getSystemService(AlarmManager.class);
+        if (alarmManager != null && mPrivateSpaceAutoLockTimer != null) {
+            alarmManager.cancel(mPrivateSpaceAutoLockTimer);
+        }
+    }
+
     @VisibleForTesting
-    void maybeScheduleMessageToAutoLockPrivateSpace() {
+    void maybeScheduleAlarmToAutoLockPrivateSpace() {
         // No action needed if auto-lock on inactivity not selected
-        int privateSpaceAutoLockPreference =
+        final int privateSpaceAutoLockPreference =
                 Settings.Secure.getIntForUser(mContext.getContentResolver(),
                         Settings.Secure.PRIVATE_SPACE_AUTO_LOCK,
-                        Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_NEVER,
+                        Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_AFTER_DEVICE_RESTART,
                         getMainUserIdUnchecked());
         if (privateSpaceAutoLockPreference
                 != Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_AFTER_INACTIVITY) {
+            Slogf.d(LOG_TAG, "Not scheduling auto-lock on inactivity,"
+                    + "preference is set to %d", privateSpaceAutoLockPreference);
             return;
         }
         int privateProfileUserId = getPrivateProfileUserId();
         if (privateProfileUserId != UserHandle.USER_NULL) {
-            scheduleMessageToAutoLockPrivateSpace(privateProfileUserId,
-                    PRIVATE_SPACE_AUTO_LOCK_MESSAGE_TOKEN,
+            if (isQuietModeEnabled(privateProfileUserId)) {
+                Slogf.d(LOG_TAG, "Not scheduling auto-lock alarm for %d, "
+                        + "quiet mode already enabled", privateProfileUserId);
+                return;
+            }
+            scheduleAlarmToAutoLockPrivateSpace(privateProfileUserId,
                     PRIVATE_SPACE_AUTO_LOCK_INACTIVITY_TIMEOUT_MS);
         }
     }
 
     @VisibleForTesting
-    void scheduleMessageToAutoLockPrivateSpace(int userId, Object token,
-            long delayInMillis) {
-        mHandler.postDelayed(() -> {
+    void scheduleAlarmToAutoLockPrivateSpace(int userId, long delayInMillis) {
+        final AlarmManager alarmManager = mContext.getSystemService(AlarmManager.class);
+        if (alarmManager == null) {
+            Slog.e(LOG_TAG, "AlarmManager not available, cannot schedule auto-lock alarm");
+            return;
+        }
+        initPrivateSpaceAutoLockTimer(userId);
+        final long alarmWindowStartTime = SystemClock.elapsedRealtime() + delayInMillis;
+        alarmManager.setWindow(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                alarmWindowStartTime,
+                PRIVATE_SPACE_AUTO_LOCK_INACTIVITY_ALARM_WINDOW_MS,
+                PRIVATE_SPACE_AUTO_LOCK_TIMER_TAG,
+                new HandlerExecutor(mHandler),
+                mPrivateSpaceAutoLockTimer);
+    }
+
+    private void initPrivateSpaceAutoLockTimer(int userId) {
+        cancelPendingAutoLockAlarms();
+        if (mPrivateSpaceAutoLockTimer == null
+                || mPrivateSpaceAutoLockTimer.getUserId() != userId) {
+            mPrivateSpaceAutoLockTimer = new PrivateSpaceAutoLockTimer(userId);
+        }
+    }
+
+    private class PrivateSpaceAutoLockTimer implements AlarmManager.OnAlarmListener {
+
+        private final int mUserId;
+
+        PrivateSpaceAutoLockTimer(int userId) {
+            mUserId = userId;
+        }
+
+        int getUserId() {
+            return mUserId;
+        }
+
+        @Override
+        public void onAlarm() {
             final PowerManager powerManager = mContext.getSystemService(PowerManager.class);
             if (powerManager != null && !powerManager.isInteractive()) {
-                Slog.i(LOG_TAG, "Auto-locking private space with user-id " + userId);
-                setQuietModeEnabledAsync(userId, true,
+                Slog.i(LOG_TAG, "Auto-locking private space with user-id " + mUserId);
+                setQuietModeEnabledAsync(mUserId, true,
                         /* target */ null, mContext.getPackageName());
             } else {
-                Slog.i(LOG_TAG, "Device is interactive, skipping auto-lock");
+                Slog.i(LOG_TAG, "Device is interactive, skipping auto-lock for profile user "
+                        + mUserId);
             }
-        }, token, delayInMillis);
+        }
     }
 
     @RequiresPermission(Manifest.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE)
@@ -682,7 +774,7 @@ public class UserManagerService extends IUserManager.Stub {
             // Unregister device inactivity broadcasts
             if (mIsDeviceInactivityBroadcastReceiverRegistered) {
                 Slog.i(LOG_TAG, "Removing device inactivity broadcast receivers");
-                mHandler.removeCallbacksAndMessages(PRIVATE_SPACE_AUTO_LOCK_MESSAGE_TOKEN);
+                cancelPendingAutoLockAlarms();
                 mContext.unregisterReceiver(mDeviceInactivityBroadcastReceiver);
                 mIsDeviceInactivityBroadcastReceiverRegistered = false;
             }
@@ -709,7 +801,7 @@ public class UserManagerService extends IUserManager.Stub {
         if (isAutoLockForPrivateSpaceEnabled()) {
             int autoLockPreference = Settings.Secure.getIntForUser(mContext.getContentResolver(),
                     Settings.Secure.PRIVATE_SPACE_AUTO_LOCK,
-                    Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_NEVER,
+                    Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_AFTER_DEVICE_RESTART,
                     getMainUserIdUnchecked());
             boolean isAutoLockOnDeviceLockSelected =
                     autoLockPreference == Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_ON_DEVICE_LOCK;
@@ -888,6 +980,7 @@ public class UserManagerService extends IUserManager.Stub {
 
         @Override
         public void onBootPhase(int phase) {
+            mUms.mCurrentBootPhase = phase;
             if (phase == SystemService.PHASE_ACTIVITY_MANAGER_READY) {
                 mUms.cleanupPartialUsers();
 
@@ -1004,11 +1097,23 @@ public class UserManagerService extends IUserManager.Stub {
         mUser0Allocations = DBG_ALLOCATION ? new AtomicInteger() : null;
         mPrivateSpaceAutoLockSettingsObserver = new SettingsObserver(mHandler);
         emulateSystemUserModeIfNeeded();
+        initPropertyInvalidatedCaches();
     }
 
-    private static boolean isAutoLockForPrivateSpaceEnabled() {
-        return android.os.Flags.allowPrivateProfile()
-                && Flags.supportAutolockForPrivateSpace();
+    /**
+     * This method is used to invalidate the caches at server statup,
+     * so that caches can start working.
+     */
+    private static final void initPropertyInvalidatedCaches() {
+        if (android.multiuser.Flags.cachesNotInvalidatedAtStartReadOnly()) {
+            UserManager.invalidateIsUserUnlockedCache();
+            UserManager.invalidateQuietModeEnabledCache();
+            if (android.multiuser.Flags.cacheUserPropertiesCorrectlyReadOnly()) {
+                UserManager.invalidateStaticUserProperties();
+                UserManager.invalidateUserPropertiesCache();
+            }
+            UserManager.invalidateCacheOnUserListChange();
+        }
     }
 
     void systemReady() {
@@ -1039,7 +1144,8 @@ public class UserManagerService extends IUserManager.Stub {
                 setOrUpdateAutoLockPreferenceForPrivateProfile(
                         Settings.Secure.getIntForUser(mContext.getContentResolver(),
                                 Settings.Secure.PRIVATE_SPACE_AUTO_LOCK,
-                                Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_NEVER, mainUserId));
+                                Settings.Secure.PRIVATE_SPACE_AUTO_LOCK_AFTER_DEVICE_RESTART,
+                                mainUserId));
             }
         }
 
@@ -1047,12 +1153,30 @@ public class UserManagerService extends IUserManager.Stub {
             autoLockPrivateSpace();
         }
 
-        markEphemeralUsersForRemoval();
+        showHsumNotificationIfNeeded();
+
+        if (Flags.addUiForSoundsFromBackgroundUsers()) {
+            new BackgroundUserSoundNotifier(mContext);
+        }
+    }
+
+    private boolean doesDeviceHardwareSupportPrivateSpace() {
+        return !mPm.hasSystemFeature(FEATURE_EMBEDDED, 0)
+                && !mPm.hasSystemFeature(FEATURE_WATCH, 0)
+                && !mPm.hasSystemFeature(FEATURE_LEANBACK, 0)
+                && !mPm.hasSystemFeature(FEATURE_AUTOMOTIVE, 0);
+    }
+
+    private static boolean isAutoLockForPrivateSpaceEnabled() {
+        return android.os.Flags.allowPrivateProfile()
+                && Flags.supportAutolockForPrivateSpace()
+                && android.multiuser.Flags.enablePrivateSpaceFeatures();
     }
 
     private boolean isAutoLockingPrivateSpaceOnRestartsEnabled() {
         return android.os.Flags.allowPrivateProfile()
-                && android.multiuser.Flags.enablePrivateSpaceAutolockOnRestarts();
+                && android.multiuser.Flags.enablePrivateSpaceAutolockOnRestarts()
+                && android.multiuser.Flags.enablePrivateSpaceFeatures();
     }
 
     /**
@@ -1083,19 +1207,28 @@ public class UserManagerService extends IUserManager.Stub {
         }
     }
 
-    /** Marks all ephemeral users as slated for deletion. **/
-    private void markEphemeralUsersForRemoval() {
-        synchronized (mUsersLock) {
-            final int userSize = mUsers.size();
-            for (int i = 0; i < userSize; i++) {
-                final UserInfo ui = mUsers.valueAt(i).info;
-                if (ui.isEphemeral() && !ui.preCreated && ui.id != UserHandle.USER_SYSTEM) {
-                    addRemovingUserIdLocked(ui.id);
-                    ui.partial = true;
-                    ui.flags |= UserInfo.FLAG_DISABLED;
-                }
-            }
+    /** Marks the user as slated for deletion during boot if necessary. **/
+    @GuardedBy("mUsersLock")
+    private void markUserForRemovalIfNecessaryLU(UserInfo ui) {
+        if (!ui.isEphemeral()) {
+            // User should be ephemeral to be marked for removal.
+            return;
         }
+        if (ui.preCreated) {
+            // Avoid marking pre-created users for removal.
+            return;
+        }
+        if (ui.lastLoggedInTime == 0 && ui.isGuest() && Resources.getSystem().getBoolean(
+                com.android.internal.R.bool.config_guestUserAutoCreated)) {
+            // Avoid marking auto-created but not-yet-logged-in guest user for removal. Because a
+            // new one will be created anyway, and this one doesn't have any personal data in it yet
+            // due to not being logged in.
+            return;
+        }
+        // Mark the user for removal.
+        addRemovingUserIdLocked(ui.id);
+        ui.partial = true;
+        addUserInfoFlags(ui, UserInfo.FLAG_DISABLED);
     }
 
     /* Prunes out any partially created or partially removed users. */
@@ -1137,7 +1270,7 @@ public class UserManagerService extends IUserManager.Stub {
                 if (ui.preCreated) {
                     preCreatedUsers.add(ui);
                     addRemovingUserIdLocked(ui.id);
-                    ui.flags |= UserInfo.FLAG_DISABLED;
+                    addUserInfoFlags(ui, UserInfo.FLAG_DISABLED);
                     ui.partial = true;
                 }
             }
@@ -1264,32 +1397,76 @@ public class UserManagerService extends IUserManager.Stub {
         }
 
         if (isHeadlessSystemUserMode()) {
-            // Return the previous foreground user, if there is one.
-            final int previousUser = getPreviousFullUserToEnterForeground();
-            if (previousUser != UserHandle.USER_NULL) {
-                Slogf.i(LOG_TAG, "Boot user is previous user %d", previousUser);
-                return previousUser;
+            final int bootStrategy = mContext.getResources()
+                    .getInteger(com.android.internal.R.integer.config_hsumBootStrategy);
+            switch (bootStrategy) {
+                case BOOT_TO_PREVIOUS_OR_FIRST_SWITCHABLE_USER:
+                    return getPreviousOrFirstSwitchableUser();
+                case BOOT_TO_HSU_FOR_PROVISIONED_DEVICE:
+                    return getBootUserBasedOnProvisioning();
+                default:
+                    Slogf.w(LOG_TAG, "Unknown HSUM boot strategy: %d", bootStrategy);
+                    return getPreviousOrFirstSwitchableUser();
             }
-            // No previous user. Return the first switchable user if there is one.
-            synchronized (mUsersLock) {
-                final int userSize = mUsers.size();
-                for (int i = 0; i < userSize; i++) {
-                    final UserData userData = mUsers.valueAt(i);
-                    if (userData.info.supportsSwitchToByUser()) {
-                        int firstSwitchable = userData.info.id;
-                        Slogf.i(LOG_TAG,
-                                "Boot user is first switchable user %d", firstSwitchable);
-                        return firstSwitchable;
-                    }
-                }
-            }
-            // No switchable users found. Uh oh!
-            throw new UserManager.CheckedUserOperationException(
-                    "No switchable users found", USER_OPERATION_ERROR_UNKNOWN);
         }
         // Not HSUM, return system user.
         return UserHandle.USER_SYSTEM;
     }
+
+    private @UserIdInt int getBootUserBasedOnProvisioning()
+            throws UserManager.CheckedUserOperationException {
+        final boolean provisioned = Settings.Global.getInt(mContext.getContentResolver(),
+                                            Settings.Global.DEVICE_PROVISIONED, 0) != 0;
+        if (provisioned) {
+            return UserHandle.USER_SYSTEM;
+        } else {
+            final int firstSwitchableFullUser = getFirstSwitchableUser(true);
+            if (firstSwitchableFullUser != UserHandle.USER_NULL) {
+                Slogf.i(LOG_TAG,
+                        "Boot user is first switchable full user %d",
+                                firstSwitchableFullUser);
+                return firstSwitchableFullUser;
+            }
+            // No switchable full user found. Uh oh!
+            throw new UserManager.CheckedUserOperationException(
+                "No switchable full user found", USER_OPERATION_ERROR_UNKNOWN);
+        }
+    }
+
+    private @UserIdInt int getPreviousOrFirstSwitchableUser()
+            throws UserManager.CheckedUserOperationException {
+        // Return the previous foreground user, if there is one.
+        final int previousUser = getPreviousFullUserToEnterForeground();
+        if (previousUser != UserHandle.USER_NULL) {
+            Slogf.i(LOG_TAG, "Boot user is previous user %d", previousUser);
+            return previousUser;
+        }
+        // No previous user. Return the first switchable user if there is one.
+        final int firstSwitchableUser = getFirstSwitchableUser(false);
+        if (firstSwitchableUser != UserHandle.USER_NULL) {
+            Slogf.i(LOG_TAG,
+                    "Boot user is first switchable user %d", firstSwitchableUser);
+            return firstSwitchableUser;
+        }
+        // No switchable users found. Uh oh!
+        throw new UserManager.CheckedUserOperationException(
+            "No switchable users found", USER_OPERATION_ERROR_UNKNOWN);
+    }
+
+    private @UserIdInt int getFirstSwitchableUser(boolean fullUserOnly) {
+        synchronized (mUsersLock) {
+            final int userSize = mUsers.size();
+            for (int i = 0; i < userSize; i++) {
+                final UserData userData = mUsers.valueAt(i);
+                if (userData.info.supportsSwitchToByUser() &&
+                        (!fullUserOnly || userData.info.isFull())) {
+                    int firstSwitchable = userData.info.id;
+                    return firstSwitchable;
+                }
+            }
+        }
+       return UserHandle.USER_NULL;
+   }
 
 
     @Override
@@ -1493,7 +1670,8 @@ public class UserManagerService extends IUserManager.Stub {
     private boolean isProfileHidden(int userId) {
         UserProperties userProperties = getUserPropertiesCopy(userId);
         if (android.os.Flags.allowPrivateProfile()
-                && android.multiuser.Flags.enableHidingProfiles()) {
+                && android.multiuser.Flags.enableHidingProfiles()
+                && android.multiuser.Flags.enablePrivateSpaceFeatures()) {
             return userProperties.getProfileApiVisibility()
                     == UserProperties.PROFILE_API_VISIBILITY_HIDDEN;
         }
@@ -1693,7 +1871,8 @@ public class UserManagerService extends IUserManager.Stub {
                 setQuietModeEnabled(userId, true /* enableQuietMode */, target, callingPackage);
                 return true;
             }
-            if (android.os.Flags.allowPrivateProfile()) {
+            if (android.os.Flags.allowPrivateProfile()
+                    && android.multiuser.Flags.enablePrivateSpaceFeatures()) {
                 final UserProperties userProperties = getUserPropertiesInternal(userId);
                 if (userProperties != null
                         && userProperties.isAuthAlwaysRequiredToDisableQuietMode()) {
@@ -1701,20 +1880,28 @@ public class UserManagerService extends IUserManager.Stub {
                         return false;
                     }
 
-                    if (android.multiuser.Flags.showSetScreenLockDialog()) {
-                        // Show the prompt to set a new screen lock if the device does not have one
-                        final KeyguardManager km = mContext.getSystemService(KeyguardManager.class);
-                        if (km != null && !km.isDeviceSecure()) {
-                            Intent setScreenLockPromptIntent =
-                                    SetScreenLockDialogActivity
-                                            .createBaseIntent(LAUNCH_REASON_DISABLE_QUIET_MODE);
-                            setScreenLockPromptIntent.putExtra(EXTRA_ORIGIN_USER_ID, userId);
-                            mContext.startActivity(setScreenLockPromptIntent);
-                            return false;
-                        }
+                    final KeyguardManager km = mContext.getSystemService(KeyguardManager.class);
+                    int parentUserId = getProfileParentId(userId);
+                    if (km != null && km.isDeviceSecure(parentUserId)) {
+                        showConfirmCredentialToDisableQuietMode(userId, target, callingPackage);
+                        return false;
+                    } else if (km != null && !km.isDeviceSecure(parentUserId)
+                            && android.multiuser.Flags.showSetScreenLockDialog()
+                            // TODO(b/330720545): Add a better way to accomplish this, also use it
+                            //  to block profile creation w/o device credentials present.
+                            && Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                                Settings.Secure.USER_SETUP_COMPLETE, 0, userId) == 1) {
+                        Intent setScreenLockPromptIntent =
+                                SetScreenLockDialogActivity
+                                        .createBaseIntent(LAUNCH_REASON_DISABLE_QUIET_MODE);
+                        setScreenLockPromptIntent.putExtra(EXTRA_ORIGIN_USER_ID, userId);
+                        mContext.startActivityAsUser(setScreenLockPromptIntent,
+                                UserHandle.of(parentUserId));
+                        return false;
+                    } else {
+                        Slog.w(LOG_TAG, "Allowing profile unlock even when device credentials "
+                                + "are not set for user " + userId);
                     }
-                    showConfirmCredentialToDisableQuietMode(userId, target, callingPackage);
-                    return false;
                 }
             }
             final boolean hasUnifiedChallenge =
@@ -1813,6 +2000,7 @@ public class UserManagerService extends IUserManager.Stub {
                 Slog.i(LOG_TAG, "Quiet mode is already " + enableQuietMode);
                 return;
             }
+            UserManager.invalidateQuietModeEnabledCache();
             profile.flags ^= UserInfo.FLAG_QUIET_MODE;
             profileUserData = getUserDataLU(profile.id);
         }
@@ -1839,7 +2027,8 @@ public class UserManagerService extends IUserManager.Stub {
         logQuietModeEnabled(userId, enableQuietMode, callingPackage);
 
         // Broadcast generic intents for all profiles
-        if (android.os.Flags.allowPrivateProfile()) {
+        if (android.os.Flags.allowPrivateProfile()
+                && android.multiuser.Flags.enablePrivateSpaceFeatures()) {
             broadcastProfileAvailabilityChanges(profile, parent.getUserHandle(),
                     enableQuietMode, false);
         }
@@ -1852,14 +2041,14 @@ public class UserManagerService extends IUserManager.Stub {
 
     private void stopUserForQuietMode(int userId) throws RemoteException {
         if (android.os.Flags.allowPrivateProfile()
-                && android.multiuser.Flags.enableBiometricsToUnlockPrivateSpace()) {
+                && android.multiuser.Flags.enableBiometricsToUnlockPrivateSpace()
+                && android.multiuser.Flags.enablePrivateSpaceFeatures()) {
             // Allow delayed locking since some profile types want to be able to unlock again via
             // biometrics.
-            ActivityManager.getService()
-                    .stopUserWithDelayedLocking(userId, /* force= */ true, null);
+            ActivityManager.getService().stopUserWithDelayedLocking(userId, null);
             return;
         }
-        ActivityManager.getService().stopUser(userId, /* force= */ true, null);
+        ActivityManager.getService().stopUserWithCallback(userId, null);
     }
 
     private void logQuietModeEnabled(@UserIdInt int userId, boolean enableQuietMode,
@@ -1909,16 +2098,20 @@ public class UserManagerService extends IUserManager.Stub {
     private void showConfirmCredentialToDisableQuietMode(
             @UserIdInt int userId, @Nullable IntentSender target, @Nullable String callingPackage) {
         if (android.app.admin.flags.Flags.quietModeCredentialBugFix()) {
-            // TODO (b/308121702) It may be brittle to rely on user states to check profile state
-            int state;
-            synchronized (mUserStates) {
-                state = mUserStates.get(userId, UserState.STATE_NONE);
-            }
-            if (state != UserState.STATE_NONE) {
-                Slog.i(LOG_TAG,
-                        "showConfirmCredentialToDisableQuietMode() called too early, user " + userId
-                                + " is still alive.");
-                return;
+            if (!android.multiuser.Flags.restrictQuietModeCredentialBugFixToManagedProfiles()
+                    || getUserInfo(userId).isManagedProfile()) {
+                // TODO (b/308121702) It may be brittle to rely on user states to check managed
+                //  profile state
+                int state;
+                synchronized (mUserStates) {
+                    state = mUserStates.get(userId, UserState.STATE_NONE);
+                }
+                if (state != UserState.STATE_NONE) {
+                    Slog.i(LOG_TAG,
+                            "showConfirmCredentialToDisableQuietMode() called too early, managed "
+                                    + "user " + userId + " is still alive.");
+                    return;
+                }
             }
         }
         // otherwise, we show a profile challenge to trigger decryption of the user
@@ -1951,6 +2144,14 @@ public class UserManagerService extends IUserManager.Stub {
         // intentSender
         unlockIntent.putExtra(Intent.EXTRA_INTENT, pendingIntent.getIntentSender());
         unlockIntent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+
+        if (Flags.enablePrivateSpaceFeatures() && Flags.usePrivateSpaceIconInBiometricPrompt()
+                && getUserInfo(userId).isPrivateProfile()) {
+            unlockIntent.putExtra(CUSTOM_BIOMETRIC_PROMPT_LOGO_RES_ID_KEY,
+                    com.android.internal.R.drawable.stat_sys_private_profile_status);
+            unlockIntent.putExtra(CUSTOM_BIOMETRIC_PROMPT_LOGO_DESCRIPTION_KEY,
+                    mContext.getString(R.string.private_space_biometric_prompt_title));
+        }
         mContext.startActivityAsUser(
                 unlockIntent, UserHandle.of(getProfileParentIdUnchecked(userId)));
     }
@@ -1965,7 +2166,7 @@ public class UserManagerService extends IUserManager.Stub {
                 info = getUserInfoLU(userId);
                 if (info != null && !info.isEnabled()) {
                     wasUserDisabled = true;
-                    info.flags ^= UserInfo.FLAG_DISABLED;
+                    removeUserInfoFlags(info, UserInfo.FLAG_DISABLED);
                     writeUserLP(getUserDataLU(info.id));
                 }
             }
@@ -1975,9 +2176,43 @@ public class UserManagerService extends IUserManager.Stub {
         }
     }
 
+    /**
+     * This method is for monitoring flag changes on users flags and invalidate cache relevant to
+     * the change. The method add flags and invalidateOnUserInfoFlagChange for the flags which
+     * has changed.
+     * @param userInfo of existing user in mUsers list
+     * @param flags to be added to userInfo
+     */
+    private void addUserInfoFlags(UserInfo userInfo, @UserInfoFlag int flags) {
+        int diff = ~userInfo.flags & flags;
+        if (diff > 0) {
+            userInfo.flags |= diff;
+            UserManager.invalidateOnUserInfoFlagChange(diff);
+        }
+    }
+
+    /**
+     * This method is for monitoring flag changes on users flags and invalidate cache relevant to
+     * the change. The method remove flags and invalidateOnUserInfoFlagChange for the flags which
+     * has changed.
+     * @param userInfo of existing user in mUsers list
+     * @param flags to be removed from userInfo
+     */
+    private void removeUserInfoFlags(UserInfo userInfo, @UserInfoFlag int flags) {
+        int diff = userInfo.flags & flags;
+        if (diff > 0) {
+            userInfo.flags ^= diff;
+            UserManager.invalidateOnUserInfoFlagChange(diff);
+        }
+    }
+
     @Override
     public void setUserAdmin(@UserIdInt int userId) {
         checkManageUserAndAcrossUsersFullPermission("set user admin");
+        if (Flags.unicornModeRefactoringForHsumReadOnly()) {
+            checkAdminStatusChangeAllowed(userId);
+        }
+
         mUserJourneyLogger.logUserJourneyBegin(userId, USER_JOURNEY_GRANT_ADMIN);
         UserData user;
         synchronized (mPackagesLock) {
@@ -2006,6 +2241,10 @@ public class UserManagerService extends IUserManager.Stub {
     @Override
     public void revokeUserAdmin(@UserIdInt int userId) {
         checkManageUserAndAcrossUsersFullPermission("revoke admin privileges");
+        if (Flags.unicornModeRefactoringForHsumReadOnly()) {
+            checkAdminStatusChangeAllowed(userId);
+        }
+
         mUserJourneyLogger.logUserJourneyBegin(userId, USER_JOURNEY_REVOKE_ADMIN);
         UserData user;
         synchronized (mPackagesLock) {
@@ -2288,6 +2527,18 @@ public class UserManagerService extends IUserManager.Stub {
         return userTypeDetails.getLabel(userIndex);
     }
 
+    @Override
+    public @StringRes int getProfileAccessibilityLabelResId(@UserIdInt int userId) {
+        checkQueryOrInteractPermissionIfCallerInOtherProfileGroup(userId,
+                "getProfileAccessibilityLabelResId");
+        final UserInfo userInfo = getUserInfoNoChecks(userId);
+        final UserTypeDetails userTypeDetails = getUserTypeDetails(userInfo);
+        if (userInfo == null || userTypeDetails == null) {
+            return Resources.ID_NULL;
+        }
+        return userTypeDetails.getAccessibilityString();
+    }
+
     public boolean isProfile(@UserIdInt int userId) {
         checkQueryOrInteractPermissionIfCallerInOtherProfileGroup(userId, "isProfile");
         return isProfileUnchecked(userId);
@@ -2359,6 +2610,38 @@ public class UserManagerService extends IUserManager.Stub {
         }
 
         return mUserVisibilityMediator.isUserVisible(userId);
+    }
+
+    /**
+     * This method validates whether calling user is valid in visible background users feature.
+     * Valid user is the current user or the system or in the same profile group as the current
+     * user. Visible background users are not valid calling users.
+     */
+    public static void enforceCurrentUserIfVisibleBackgroundEnabled(@UserIdInt int currentUserId) {
+        if (!UserManager.isVisibleBackgroundUsersEnabled()) {
+            return;
+        }
+        final int callingUserId = UserHandle.getCallingUserId();
+        if (DBG) {
+            Slog.d(LOG_TAG, "enforceValidCallingUser: callingUserId=" + callingUserId
+                    + " isSystemUser=" + (callingUserId == USER_SYSTEM)
+                    + " currentUserId=" + currentUserId
+                    + " callingPid=" + Binder.getCallingPid()
+                    + " callingUid=" + Binder.getCallingUid());
+        }
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            if (callingUserId != USER_SYSTEM && callingUserId != currentUserId
+                    && !UserManagerService.getInstance()
+                    .isSameProfileGroup(callingUserId, currentUserId)) {
+                throw new SecurityException(
+                        "Invalid calling user on devices that enable visible background users. "
+                                + "callingUserId=" + callingUserId + " currentUserId="
+                                + currentUserId);
+            }
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
@@ -2443,11 +2726,15 @@ public class UserManagerService extends IUserManager.Stub {
     }
 
     @Override
-    public int getMainDisplayIdAssignedToUser() {
-        // Not checking for any permission as it returns info about calling user
-        int userId = UserHandle.getUserId(Binder.getCallingUid());
-        int displayId = mUserVisibilityMediator.getMainDisplayAssignedToUser(userId);
-        return displayId;
+    public int getMainDisplayIdAssignedToUser(int userId) {
+        final int callingUserId = UserHandle.getCallingUserId();
+        if (callingUserId != userId
+                && !hasManageUsersOrPermission(android.Manifest.permission.INTERACT_ACROSS_USERS)) {
+            throw new SecurityException("Caller from user " + callingUserId + " needs MANAGE_USERS "
+                    + "or INTERACT_ACROSS_USERS permission to get the main display for (" + userId
+                    + ")");
+        }
+        return mUserVisibilityMediator.getMainDisplayAssignedToUser(userId);
     }
 
     @Override
@@ -2749,6 +3036,18 @@ public class UserManagerService extends IUserManager.Stub {
             // restricted profile can be created if there is no DO set and the admin user has no PO;
             return !mIsDeviceManaged && !mIsUserManaged.get(userId);
         }
+    }
+
+    @Override
+    public boolean canAddPrivateProfile(@UserIdInt int userId) {
+        checkCreateUsersPermission("canHaveRestrictedProfile");
+        UserInfo parentUserInfo = getUserInfo(userId);
+        return isUserTypeEnabled(USER_TYPE_PROFILE_PRIVATE)
+                && canAddMoreProfilesToUser(USER_TYPE_PROFILE_PRIVATE,
+                    userId, /* allowedToRemoveOne */ false)
+                && (parentUserInfo != null && parentUserInfo.isMain())
+                && doesDeviceHardwareSupportPrivateSpace()
+                && !hasUserRestriction(UserManager.DISALLOW_ADD_PRIVATE_PROFILE, userId);
     }
 
     @Override
@@ -3914,6 +4213,26 @@ public class UserManagerService extends IUserManager.Stub {
         }
     }
 
+    /**
+     * Checks if changing the admin status of a target user is restricted
+     * due to the DISALLOW_GRANT_ADMIN restriction. If either the calling
+     * user or the target user has this restriction, a SecurityException
+     * is thrown.
+     *
+     * @param targetUser The user ID of the user whose admin status is being
+     * considered for change.
+     * @throws SecurityException if the admin status change is restricted due
+     * to the DISALLOW_GRANT_ADMIN restriction.
+     */
+    private void checkAdminStatusChangeAllowed(int targetUser) {
+        if (hasUserRestriction(UserManager.DISALLOW_GRANT_ADMIN, UserHandle.getCallingUserId())
+                || hasUserRestriction(UserManager.DISALLOW_GRANT_ADMIN, targetUser)) {
+            throw new SecurityException(
+                    "Admin status change is restricted. The DISALLOW_GRANT_ADMIN "
+                            + "restriction is applied either on the current or the target user.");
+        }
+    }
+
     @GuardedBy({"mPackagesLock"})
     private void writeBitmapLP(UserInfo info, Bitmap bitmap) {
         try {
@@ -4108,6 +4427,48 @@ public class UserManagerService extends IUserManager.Stub {
         mUpdatingSystemUserMode = true;
     }
 
+    /**
+     * If the device's actual HSUM status differs from that which is defined by its build
+     * configuration, warn the user. Ignores HSUM emulated status, since that isn't relevant.
+     *
+     * The goal is to inform dogfooders that they need to factory reset the device to align their
+     * device with its build configuration.
+     */
+    private void showHsumNotificationIfNeeded() {
+        if (RoSystemProperties.MULTIUSER_HEADLESS_SYSTEM_USER == isHeadlessSystemUserMode()) {
+            // Actual state does match the configuration. Great!
+            return;
+        }
+        if (Build.isDebuggable()
+                && !TextUtils.isEmpty(SystemProperties.get(SYSTEM_USER_MODE_EMULATION_PROPERTY))) {
+            // Ignore any device that has been playing around with HSUM emulation.
+            return;
+        }
+        Slogf.w(LOG_TAG, "Posting warning that device's HSUM status doesn't match the build's.");
+
+        final String title = mContext
+                .getString(R.string.wrong_hsum_configuration_notification_title);
+        final String message = mContext
+                .getString(R.string.wrong_hsum_configuration_notification_message);
+
+        final Notification notification =
+                new Notification.Builder(mContext, SystemNotificationChannels.DEVELOPER)
+                        .setSmallIcon(R.drawable.stat_sys_adb)
+                        .setWhen(0)
+                        .setOngoing(true)
+                        .setTicker(title)
+                        .setDefaults(0)
+                        .setColor(mContext.getColor(R.color.system_notification_accent_color))
+                        .setContentTitle(title)
+                        .setContentText(message)
+                        .setVisibility(Notification.VISIBILITY_PUBLIC)
+                        .build();
+
+        final NotificationManager notificationManager =
+                mContext.getSystemService(NotificationManager.class);
+        notificationManager.notifyAsUser(
+                null, SystemMessage.NOTE_WRONG_HSUM_STATUS, notification, UserHandle.ALL);
+    }
 
     private ResilientAtomicFile getUserListFile() {
         File tempBackup = new File(mUserListFile.getParent(), mUserListFile.getName() + ".backup");
@@ -4168,11 +4529,12 @@ public class UserManagerService extends IUserManager.Stub {
 
                             if (userData != null) {
                                 synchronized (mUsersLock) {
-                                    mUsers.put(userData.info.id, userData);
+                                    addUserDataLU(userData);
                                     if (mNextSerialNumber < 0
                                             || mNextSerialNumber <= userData.info.id) {
                                         mNextSerialNumber = userData.info.id + 1;
                                     }
+                                    markUserForRemovalIfNecessaryLU(userData.info);
                                 }
                             }
                         } else if (name.equals(TAG_GUEST_RESTRICTIONS)) {
@@ -4622,7 +4984,10 @@ public class UserManagerService extends IUserManager.Stub {
             res.getValue(com.android.internal.R.string.owner_name, mOwnerNameTypedValue, true);
             final CharSequence ownerName = mOwnerNameTypedValue.coerceToString();
             mOwnerName.set(ownerName != null ? ownerName.toString() : null);
+            // Invalidate when owners name changes due to config change.
+            UserManager.invalidateCacheOnUserDataChanged();
         }
+
     }
 
     private void scheduleWriteUserList() {
@@ -4635,6 +5000,8 @@ public class UserManagerService extends IUserManager.Stub {
             Message msg = mHandler.obtainMessage(WRITE_USER_LIST_MSG);
             mHandler.sendMessageDelayed(msg, WRITE_USER_DELAY);
         }
+        // Invalidate cache when {@link UserData} changed, but write was scheduled for later.
+        UserManager.invalidateCacheOnUserDataChanged();
     }
 
     private void scheduleWriteUser(@UserIdInt int userId) {
@@ -4647,6 +5014,8 @@ public class UserManagerService extends IUserManager.Stub {
             Message msg = mHandler.obtainMessage(WRITE_USER_MSG, userId);
             mHandler.sendMessageDelayed(msg, WRITE_USER_DELAY);
         }
+        // Invalidate cache when {@link Data} changed, but write was scheduled for later.
+        UserManager.invalidateCacheOnUserDataChanged();
     }
 
     private ResilientAtomicFile getUserFile(int userId) {
@@ -4670,6 +5039,9 @@ public class UserManagerService extends IUserManager.Stub {
         if (DBG) {
             debug("writeUserLP " + userData);
         }
+        // invalidate caches related to any {@link UserData} change.
+        UserManager.invalidateCacheOnUserDataChanged();
+
         try (ResilientAtomicFile userFile = getUserFile(userData.info.id)) {
             FileOutputStream fos = null;
             try {
@@ -4834,6 +5206,8 @@ public class UserManagerService extends IUserManager.Stub {
         if (DBG) {
             debug("writeUserList");
         }
+        // invalidate caches related to any {@link UserData} change.
+        UserManager.invalidateCacheOnUserDataChanged();
 
         try (ResilientAtomicFile file = getUserListFile()) {
             FileOutputStream fos = null;
@@ -5249,6 +5623,13 @@ public class UserManagerService extends IUserManager.Stub {
 
         enforceUserRestriction(restriction, UserHandle.getCallingUserId(),
                 "Cannot add user");
+        if (Flags.unicornModeRefactoringForHsumReadOnly()) {
+            if ((flags & UserInfo.FLAG_ADMIN) != 0) {
+                enforceUserRestriction(UserManager.DISALLOW_GRANT_ADMIN,
+                        UserHandle.getCallingUserId(), "Cannot create ADMIN user");
+            }
+        }
+
         return createUserInternalUnchecked(name, userType, flags, parentId,
                 /* preCreate= */ false, disallowedPackages, /* token= */ null);
     }
@@ -5309,7 +5690,7 @@ public class UserManagerService extends IUserManager.Stub {
         if (!isUserTypeEnabled(userTypeDetails)) {
             throwCheckedUserOperationException(
                     "Cannot add a user of disabled type " + userType + ".",
-                    UserManager.USER_OPERATION_ERROR_MAX_USERS);
+                    UserManager.USER_OPERATION_ERROR_DISABLED_USER);
         }
 
         synchronized (mUsersLock) {
@@ -5342,6 +5723,7 @@ public class UserManagerService extends IUserManager.Stub {
         final boolean isDemo = UserManager.isUserTypeDemo(userType);
         final boolean isManagedProfile = UserManager.isUserTypeManagedProfile(userType);
         final boolean isCommunalProfile = UserManager.isUserTypeCommunalProfile(userType);
+        final boolean isPrivateProfile = UserManager.isUserTypePrivateProfile(userType);
 
         final long ident = Binder.clearCallingIdentity();
         UserInfo userInfo;
@@ -5388,6 +5770,12 @@ public class UserManagerService extends IUserManager.Stub {
                                     + " for user " + parentId,
                             UserManager.USER_OPERATION_ERROR_MAX_USERS);
                 }
+                if (android.multiuser.Flags.blockPrivateSpaceCreation()
+                        && isPrivateProfile && !canAddPrivateProfile(parentId)) {
+                    throwCheckedUserOperationException(
+                            "Cannot add profile of type " + userType + " for user " + parentId,
+                            UserManager.USER_OPERATION_ERROR_PRIVATE_PROFILE);
+                }
                 if (isRestricted && (parentId != UserHandle.USER_SYSTEM)
                         && !isCreationOverrideEnabled()) {
                     throwCheckedUserOperationException(
@@ -5429,7 +5817,7 @@ public class UserManagerService extends IUserManager.Stub {
                     userData.info = userInfo;
                     userData.userProperties = new UserProperties(
                             userTypeDetails.getDefaultUserPropertiesReference());
-                    mUsers.put(userId, userData);
+                    addUserDataLU(userData);
                 }
                 writeUserLP(userData);
                 writeUserListLP();
@@ -5490,6 +5878,9 @@ public class UserManagerService extends IUserManager.Stub {
             }
 
             userInfo.partial = false;
+            if (android.multiuser.Flags.invalidateCacheOnUsersChangedReadOnly()) {
+                UserManager.invalidateCacheOnUserListChange();
+            }
             synchronized (mPackagesLock) {
                 writeUserLP(userData);
             }
@@ -5731,8 +6122,11 @@ public class UserManagerService extends IUserManager.Stub {
             // If the user switch hasn't been explicitly toggled on or off by the user, turn it on.
             if (android.provider.Settings.Global.getString(mContext.getContentResolver(),
                     android.provider.Settings.Global.USER_SWITCHER_ENABLED) == null) {
-                android.provider.Settings.Global.putInt(mContext.getContentResolver(),
-                        android.provider.Settings.Global.USER_SWITCHER_ENABLED, 1);
+                if (Resources.getSystem().getBoolean(
+                        com.android.internal.R.bool.config_enableUserSwitcherUponUserCreation)) {
+                    android.provider.Settings.Global.putInt(mContext.getContentResolver(),
+                            android.provider.Settings.Global.USER_SWITCHER_ENABLED, 1);
+                }
             }
         }
     }
@@ -5843,16 +6237,17 @@ public class UserManagerService extends IUserManager.Stub {
         final UserData userData = new UserData();
         userData.info = userInfo;
         synchronized (mUsersLock) {
-            mUsers.put(userInfo.id, userData);
+            addUserDataLU(userData);
         }
         updateUserIds();
         return userData;
     }
 
+    /** For testing only! Directly, unnaturally removes userId from list of users. */
     @VisibleForTesting
     void removeUserInfo(@UserIdInt int userId) {
         synchronized (mUsersLock) {
-            mUsers.remove(userId);
+            removeUserDataLU(userId);
         }
     }
 
@@ -5941,7 +6336,7 @@ public class UserManagerService extends IUserManager.Stub {
                 userData.info.guestToRemove = true;
                 // Mark it as disabled, so that it isn't returned any more when
                 // profiles are queried.
-                userData.info.flags |= UserInfo.FLAG_DISABLED;
+                addUserInfoFlags(userData.info, UserInfo.FLAG_DISABLED);
                 writeUserLP(userData);
             }
         } finally {
@@ -5961,9 +6356,16 @@ public class UserManagerService extends IUserManager.Stub {
         Slog.i(LOG_TAG, "removeUser u" + userId);
         checkCreateUsersPermission("Only the system can remove users");
 
-        final String restriction = getUserRemovalRestriction(userId);
-        if (getUserRestrictions(UserHandle.getCallingUserId()).getBoolean(restriction, false)) {
-            Slog.w(LOG_TAG, "Cannot remove user. " + restriction + " is enabled.");
+        final Optional<String> restrictionOptional = getUserRemovalRestrictionOptional(userId);
+        if (!restrictionOptional.isEmpty()
+                && getUserRestrictions(UserHandle.getCallingUserId())
+                        .getBoolean(restrictionOptional.get(), false)) {
+            Slog.w(LOG_TAG, "Cannot remove user. " + restrictionOptional.get() + " is enabled.");
+            return false;
+        }
+        if (mCurrentBootPhase < SystemService.PHASE_ACTIVITY_MANAGER_READY) {
+            Slog.w(LOG_TAG, "Cannot remove user, removeUser is called too early during boot. "
+                            + "ActivityManager is not ready yet.");
             return false;
         }
         return removeUserWithProfilesUnchecked(userId);
@@ -6030,18 +6432,30 @@ public class UserManagerService extends IUserManager.Stub {
     }
 
     /**
-     * Returns the string name of the restriction to check for user removal. The restriction name
-     * varies depending on whether the user is a managed profile.
+     * Returns an optional string name of the restriction to check for user removal. The restriction
+     * name varies depending on whether the user is a managed profile.
+     *
+     * <p>If the flag android.multiuser.ignore_restrictions_when_deleting_private_profile is enabled
+     * and the user is a private profile (i.e. has no removal restrictions) the method will return
+     * {@code Optional.empty()}.
      */
-    private String getUserRemovalRestriction(@UserIdInt int userId) {
+    private Optional<String> getUserRemovalRestrictionOptional(@UserIdInt int userId) {
+        final boolean isPrivateProfile;
         final boolean isManagedProfile;
         final UserInfo userInfo;
         synchronized (mUsersLock) {
             userInfo = getUserInfoLU(userId);
         }
+        isPrivateProfile = userInfo != null && userInfo.isPrivateProfile();
         isManagedProfile = userInfo != null && userInfo.isManagedProfile();
-        return isManagedProfile
-                ? UserManager.DISALLOW_REMOVE_MANAGED_PROFILE : UserManager.DISALLOW_REMOVE_USER;
+        if (android.multiuser.Flags.ignoreRestrictionsWhenDeletingPrivateProfile()
+                && isPrivateProfile) {
+            return Optional.empty();
+        }
+        return Optional.of(
+                isManagedProfile
+                        ? UserManager.DISALLOW_REMOVE_MANAGED_PROFILE
+                        : UserManager.DISALLOW_REMOVE_USER);
     }
 
     private boolean removeUserUnchecked(@UserIdInt int userId) {
@@ -6062,9 +6476,12 @@ public class UserManagerService extends IUserManager.Stub {
                 // on next startup, in case the runtime stops now before stopping and
                 // removing the user completely.
                 userData.info.partial = true;
+                if (android.multiuser.Flags.invalidateCacheOnUsersChangedReadOnly()) {
+                    UserManager.invalidateCacheOnUserListChange();
+                }
                 // Mark it as disabled, so that it isn't returned any more when
                 // profiles are queried.
-                userData.info.flags |= UserInfo.FLAG_DISABLED;
+                addUserInfoFlags(userData.info, UserInfo.FLAG_DISABLED);
                 writeUserLP(userData);
             }
 
@@ -6087,7 +6504,7 @@ public class UserManagerService extends IUserManager.Stub {
             if (DBG) Slog.i(LOG_TAG, "Stopping user " + userId);
             int res;
             try {
-                res = ActivityManager.getService().stopUser(userId, /* force= */ true,
+                res = ActivityManager.getService().stopUserWithCallback(userId,
                 new IStopUserCallback.Stub() {
                             @Override
                             public void userStopped(int userIdParam) {
@@ -6150,9 +6567,13 @@ public class UserManagerService extends IUserManager.Stub {
         checkCreateUsersPermission("Only the system can remove users");
 
         if (!overrideDevicePolicy) {
-            final String restriction = getUserRemovalRestriction(userId);
-            if (getUserRestrictions(UserHandle.getCallingUserId()).getBoolean(restriction, false)) {
-                Slog.w(LOG_TAG, "Cannot remove user. " + restriction + " is enabled.");
+            final Optional<String> restrictionOptional = getUserRemovalRestrictionOptional(userId);
+            if (!restrictionOptional.isEmpty()
+                    && getUserRestrictions(UserHandle.getCallingUserId())
+                            .getBoolean(restrictionOptional.get(), false)) {
+                Slog.w(
+                        LOG_TAG,
+                        "Cannot remove user. " + restrictionOptional.get() + " is enabled.");
                 return UserManager.REMOVE_RESULT_ERROR_USER_RESTRICTION;
             }
         }
@@ -6277,7 +6698,7 @@ public class UserManagerService extends IUserManager.Stub {
 
         // Remove this user from the list
         synchronized (mUsersLock) {
-            mUsers.remove(userId);
+            removeUserDataLU(userId);
             mIsUserManaged.delete(userId);
         }
         synchronized (mUserStates) {
@@ -6663,6 +7084,26 @@ public class UserManagerService extends IUserManager.Stub {
                     + "profile associated with this user");
         }
         return userInfo.creationTime;
+    }
+
+    /**
+     * Adding user data to mUsers list in one place to invalidate related caches.
+     */
+    @GuardedBy("mUsersLock")
+    private void addUserDataLU(UserData userData) {
+        if (android.multiuser.Flags.invalidateCacheOnUsersChangedReadOnly()) {
+            UserManager.invalidateCacheOnUserListChange();
+        }
+        mUsers.put(userData.info.id, userData);
+    }
+
+    /**
+     * Removing user data to mUsers list in one place to invalidate related caches.
+     */
+    @GuardedBy("mUsersLock")
+    private void removeUserDataLU(@UserIdInt int userId) {
+        UserManager.invalidateCacheOnUserListChange();
+        mUsers.remove(userId);
     }
 
     /**
@@ -7098,6 +7539,7 @@ public class UserManagerService extends IUserManager.Stub {
         synchronized (mUsersLock) {
             pw.println("  Boot user: " + mBootUser);
         }
+        pw.println("Can add private profile: "+ canAddPrivateProfile(currentUserId));
 
         pw.println();
         pw.println("Number of listeners for");
@@ -7438,7 +7880,7 @@ public class UserManagerService extends IUserManager.Stub {
                if (userInfo != null && userInfo.isEphemeral()) {
                     // Do not allow switching back to the ephemeral user again as the user is going
                     // to be deleted.
-                    userInfo.flags |= UserInfo.FLAG_DISABLED;
+                    addUserInfoFlags(userInfo, UserInfo.FLAG_DISABLED);
                     if (userInfo.isGuest()) {
                         // Indicate that the guest will be deleted after it stops.
                         userInfo.guestToRemove = true;
@@ -7521,11 +7963,25 @@ public class UserManagerService extends IUserManager.Stub {
             }
             if (userInfo != null) {
                 final UserTypeDetails userDetails = getUserTypeDetails(userInfo);
-                final LauncherUserInfo uiInfo = new LauncherUserInfo.Builder(
-                        userDetails.getName(),
-                        userInfo.serialNumber)
-                        .build();
-                return uiInfo;
+
+                if (Flags.addLauncherUserConfig()) {
+                    Bundle config = new Bundle();
+                    if (userInfo.isPrivateProfile()) {
+                        try {
+                            int parentId = getProfileParentIdUnchecked(userId);
+                            config.putBoolean(PRIVATE_SPACE_ENTRYPOINT_HIDDEN,
+                                    Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                                            HIDE_PRIVATESPACE_ENTRY_POINT, parentId) == 1);
+                        } catch (Settings.SettingNotFoundException e) {
+                            config.putBoolean(PRIVATE_SPACE_ENTRYPOINT_HIDDEN, false);
+                        }
+                    }
+                    return new LauncherUserInfo.Builder(userDetails.getName(),
+                            userInfo.serialNumber, config).build();
+                }
+
+                return new LauncherUserInfo.Builder(userDetails.getName(),
+                        userInfo.serialNumber).build();
             } else {
                 return null;
             }
@@ -7723,6 +8179,17 @@ public class UserManagerService extends IUserManager.Stub {
         }
 
         @Override
+        public boolean isVisibleBackgroundFullUser(@UserIdInt int userId) {
+            if (!UserManager.isVisibleBackgroundUsersEnabled()) {
+                return false;
+            }
+            boolean isForeground = userId == getCurrentUserId();
+            boolean isProfile = isProfileUnchecked(userId);
+            boolean isVisible = isUserVisible(userId);
+            return isVisible && !isForeground && !isProfile;
+        }
+
+        @Override
         public int getMainDisplayAssignedToUser(@UserIdInt int userId) {
             return mUserVisibilityMediator.getMainDisplayAssignedToUser(userId);
         }
@@ -7824,8 +8291,13 @@ public class UserManagerService extends IUserManager.Stub {
             String errorMessage = (message != null ? (message + ": ") : "")
                     + restriction + " is enabled.";
             Slog.w(LOG_TAG, errorMessage);
-            throw new UserManager.CheckedUserOperationException(errorMessage,
+            if (android.multiuser.Flags.showDifferentCreationErrorForUnsupportedDevices()) {
+                throw new UserManager.CheckedUserOperationException(errorMessage,
+                    USER_OPERATION_ERROR_USER_RESTRICTED);
+            } else {
+                throw new UserManager.CheckedUserOperationException(errorMessage,
                     USER_OPERATION_ERROR_UNKNOWN);
+            }
         }
     }
 

@@ -109,6 +109,7 @@ public class Annotation {
             //TelephonyManager.NETWORK_TYPE_LTE_CA,
 
             TelephonyManager.NETWORK_TYPE_NR,
+            TelephonyManager.NETWORK_TYPE_NB_IOT_NTN,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface NetworkType {
@@ -715,6 +716,31 @@ public class Annotation {
             NetworkCapabilities.NET_CAPABILITY_PRIORITIZE_BANDWIDTH
     })
     public @interface NetCapability { }
+
+
+    /**
+     * Representing the transport type.  Apps should generally not care about transport.  A
+     * request for a fast internet connection could be satisfied by a number of different
+     * transports.  If any are specified here it will be satisfied a Network that matches
+     * any of them.  If a caller doesn't care about the transport it should not specify any.
+     * Must update here when new capabilities are added in {@link NetworkCapabilities}.
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(prefix = { "TRANSPORT_" }, value = {
+            NetworkCapabilities.TRANSPORT_CELLULAR,
+            NetworkCapabilities.TRANSPORT_WIFI,
+            NetworkCapabilities.TRANSPORT_BLUETOOTH,
+            NetworkCapabilities.TRANSPORT_ETHERNET,
+            NetworkCapabilities.TRANSPORT_VPN,
+            NetworkCapabilities.TRANSPORT_WIFI_AWARE,
+            NetworkCapabilities.TRANSPORT_LOWPAN,
+            NetworkCapabilities.TRANSPORT_TEST,
+            NetworkCapabilities.TRANSPORT_USB,
+            NetworkCapabilities.TRANSPORT_THREAD,
+            NetworkCapabilities.TRANSPORT_SATELLITE,
+    })
+    public @interface ConnectivityTransport { }
+
 
     /**
      * Per Android API guideline 8.15, annotation can't be public APIs. So duplicate

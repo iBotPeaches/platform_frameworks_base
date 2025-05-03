@@ -16,27 +16,51 @@
 package com.android.systemui.dreams.homecontrols
 
 import android.app.Activity
+import android.content.ComponentName
+import android.content.Intent
+import android.os.powerManager
+import android.service.controls.ControlsProviderService.CONTROLS_SURFACE_ACTIVITY_PANEL
+import android.service.controls.ControlsProviderService.CONTROLS_SURFACE_DREAM
+import android.service.controls.ControlsProviderService.EXTRA_CONTROLS_SURFACE
+import android.service.dreams.DreamService
+import android.window.TaskFragmentInfo
+import androidx.lifecycle.testing.TestLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.controls.settings.FakeControlsSettingsRepository
+import com.android.systemui.dreams.homecontrols.service.TaskFragmentComponent
+import com.android.systemui.dreams.homecontrols.shared.model.HomeControlsComponentInfo
+import com.android.systemui.dreams.homecontrols.shared.model.fakeHomeControlsDataSource
+import com.android.systemui.dreams.homecontrols.shared.model.homeControlsDataSource
 import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
-import com.android.systemui.log.core.FakeLogBuffer.Factory.Companion.create
 import com.android.systemui.log.logcatLogBuffer
 import com.android.systemui.testKosmos
-import com.android.systemui.util.mockito.any
-import com.android.systemui.util.mockito.whenever
-import java.util.Optional
+import com.android.systemui.util.time.fakeSystemClock
+import com.android.systemui.util.wakelock.WakeLockFake
+import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mock
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
-import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class HomeControlsDreamServiceTest : SysuiTestCase() {
@@ -44,24 +68,63 @@ class HomeControlsDreamServiceTest : SysuiTestCase() {
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
 
-    @Mock private lateinit var taskFragmentComponentFactory: TaskFragmentComponent.Factory
-    @Mock private lateinit var taskFragmentComponent: TaskFragmentComponent
-    @Mock private lateinit var activity: Activity
+    private val fakeWakeLock = WakeLockFake()
+    private val fakeWakeLockBuilder by lazy {
+        WakeLockFake.Builder(context).apply { setWakeLock(fakeWakeLock) }
+    }
 
-    private lateinit var underTest: HomeControlsDreamService
+    private val lifecycleOwner = TestLifecycleOwner(coroutineDispatcher = kosmos.testDispatcher)
+
+    private val taskFragmentComponent = mock<TaskFragmentComponent>()
+    private val activity = mock<Activity>()
+    private val onCreateCallback = argumentCaptor<(TaskFragmentInfo) -> Unit>()
+    private val onInfoChangedCallback = argumentCaptor<(TaskFragmentInfo) -> Unit>()
+    private val hideCallback = argumentCaptor<() -> Unit>()
+    private var dreamService =
+        mock<DreamService> {
+            on { activity } doReturn activity
+            on { redirectWake } doReturn false
+        }
+
+    private val taskFragmentComponentFactory =
+        mock<TaskFragmentComponent.Factory> {
+            on {
+                create(
+                    activity = eq(activity),
+                    onCreateCallback = onCreateCallback.capture(),
+                    onInfoChangedCallback = onInfoChangedCallback.capture(),
+                    hide = hideCallback.capture(),
+                )
+            } doReturn taskFragmentComponent
+        }
+
+    private val underTest: HomeControlsDreamServiceImpl by lazy {
+        with(kosmos) {
+            HomeControlsDreamServiceImpl(
+                taskFragmentFactory = taskFragmentComponentFactory,
+                wakeLockBuilder = fakeWakeLockBuilder,
+                powerManager = powerManager,
+                systemClock = fakeSystemClock,
+                dataSource = homeControlsDataSource,
+                logBuffer = logcatLogBuffer("HomeControlsDreamServiceTest"),
+                service = dreamService,
+                lifecycleOwner = lifecycleOwner,
+            )
+        }
+    }
 
     @Before
-    fun setup() =
-        with(kosmos) {
-            MockitoAnnotations.initMocks(this@HomeControlsDreamServiceTest)
-            whenever(taskFragmentComponentFactory.create(any(), any(), any(), any()))
-                .thenReturn(taskFragmentComponent)
+    fun setup() {
+        Dispatchers.setMain(kosmos.testDispatcher)
+        kosmos.fakeHomeControlsDataSource.setComponentInfo(
+            HomeControlsComponentInfo(PANEL_COMPONENT, true)
+        )
+    }
 
-            whenever(controlsComponent.getControlsListingController())
-                .thenReturn(Optional.of(controlsListingController))
-
-            underTest = buildService { activity }
-        }
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun testOnAttachedToWindowCreatesTaskFragmentComponent() =
@@ -81,21 +144,80 @@ class HomeControlsDreamServiceTest : SysuiTestCase() {
     @Test
     fun testNotCreatingTaskFragmentComponentWhenActivityIsNull() =
         testScope.runTest {
-            underTest = buildService { null }
-
+            dreamService = mock<DreamService> { on { activity } doReturn null }
             underTest.onAttachedToWindow()
             verify(taskFragmentComponentFactory, never()).create(any(), any(), any(), any())
+            verify(dreamService).finish()
         }
 
-    private fun buildService(activityProvider: DreamActivityProvider): HomeControlsDreamService =
-        with(kosmos) {
-            return HomeControlsDreamService(
-                controlsSettingsRepository = FakeControlsSettingsRepository(),
-                taskFragmentFactory = taskFragmentComponentFactory,
-                homeControlsComponentInteractor = homeControlsComponentInteractor,
-                dreamActivityProvider = activityProvider,
-                bgDispatcher = testDispatcher,
-                logBuffer = logcatLogBuffer("HomeControlsDreamServiceTest")
-            )
+    @Test
+    fun testAttachWindow_wakeLockAcquired() =
+        testScope.runTest {
+            underTest.onAttachedToWindow()
+            assertThat(fakeWakeLock.isHeld).isTrue()
         }
+
+    @Test
+    fun testDetachWindow_wakeLockCanBeReleased() =
+        testScope.runTest {
+            underTest.onAttachedToWindow()
+            assertThat(fakeWakeLock.isHeld).isTrue()
+
+            underTest.onDetachedFromWindow()
+            assertThat(fakeWakeLock.isHeld).isFalse()
+        }
+
+    @Test
+    fun testFinishesDreamWithoutRestartingActivityWhenNotRedirectingWakes() =
+        testScope.runTest {
+            underTest.onAttachedToWindow()
+            onCreateCallback.firstValue.invoke(mock<TaskFragmentInfo>())
+            runCurrent()
+            verify(taskFragmentComponent, times(1)).startActivityInTaskFragment(intentMatcher())
+
+            // Task fragment becomes empty
+            onInfoChangedCallback.firstValue.invoke(
+                mock<TaskFragmentInfo> { on { isEmpty } doReturn true }
+            )
+            advanceUntilIdle()
+            // Dream is finished and activity is not restarted
+            verify(taskFragmentComponent, times(1)).startActivityInTaskFragment(intentMatcher())
+            verify(dreamService, never()).wakeUp()
+            verify(dreamService).finish()
+        }
+
+    @Test
+    fun testRestartsActivityWhenRedirectingWakes() =
+        testScope.runTest {
+            dreamService =
+                mock<DreamService> {
+                    on { activity } doReturn activity
+                    on { redirectWake } doReturn true
+                }
+            underTest.onAttachedToWindow()
+            onCreateCallback.firstValue.invoke(mock<TaskFragmentInfo>())
+            runCurrent()
+            verify(taskFragmentComponent, times(1)).startActivityInTaskFragment(intentMatcher())
+
+            // Task fragment becomes empty
+            onInfoChangedCallback.firstValue.invoke(
+                mock<TaskFragmentInfo> { on { isEmpty } doReturn true }
+            )
+            advanceUntilIdle()
+
+            // Activity is restarted instead of finishing the dream.
+            verify(taskFragmentComponent, times(2)).startActivityInTaskFragment(intentMatcher())
+            verify(dreamService).wakeUp()
+            verify(dreamService, never()).finish()
+        }
+
+    private fun intentMatcher() =
+        argThat<Intent> {
+            getIntExtra(EXTRA_CONTROLS_SURFACE, CONTROLS_SURFACE_ACTIVITY_PANEL) ==
+                CONTROLS_SURFACE_DREAM && component == PANEL_COMPONENT
+        }
+
+    private companion object {
+        val PANEL_COMPONENT = ComponentName("test.pkg", "test.panel")
+    }
 }

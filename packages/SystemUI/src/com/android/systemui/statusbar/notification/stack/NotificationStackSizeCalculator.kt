@@ -20,15 +20,18 @@ import android.content.res.Resources
 import android.util.Log
 import android.view.View.GONE
 import androidx.annotation.VisibleForTesting
-import com.android.systemui.res.R
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.media.controls.domain.pipeline.MediaDataManager
+import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.LockscreenShadeTransitionController
 import com.android.systemui.statusbar.StatusBarState.KEYGUARD
 import com.android.systemui.statusbar.SysuiStatusBarStateController
+import com.android.systemui.statusbar.notification.domain.interactor.SeenNotificationsInteractor
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.ExpandableView
+import com.android.systemui.statusbar.notification.shared.NotificationMinimalism
 import com.android.systemui.statusbar.policy.SplitShadeStateController
 import com.android.systemui.util.Compile
 import com.android.systemui.util.children
@@ -37,6 +40,9 @@ import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.properties.Delegates.notNull
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 private const val TAG = "NotifStackSizeCalc"
 private val DEBUG = Compile.IS_DEBUG && Log.isLoggable(TAG, Log.DEBUG)
@@ -54,8 +60,10 @@ constructor(
     private val statusBarStateController: SysuiStatusBarStateController,
     private val lockscreenShadeTransitionController: LockscreenShadeTransitionController,
     private val mediaDataManager: MediaDataManager,
-    @Main private val resources: Resources,
-    private val splitShadeStateController: SplitShadeStateController
+    @ShadeDisplayAware private val resources: Resources,
+    private val splitShadeStateController: SplitShadeStateController,
+    private val seenNotificationsInteractor: SeenNotificationsInteractor,
+    @Application private val scope: CoroutineScope,
 ) {
 
     /**
@@ -66,6 +74,15 @@ constructor(
      */
     private var maxKeyguardNotifications by notNull<Int>()
 
+    /**
+     * Whether [maxKeyguardNotifications] will have 1 added to it when media is shown in the stack.
+     */
+    private var maxNotificationsExcludesMedia = false
+
+    /** Whether we allow keyguard to show less important notifications above the shelf. */
+    private val limitLockScreenToOneImportant
+        get() = NotificationMinimalism.isEnabled && minimalismSettingEnabled
+
     /** Minimum space between two notifications, see [calculateGapAndDividerHeight]. */
     private var dividerHeight by notNull<Float>()
 
@@ -75,9 +92,23 @@ constructor(
      */
     private var saveSpaceOnLockscreen = false
 
+    /** True when the lock screen notification minimalism feature setting is enabled */
+    private var minimalismSettingEnabled = false
+
     init {
         updateResources()
+        if (NotificationMinimalism.isEnabled) {
+            scope.launch { trackLockScreenNotificationMinimalismSettingChanges() }
+        }
     }
+
+    private fun allowedByPolicy(stackHeight: StackHeight): Boolean =
+        if (stackHeight.shouldForceIntoShelf) {
+            log { "\tallowedByPolicy = false" }
+            false
+        } else {
+            true
+        }
 
     /**
      * Returns whether notifications and (shelf if visible) can fit in total space available.
@@ -168,25 +199,29 @@ constructor(
         log { "\n" }
 
         val stackHeightSequence = computeHeightPerNotificationLimit(stack, shelfHeight)
+
+        // TODO: Avoid making this split shade assumption by simply checking the stack for media
         val isMediaShowing = mediaDataManager.hasActiveMediaOrRecommendation()
+        val isMediaShowingInStack =
+            isMediaShowing && !splitShadeStateController.shouldUseSplitNotificationShade(resources)
 
         log { "\tGet maxNotifWithoutSavingSpace ---" }
         val maxNotifWithoutSavingSpace =
             stackHeightSequence.lastIndexWhile { heightResult ->
-                canStackFitInSpace(
-                    heightResult,
-                    notifSpace = notifSpace,
-                    shelfSpace = shelfSpace
-                ) == FitResult.FIT
+                allowedByPolicy(heightResult) &&
+                    canStackFitInSpace(
+                        heightResult,
+                        notifSpace = notifSpace,
+                        shelfSpace = shelfSpace,
+                    ) == FitResult.FIT
             }
 
         // How many notifications we can show at heightWithoutLockscreenConstraints
-        var minCountAtHeightWithoutConstraints =
-            if (isMediaShowing && !splitShadeStateController
-                    .shouldUseSplitNotificationShade(resources)) 2 else 1
+        val minCountAtHeightWithoutConstraints = if (isMediaShowingInStack) 2 else 1
         log {
             "\t---maxNotifWithoutSavingSpace=$maxNotifWithoutSavingSpace " +
                 "isMediaShowing=$isMediaShowing" +
+                "isMediaShowingInStack=$isMediaShowingInStack" +
                 "minCountAtHeightWithoutConstraints=$minCountAtHeightWithoutConstraints"
         }
         log { "\n" }
@@ -203,11 +238,12 @@ constructor(
             saveSpaceOnLockscreen = true
             maxNotifications =
                 stackHeightSequence.lastIndexWhile { heightResult ->
-                    canStackFitInSpace(
-                        heightResult,
-                        notifSpace = notifSpace,
-                        shelfSpace = shelfSpace
-                    ) != FitResult.NO_FIT
+                    allowedByPolicy(heightResult) &&
+                        canStackFitInSpace(
+                            heightResult,
+                            notifSpace = notifSpace,
+                            shelfSpace = shelfSpace,
+                        ) != FitResult.NO_FIT
                 }
             log { "\t--- maxNotifications=$maxNotifications" }
         }
@@ -223,7 +259,9 @@ constructor(
         }
 
         if (onLockscreen()) {
-            maxNotifications = min(maxKeyguardNotifications, maxNotifications)
+            val increaseMaxForMedia = maxNotificationsExcludesMedia && isMediaShowingInStack
+            val lockscreenMax = maxKeyguardNotifications.safeIncrementIf(increaseMaxForMedia)
+            maxNotifications = min(lockscreenMax, maxNotifications)
         }
 
         // Could be < 0 if the space available is less than the shelf size. Returns 0 in this case.
@@ -252,7 +290,7 @@ constructor(
     fun computeHeight(
         stack: NotificationStackScrollLayout,
         maxNotifs: Int,
-        shelfHeight: Float
+        shelfHeight: Float,
     ): Float {
         log { "\n" }
         log { "computeHeight ---" }
@@ -276,7 +314,7 @@ constructor(
             height = notifsHeight + shelfHeightWithSpaceBefore
             log {
                 "--- computeHeight(maxNotifs=$maxNotifs, shelfHeight=$shelfHeight)" +
-                    " -> ${height}=($notifsHeight+$shelfHeightWithSpaceBefore)" +
+                    " -> $height=($notifsHeight+$shelfHeightWithSpaceBefore)" +
                     " | saveSpaceOnLockscreen=$saveSpaceOnLockscreen"
             }
         }
@@ -286,7 +324,7 @@ constructor(
     private enum class FitResult {
         FIT,
         FIT_IF_SAVE_SPACE,
-        NO_FIT
+        NO_FIT,
     }
 
     data class SpaceNeeded(
@@ -294,7 +332,7 @@ constructor(
         val whenEnoughSpace: Float,
 
         // Float height of space needed when showing collapsed layout for FSI HUNs.
-        val whenSavingSpace: Float
+        val whenSavingSpace: Float,
     )
 
     private data class StackHeight(
@@ -307,8 +345,21 @@ constructor(
 
         // Float height of shelf (0 if shelf is not showing), and space before the shelf that
         // changes during the lockscreen <=> full shade transition.
-        val shelfHeightWithSpaceBefore: Float
+        val shelfHeightWithSpaceBefore: Float,
+
+        /** Whether the stack should actually be forced into the shelf before this height. */
+        val shouldForceIntoShelf: Boolean,
     )
+
+    private suspend fun trackLockScreenNotificationMinimalismSettingChanges() {
+        if (NotificationMinimalism.isUnexpectedlyInLegacyMode()) return
+        seenNotificationsInteractor.isLockScreenNotificationMinimalismEnabled().collectLatest {
+            if (it != minimalismSettingEnabled) {
+                minimalismSettingEnabled = it
+            }
+            Log.i(TAG, "minimalismSettingEnabled: $minimalismSettingEnabled")
+        }
+    }
 
     private fun computeHeightPerNotificationLimit(
         stack: NotificationStackScrollLayout,
@@ -320,12 +371,15 @@ constructor(
         var previous: ExpandableView? = null
         val onLockscreen = onLockscreen()
 
+        val counter = if (limitLockScreenToOneImportant) BucketTypeCounter() else null
+
         // Only shelf. This should never happen, since we allow 1 view minimum (EmptyViewState).
         yield(
             StackHeight(
                 notifsHeight = 0f,
                 notifsHeightSavingSpace = 0f,
-                shelfHeightWithSpaceBefore = shelfHeight
+                shelfHeightWithSpaceBefore = shelfHeight,
+                shouldForceIntoShelf = false,
             )
         )
 
@@ -346,21 +400,28 @@ constructor(
                             stack,
                             previous = currentNotification,
                             current = children[firstViewInShelfIndex],
-                            currentIndex = firstViewInShelfIndex
+                            currentIndex = firstViewInShelfIndex,
                         )
                     spaceBeforeShelf + shelfHeight
                 }
 
+            if (counter != null) {
+                val entry = (currentNotification as? ExpandableNotificationRow)?.entry
+                counter.incrementForBucket(entry?.bucket)
+            }
+
             log {
                 "\tcomputeHeightPerNotificationLimit i=$i notifs=$notifications " +
                     "notifsHeightSavingSpace=$notifsWithCollapsedHun" +
-                    " shelfWithSpaceBefore=$shelfWithSpaceBefore"
+                    " shelfWithSpaceBefore=$shelfWithSpaceBefore" +
+                    " limitLockScreenToOneImportant: $limitLockScreenToOneImportant"
             }
             yield(
                 StackHeight(
                     notifsHeight = notifications,
                     notifsHeightSavingSpace = notifsWithCollapsedHun,
-                    shelfHeightWithSpaceBefore = shelfWithSpaceBefore
+                    shelfHeightWithSpaceBefore = shelfWithSpaceBefore,
+                    shouldForceIntoShelf = counter?.shouldForceIntoShelf() ?: false,
                 )
             )
         }
@@ -369,6 +430,7 @@ constructor(
     fun updateResources() {
         maxKeyguardNotifications =
             infiniteIfNegative(resources.getInteger(R.integer.keyguard_max_notification_count))
+        maxNotificationsExcludesMedia = NotificationMinimalism.isEnabled
 
         dividerHeight =
             max(1f, resources.getDimensionPixelSize(R.dimen.notification_divider_height).toFloat())
@@ -424,6 +486,10 @@ constructor(
 
     fun dump(pw: PrintWriter, args: Array<out String>) {
         pw.println("NotificationStackSizeCalculator saveSpaceOnLockscreen=$saveSpaceOnLockscreen")
+        pw.println(
+            "NotificationStackSizeCalculator " +
+                "limitLockScreenToOneImportant=$limitLockScreenToOneImportant"
+        )
     }
 
     private fun ExpandableView.isShowable(onLockscreen: Boolean): Boolean {
@@ -446,7 +512,7 @@ constructor(
         stack: NotificationStackScrollLayout,
         previous: ExpandableView?,
         current: ExpandableView?,
-        currentIndex: Int
+        currentIndex: Int,
     ): Float {
         if (currentIndex == 0) {
             return 0f
@@ -486,7 +552,30 @@ constructor(
             v
         }
 
+    private fun Int.safeIncrementIf(condition: Boolean): Int =
+        if (condition && this != Int.MAX_VALUE) {
+            this + 1
+        } else {
+            this
+        }
+
     /** Returns the last index where [predicate] returns true, or -1 if it was always false. */
     private fun <T> Sequence<T>.lastIndexWhile(predicate: (T) -> Boolean): Int =
         takeWhile(predicate).count() - 1
+
+    /** Counts the number of notifications for each type of bucket */
+    data class BucketTypeCounter(var ongoing: Int = 0, var important: Int = 0, var other: Int = 0) {
+        fun incrementForBucket(@PriorityBucket bucket: Int?) {
+            when (bucket) {
+                BUCKET_MEDIA_CONTROLS,
+                null -> Unit // not counted as notifications at all
+                BUCKET_TOP_ONGOING -> ongoing++
+                BUCKET_HEADS_UP -> important++
+                BUCKET_TOP_UNSEEN -> important++
+                else -> other++
+            }
+        }
+
+        fun shouldForceIntoShelf(): Boolean = ongoing > 1 || important > 1 || other > 0
+    }
 }

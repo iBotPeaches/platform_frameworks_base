@@ -21,7 +21,6 @@ import android.content.Context
 import android.media.AudioManager
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
-import com.android.systemui.res.R
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
 import com.android.systemui.common.shared.model.ContentDescription
@@ -31,8 +30,10 @@ import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.keyguard.shared.quickaffordance.ActivationState
+import com.android.systemui.res.R
 import com.android.systemui.settings.UserFileManager
 import com.android.systemui.settings.UserTracker
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.util.RingerModeTracker
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,14 +45,14 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.withContext
 
 @SysUISingleton
 class MuteQuickAffordanceConfig
 @Inject
 constructor(
-    private val context: Context,
+    @ShadeDisplayAware private val context: Context,
     private val userTracker: UserTracker,
     private val userFileManager: UserFileManager,
     private val ringerModeTracker: RingerModeTracker,
@@ -86,8 +87,8 @@ constructor(
                         audioManager.isVolumeFixed ->
                             ActivationState.NotSupported to R.string.volume_ringer_hint_mute
                         mode == AudioManager.RINGER_MODE_SILENT ->
-                            ActivationState.Active to R.string.volume_ringer_hint_mute
-                        else -> ActivationState.Inactive to R.string.volume_ringer_hint_unmute
+                            ActivationState.Active to R.string.volume_ringer_hint_unmute
+                        else -> ActivationState.Inactive to R.string.volume_ringer_hint_mute
                     }
 
                 KeyguardQuickAffordanceConfig.LockScreenState.Visible(
@@ -103,7 +104,7 @@ constructor(
     override fun onTriggered(
         expandable: Expandable?
     ): KeyguardQuickAffordanceConfig.OnTriggeredResult {
-        coroutineScope.launch(backgroundDispatcher) {
+        coroutineScope.launch(context = backgroundDispatcher) {
             val newRingerMode: Int
             val currentRingerMode = audioManager.ringerModeInternal
             if (currentRingerMode == AudioManager.RINGER_MODE_SILENT) {

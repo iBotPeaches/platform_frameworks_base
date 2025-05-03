@@ -69,12 +69,22 @@ public:
         return get()->mSupportFp16ForHdr;
     };
 
+    static void setSupportRgba10101010ForHdr(bool supportRgba10101010ForHdr);
+    static bool isSupportRgba10101010ForHdr() {
+        if (!Properties::hdr10bitPlus) {
+            return false;
+        }
+
+        return get()->mSupportRgba10101010ForHdr;
+    };
+
     static void setSupportMixedColorSpaces(bool supportMixedColorSpaces);
     static bool isSupportMixedColorSpaces() { return get()->mSupportMixedColorSpaces; };
 
     // this value is only valid after the GPU has been initialized and there is a valid graphics
     // context or if you are using the HWUI_NULL_GPU
     int maxTextureSize() const;
+    bool hasMaxTextureSize() const { return mMaxTextureSize > 0; }
     sk_sp<SkColorSpace> getWideColorSpace() const { return mWideColorSpace; }
     SkColorType getWideColorType() {
         static std::once_flag kFlag;
@@ -102,6 +112,7 @@ private:
     int mMaxTextureSize;
     sk_sp<SkColorSpace> mWideColorSpace = SkColorSpace::MakeSRGB();
     bool mSupportFp16ForHdr = false;
+    bool mSupportRgba10101010ForHdr = false;
     bool mSupportMixedColorSpaces = false;
     SkColorType mWideColorType = SkColorType::kN32_SkColorType;
     int mDisplaysSize = 0;

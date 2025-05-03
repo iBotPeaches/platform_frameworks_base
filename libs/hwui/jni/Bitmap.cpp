@@ -1,8 +1,14 @@
 // #define LOG_NDEBUG 0
 #include "Bitmap.h"
 
+#include <android-base/unique_fd.h>
 #include <hwui/Bitmap.h>
 #include <hwui/Paint.h>
+#include <inttypes.h>
+#include <renderthread/RenderProxy.h>
+#include <string.h>
+
+#include <memory>
 
 #include "CreateJavaOutputStreamAdaptor.h"
 #include "Gainmap.h"
@@ -24,22 +30,9 @@
 #include "SkTypes.h"
 #include "android_nio_utils.h"
 
-#ifdef __ANDROID__ // Layoutlib does not support graphic buffer, parcel or render thread
-#include <android-base/unique_fd.h>
-#include <renderthread/RenderProxy.h>
-#endif
-
-#include <inttypes.h>
-#include <string.h>
-
-#include <memory>
-
 #define DEBUG_PARCEL 0
 
 static jclass   gBitmap_class;
-static jfieldID gBitmap_nativePtr;
-static jmethodID gBitmap_constructorMethodID;
-static jmethodID gBitmap_reinitMethodID;
 
 namespace android {
 
@@ -187,6 +180,9 @@ static void assert_premultiplied(const SkImageInfo& info, bool isPremultiplied) 
 void reinitBitmap(JNIEnv* env, jobject javaBitmap, const SkImageInfo& info,
         bool isPremultiplied)
 {
+    static jmethodID gBitmap_reinitMethodID =
+        GetMethodIDOrDie(env, gBitmap_class, "reinit", "(IIZ)V");
+
     // The caller needs to have already set the alpha type properly, so the
     // native SkBitmap stays in sync with the Java Bitmap.
     assert_premultiplied(info, isPremultiplied);
@@ -198,6 +194,10 @@ void reinitBitmap(JNIEnv* env, jobject javaBitmap, const SkImageInfo& info,
 jobject createBitmap(JNIEnv* env, Bitmap* bitmap,
         int bitmapCreateFlags, jbyteArray ninePatchChunk, jobject ninePatchInsets,
         int density) {
+    static jmethodID gBitmap_constructorMethodID =
+        GetMethodIDOrDie(env, gBitmap_class,
+            "<init>", "(JJIIIZ[BLandroid/graphics/NinePatch$InsetStruct;Z)V");
+
     bool isMutable = bitmapCreateFlags & kBitmapCreateFlag_Mutable;
     bool isPremultiplied = bitmapCreateFlags & kBitmapCreateFlag_Premultiplied;
     // The caller needs to have already set the alpha type properly, so the
@@ -209,7 +209,8 @@ jobject createBitmap(JNIEnv* env, Bitmap* bitmap,
         bitmapWrapper->bitmap().setImmutable();
     }
     jobject obj = env->NewObject(gBitmap_class, gBitmap_constructorMethodID,
-            reinterpret_cast<jlong>(bitmapWrapper), bitmap->width(), bitmap->height(), density,
+            static_cast<jlong>(bitmap->getId()), reinterpret_cast<jlong>(bitmapWrapper),
+            bitmap->width(), bitmap->height(), density,
             isPremultiplied, ninePatchChunk, ninePatchInsets, fromMalloc);
 
     if (env->ExceptionCheck() != 0) {
@@ -236,11 +237,17 @@ Bitmap& toBitmap(jlong bitmapHandle) {
 using namespace android;
 using namespace android::bitmap;
 
+static inline jlong getNativePtr(JNIEnv* env, jobject bitmap) {
+    static jfieldID gBitmap_nativePtr =
+        GetFieldIDOrDie(env, gBitmap_class, "mNativePtr", "J");
+    return env->GetLongField(bitmap, gBitmap_nativePtr);
+}
+
 Bitmap* GraphicsJNI::getNativeBitmap(JNIEnv* env, jobject bitmap) {
     SkASSERT(env);
     SkASSERT(bitmap);
     SkASSERT(env->IsInstanceOf(bitmap, gBitmap_class));
-    jlong bitmapHandle = env->GetLongField(bitmap, gBitmap_nativePtr);
+    jlong bitmapHandle = getNativePtr(env, bitmap);
     LocalScopedBitmap localBitmap(bitmapHandle);
     return localBitmap.valid() ? &localBitmap->bitmap() : nullptr;
 }
@@ -250,7 +257,7 @@ SkImageInfo GraphicsJNI::getBitmapInfo(JNIEnv* env, jobject bitmap, uint32_t* ou
     SkASSERT(env);
     SkASSERT(bitmap);
     SkASSERT(env->IsInstanceOf(bitmap, gBitmap_class));
-    jlong bitmapHandle = env->GetLongField(bitmap, gBitmap_nativePtr);
+    jlong bitmapHandle = getNativePtr(env, bitmap);
     LocalScopedBitmap localBitmap(bitmapHandle);
     if (outRowBytes) {
         *outRowBytes = localBitmap->rowBytes();
@@ -662,14 +669,20 @@ static binder_status_t writeBlobFromFd(AParcel* parcel, int32_t size, int fd) {
     return STATUS_OK;
 }
 
-static binder_status_t writeBlob(AParcel* parcel, const int32_t size, const void* data, bool immutable) {
+static binder_status_t writeBlob(AParcel* parcel, uint64_t bitmapId, const SkBitmap& bitmap) {
+    const size_t size = bitmap.computeByteSize();
+    const void* data = bitmap.getPixels();
+    const bool immutable = bitmap.isImmutable();
+
     if (size <= 0 || data == nullptr) {
         return STATUS_NOT_ENOUGH_DATA;
     }
     binder_status_t error = STATUS_OK;
     if (shouldUseAshmem(parcel, size)) {
         // Create new ashmem region with read/write priv
-        base::unique_fd fd(ashmem_create_region("bitmap", size));
+        auto ashmemId = Bitmap::getAshmemId("writeblob", bitmapId,
+                                            bitmap.width(), bitmap.height(), size);
+        base::unique_fd fd(ashmem_create_region(ashmemId.c_str(), size));
         if (fd.get() < 0) {
             return STATUS_NO_MEMORY;
         }
@@ -877,8 +890,7 @@ static jboolean Bitmap_writeToParcel(JNIEnv* env, jobject,
           p.allowFds() ? "allowed" : "forbidden");
 #endif
 
-    size_t size = bitmap.computeByteSize();
-    status = writeBlob(p.get(), size, bitmap.getPixels(), bitmap.isImmutable());
+    status = writeBlob(p.get(), bitmapWrapper->bitmap().getId(), bitmap);
     if (status) {
         doThrowRE(env, "Could not copy bitmap to parcel blob.");
         return JNI_FALSE;
@@ -1105,11 +1117,9 @@ static jboolean Bitmap_sameAs(JNIEnv* env, jobject, jlong bm0Handle, jlong bm1Ha
 }
 
 static void Bitmap_prepareToDraw(JNIEnv* env, jobject, jlong bitmapPtr) {
-#ifdef __ANDROID__ // Layoutlib does not support render thread
     LocalScopedBitmap bitmapHandle(bitmapPtr);
     if (!bitmapHandle.valid()) return;
     android::uirenderer::renderthread::RenderProxy::prepareToDraw(bitmapHandle->bitmap());
-#endif
 }
 
 static jint Bitmap_getAllocationByteCount(JNIEnv* env, jobject, jlong bitmapPtr) {
@@ -1275,9 +1285,6 @@ static const JNINativeMethod gBitmapMethods[] = {
 int register_android_graphics_Bitmap(JNIEnv* env)
 {
     gBitmap_class = MakeGlobalRefOrDie(env, FindClassOrDie(env, "android/graphics/Bitmap"));
-    gBitmap_nativePtr = GetFieldIDOrDie(env, gBitmap_class, "mNativePtr", "J");
-    gBitmap_constructorMethodID = GetMethodIDOrDie(env, gBitmap_class, "<init>", "(JIIIZ[BLandroid/graphics/NinePatch$InsetStruct;Z)V");
-    gBitmap_reinitMethodID = GetMethodIDOrDie(env, gBitmap_class, "reinit", "(IIZ)V");
     uirenderer::HardwareBufferHelpers::init();
     return android::RegisterMethodsOrDie(env, "android/graphics/Bitmap", gBitmapMethods,
                                          NELEM(gBitmapMethods));

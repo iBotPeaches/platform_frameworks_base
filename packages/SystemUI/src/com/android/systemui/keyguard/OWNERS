@@ -1,0 +1,14 @@
+set noparent
+
+# Bug component: 78010
+
+include /services/core/java/com/android/server/biometrics/OWNERS
+
+amiko@google.com
+beverlyt@google.com
+bhinegardner@google.com
+chandruis@google.com
+jglazier@google.com
+mpietal@google.com
+tsuji@google.com
+yuandizhou@google.com

@@ -16,6 +16,11 @@
 
 package com.android.systemui.statusbar.policy;
 
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_INNER_PRIMARY;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_CLOSED;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_HALF_OPEN;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_OPEN;
 import static android.provider.Settings.Secure.DEVICE_STATE_ROTATION_LOCK_IGNORED;
 import static android.provider.Settings.Secure.DEVICE_STATE_ROTATION_LOCK_LOCKED;
 import static android.provider.Settings.Secure.DEVICE_STATE_ROTATION_LOCK_UNLOCKED;
@@ -24,14 +29,17 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import android.annotation.NonNull;
+import android.hardware.devicestate.DeviceState;
 import android.hardware.devicestate.DeviceStateManager;
 import android.os.UserHandle;
 import android.provider.Settings;
-import android.testing.AndroidTestingRunner;
 import android.testing.TestableContentResolver;
 import android.testing.TestableResources;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.internal.R;
@@ -50,14 +58,37 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-@RunWith(AndroidTestingRunner.class)
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+@RunWith(AndroidJUnit4.class)
 @SmallTest
 public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase {
 
+    private static final DeviceState DEFAULT_FOLDED_STATE = createDeviceState(0 /* identifier */,
+            "folded", Set.of(PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY),
+            Set.of(PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_CLOSED));
+    private static final DeviceState DEFAULT_HALF_FOLDED_STATE = createDeviceState(
+            2 /* identifier */, "half_folded",
+            Set.of(PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_INNER_PRIMARY),
+            Set.of(PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_HALF_OPEN));
+    private static final DeviceState DEFAULT_UNFOLDED_STATE = createDeviceState(1 /* identifier */,
+            "unfolded",
+            Set.of(PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_INNER_PRIMARY),
+            Set.of(PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_OPEN));
+    private static final DeviceState UNKNOWN_DEVICE_STATE = createDeviceState(8 /* identifier */,
+            "unknown", Collections.emptySet(), Collections.emptySet());
+    private static final List<DeviceState> DEVICE_STATE_LIST = List.of(DEFAULT_FOLDED_STATE,
+            DEFAULT_HALF_FOLDED_STATE, DEFAULT_UNFOLDED_STATE);
+
     private static final String[] DEFAULT_SETTINGS = new String[]{"0:1", "2:0:1", "1:2"};
-    private static final int[] DEFAULT_FOLDED_STATES = new int[]{0};
-    private static final int[] DEFAULT_HALF_FOLDED_STATES = new int[]{2};
-    private static final int[] DEFAULT_UNFOLDED_STATES = new int[]{1};
+    private static final int[] DEFAULT_FOLDED_STATE_IDENTIFIERS =
+            new int[]{DEFAULT_FOLDED_STATE.getIdentifier()};
+    private static final int[] DEFAULT_HALF_FOLDED_STATE_IDENTIFIERS =
+            new int[]{DEFAULT_HALF_FOLDED_STATE.getIdentifier()};
+    private static final int[] DEFAULT_UNFOLDED_STATE_IDENTIFIERS =
+            new int[]{DEFAULT_UNFOLDED_STATE.getIdentifier()};
 
     @Mock private DeviceStateManager mDeviceStateManager;
     @Mock private DeviceStateRotationLockSettingControllerLogger mLogger;
@@ -76,10 +107,12 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
         MockitoAnnotations.initMocks(/* testClass= */ this);
         TestableResources resources = mContext.getOrCreateTestableResources();
         resources.addOverride(R.array.config_perDeviceStateRotationLockDefaults, DEFAULT_SETTINGS);
-        resources.addOverride(R.array.config_foldedDeviceStates, DEFAULT_FOLDED_STATES);
-        resources.addOverride(R.array.config_halfFoldedDeviceStates, DEFAULT_HALF_FOLDED_STATES);
-        resources.addOverride(R.array.config_openDeviceStates, DEFAULT_UNFOLDED_STATES);
-
+        resources.addOverride(R.array.config_foldedDeviceStates, DEFAULT_FOLDED_STATE_IDENTIFIERS);
+        resources.addOverride(R.array.config_halfFoldedDeviceStates,
+                DEFAULT_HALF_FOLDED_STATE_IDENTIFIERS);
+        resources.addOverride(R.array.config_openDeviceStates, DEFAULT_UNFOLDED_STATE_IDENTIFIERS);
+        when(mDeviceStateManager.getSupportedDeviceStates()).thenReturn(DEVICE_STATE_LIST);
+        mContext.addMockSystemService(DeviceStateManager.class, mDeviceStateManager);
         ArgumentCaptor<DeviceStateManager.DeviceStateCallback> deviceStateCallbackArgumentCaptor =
                 ArgumentCaptor.forClass(DeviceStateManager.DeviceStateCallback.class);
 
@@ -119,11 +152,11 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 0, DEVICE_STATE_ROTATION_LOCK_UNLOCKED, 1, DEVICE_STATE_ROTATION_LOCK_UNLOCKED);
         mFakeRotationPolicy.setRotationLock(true);
 
-        mDeviceStateCallback.onStateChanged(1);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_UNFOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
 
         // Settings only exist for state 0 and 1
-        mDeviceStateCallback.onStateChanged(2);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_HALF_FOLDED_STATE);
 
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
     }
@@ -134,10 +167,10 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 0, DEVICE_STATE_ROTATION_LOCK_UNLOCKED, 1, DEVICE_STATE_ROTATION_LOCK_LOCKED);
         mFakeRotationPolicy.setRotationLock(true);
 
-        mDeviceStateCallback.onStateChanged(0);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_FOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
 
-        mDeviceStateCallback.onStateChanged(1);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_UNFOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isTrue();
     }
 
@@ -147,7 +180,7 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
         mFakeRotationPolicy.setRotationLock(true);
 
         // State 2 -> Ignored -> Fall back to state 1 which is unlocked
-        mDeviceStateCallback.onStateChanged(2);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_HALF_FOLDED_STATE);
 
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
     }
@@ -161,7 +194,7 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
         mFakeRotationPolicy.setRotationLock(false);
 
         // State 2 -> Ignored -> Fall back to state 1 which is locked
-        mDeviceStateCallback.onStateChanged(2);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_HALF_FOLDED_STATE);
 
         assertThat(mFakeRotationPolicy.isRotationLocked()).isTrue();
     }
@@ -173,7 +206,7 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
         mSettingsManager.onPersistedSettingsChanged();
         mFakeRotationPolicy.setRotationLock(true);
 
-        mDeviceStateCallback.onStateChanged(0);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_FOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isTrue();
 
         mDeviceStateRotationLockSettingController.onRotationLockStateChanged(
@@ -189,10 +222,10 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
 
     @Test
     public void whenDeviceStateSwitchedToIgnoredState_useFallbackSetting() {
-        mDeviceStateCallback.onStateChanged(0);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_FOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isTrue();
 
-        mDeviceStateCallback.onStateChanged(2);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_UNFOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
     }
 
@@ -202,10 +235,10 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 8, DEVICE_STATE_ROTATION_LOCK_IGNORED, 1, DEVICE_STATE_ROTATION_LOCK_UNLOCKED);
         mFakeRotationPolicy.setRotationLock(true);
 
-        mDeviceStateCallback.onStateChanged(1);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_UNFOLDED_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
 
-        mDeviceStateCallback.onStateChanged(8);
+        mDeviceStateCallback.onDeviceStateChanged(UNKNOWN_DEVICE_STATE);
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
 
         mDeviceStateRotationLockSettingController.onRotationLockStateChanged(
@@ -225,7 +258,7 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 0, DEVICE_STATE_ROTATION_LOCK_UNLOCKED,
                 1, DEVICE_STATE_ROTATION_LOCK_UNLOCKED);
         mFakeRotationPolicy.setRotationLock(false);
-        mDeviceStateCallback.onStateChanged(0);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_FOLDED_STATE);
 
         assertThat(mFakeRotationPolicy.isRotationLocked()).isFalse();
 
@@ -241,7 +274,7 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
         initializeSettingsWith(
                 0, DEVICE_STATE_ROTATION_LOCK_LOCKED,
                 1, DEVICE_STATE_ROTATION_LOCK_UNLOCKED);
-        mDeviceStateCallback.onStateChanged(0);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_FOLDED_STATE);
 
         mDeviceStateRotationLockSettingController.onRotationLockStateChanged(
                 /* rotationLocked= */ false,
@@ -262,7 +295,7 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 0, DEVICE_STATE_ROTATION_LOCK_LOCKED,
                 1, DEVICE_STATE_ROTATION_LOCK_UNLOCKED,
                 2, DEVICE_STATE_ROTATION_LOCK_IGNORED);
-        mDeviceStateCallback.onStateChanged(2);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_HALF_FOLDED_STATE);
 
         mDeviceStateRotationLockSettingController.onRotationLockStateChanged(
                 /* rotationLocked= */ true,
@@ -283,8 +316,8 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 0, DEVICE_STATE_ROTATION_LOCK_LOCKED,
                 1, DEVICE_STATE_ROTATION_LOCK_UNLOCKED,
                 8, DEVICE_STATE_ROTATION_LOCK_IGNORED);
-        mDeviceStateCallback.onStateChanged(1);
-        mDeviceStateCallback.onStateChanged(8);
+        mDeviceStateCallback.onDeviceStateChanged(DEFAULT_UNFOLDED_STATE);
+        mDeviceStateCallback.onDeviceStateChanged(UNKNOWN_DEVICE_STATE);
 
         mDeviceStateRotationLockSettingController.onRotationLockStateChanged(
                 /* rotationLocked= */ true,
@@ -318,6 +351,15 @@ public class DeviceStateRotationLockSettingControllerTest extends SysuiTestCase 
                 UserHandle.USER_CURRENT);
 
         mSettingsManager.onPersistedSettingsChanged();
+    }
+
+    private static DeviceState createDeviceState(int identifier, @NonNull String name,
+            @NonNull Set<@DeviceState.SystemDeviceStateProperties Integer> systemProperties,
+            @NonNull Set<@DeviceState.PhysicalDeviceStateProperties Integer> physicalProperties) {
+        DeviceState.Configuration deviceStateConfiguration = new DeviceState.Configuration.Builder(
+                identifier, name).setSystemProperties(systemProperties).setPhysicalProperties(
+                physicalProperties).build();
+        return new DeviceState(deviceStateConfiguration);
     }
 
     private static class FakeRotationPolicy implements RotationPolicyWrapper {

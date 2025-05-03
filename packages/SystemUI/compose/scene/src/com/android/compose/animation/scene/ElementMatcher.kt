@@ -18,20 +18,56 @@ package com.android.compose.animation.scene
 
 /** An interface to match one or more elements. */
 interface ElementMatcher {
-    /** Whether the element with key [key] in scene [scene] matches this matcher. */
-    fun matches(key: ElementKey, scene: SceneKey): Boolean
+    /** Whether the element with key [key] in scene [content] matches this matcher. */
+    fun matches(key: ElementKey, content: ContentKey): Boolean
 }
 
-/**
- * Returns an [ElementMatcher] that matches elements in [scene] also matching [this]
- * [ElementMatcher].
- */
-fun ElementMatcher.inScene(scene: SceneKey): ElementMatcher {
-    val delegate = this
-    val matcherScene = scene
+/** Returns an [ElementMatcher] that matches any element in [content]. */
+fun inContent(content: ContentKey): ElementMatcher {
+    val matcherContent = content
     return object : ElementMatcher {
-        override fun matches(key: ElementKey, scene: SceneKey): Boolean {
-            return scene == matcherScene && delegate.matches(key, scene)
+        override fun matches(key: ElementKey, content: ContentKey): Boolean {
+            return content == matcherContent
         }
     }
 }
+
+/** Returns an [ElementMatcher] that matches all elements not matching [this] matcher. */
+operator fun ElementMatcher.not(): ElementMatcher {
+    val delegate = this
+    return object : ElementMatcher {
+        override fun matches(key: ElementKey, content: ContentKey): Boolean {
+            return !delegate.matches(key, content)
+        }
+    }
+}
+
+/**
+ * Returns an [ElementMatcher] that matches all elements matching both [this] matcher and [other].
+ */
+infix fun ElementMatcher.and(other: ElementMatcher): ElementMatcher {
+    val delegate = this
+    return object : ElementMatcher {
+        override fun matches(key: ElementKey, content: ContentKey): Boolean {
+            return delegate.matches(key, content) && other.matches(key, content)
+        }
+    }
+}
+
+/**
+ * Returns an [ElementMatcher] that matches all elements either [this] matcher, or [other], or both.
+ */
+infix fun ElementMatcher.or(other: ElementMatcher): ElementMatcher {
+    val delegate = this
+    return object : ElementMatcher {
+        override fun matches(key: ElementKey, content: ContentKey): Boolean {
+            return delegate.matches(key, content) || other.matches(key, content)
+        }
+    }
+}
+
+@Deprecated(
+    "Use `this and inContent()` instead",
+    replaceWith = ReplaceWith("this and inContent(scene)"),
+)
+fun ElementMatcher.inScene(scene: SceneKey) = this and inContent(scene)

@@ -240,10 +240,7 @@ public class TouchExplorer extends BaseEventStreamTransformation
     }
 
     private void clear(MotionEvent event, int policyFlags) {
-        if (mState.isTouchExploring()) {
-            // If a touch exploration gesture is in progress send events for its end.
-            sendHoverExitAndTouchExplorationGestureEndIfNeeded(policyFlags);
-        }
+        sendHoverExitAndTouchExplorationGestureEndIfNeeded(policyFlags);
         mDraggingPointerId = INVALID_POINTER_ID;
         // Send exit to any pointers that we have delivered as part of delegating or dragging.
         mDispatcher.sendUpForInjectedDownPointers(event, policyFlags);
@@ -562,10 +559,7 @@ public class TouchExplorer extends BaseEventStreamTransformation
         // clear any hover events that might have been queued and never sent.
         mSendHoverEnterAndMoveDelayed.clear();
         mSendHoverExitDelayed.cancel();
-        // If a touch exploration gesture is in progress send events for its end.
-        if (mState.isTouchExploring()) {
-            sendHoverExitAndTouchExplorationGestureEndIfNeeded(policyFlags);
-        }
+        sendHoverExitAndTouchExplorationGestureEndIfNeeded(policyFlags);
         if (mState.isClear()) {
             if (!mSendHoverEnterAndMoveDelayed.isPending()) {
                 // Queue a delayed transition to STATE_TOUCH_EXPLORING.
@@ -852,11 +846,9 @@ public class TouchExplorer extends BaseEventStreamTransformation
         final int pointerIdBits = (1 << pointerId);
         if (mSendHoverEnterAndMoveDelayed.isPending()) {
             // If we have not delivered the enter schedule an exit.
-            if (Flags.resetHoverEventTimerOnActionUp()) {
-                // We cancel first to reset the time window so that the user has the full amount of
-                // time to do a multi tap.
-                mSendHoverEnterAndMoveDelayed.repost();
-            }
+            // We cancel first to reset the time window so that the user has the full amount of
+            // time to do a multi tap.
+            mSendHoverEnterAndMoveDelayed.repost();
             mSendHoverExitDelayed.post(event, rawEvent, pointerIdBits, policyFlags);
         } else {
             // The user is touch exploring so we send events for end.
@@ -902,6 +894,9 @@ public class TouchExplorer extends BaseEventStreamTransformation
                     // scheduled sending events.
                     mSendHoverEnterAndMoveDelayed.cancel();
                     mSendHoverExitDelayed.cancel();
+                }
+                if (pointerIndex < 0) {
+                    return;
                 }
                 // If the user is touch exploring the second pointer may be
                 // performing a double tap to activate an item without need
@@ -976,6 +971,10 @@ public class TouchExplorer extends BaseEventStreamTransformation
                 clear(event, policyFlags);
                 return;
             case ACTION_POINTER_DOWN:
+                if (mDraggingPointerId != INVALID_POINTER_ID) {
+                    mDispatcher.sendMotionEvent(
+                            event, ACTION_UP, rawEvent, pointerIdBits, policyFlags);
+                }
                 if (mState.isServiceDetectingGestures()) {
                     mAms.sendMotionEventToListeningServices(rawEvent);
                     return;
@@ -983,10 +982,6 @@ public class TouchExplorer extends BaseEventStreamTransformation
                 // We are in dragging state so we have two pointers and another one
                 // goes down => delegate the three pointers to the view hierarchy
                 mState.startDelegating();
-                if (mDraggingPointerId != INVALID_POINTER_ID) {
-                    mDispatcher.sendMotionEvent(
-                            event, ACTION_UP, rawEvent, pointerIdBits, policyFlags);
-                }
                 mDispatcher.sendDownForAllNotInjectedPointers(event, policyFlags);
                 break;
             case ACTION_MOVE:
@@ -1471,10 +1466,7 @@ public class TouchExplorer extends BaseEventStreamTransformation
             int policyFlags = mState.getLastReceivedPolicyFlags();
             if (mState.isDragging()) {
                 // Send an event to the end of the drag gesture.
-                int pointerIdBits = ALL_POINTER_ID_BITS;
-                if (Flags.fixDragPointerWhenEndingDrag()) {
-                    pointerIdBits = 1 << mDraggingPointerId;
-                }
+                int pointerIdBits = 1 << mDraggingPointerId;
                 mDispatcher.sendMotionEvent(event, ACTION_UP, rawEvent, pointerIdBits, policyFlags);
             }
             mState.startDelegating();
@@ -1601,6 +1593,10 @@ public class TouchExplorer extends BaseEventStreamTransformation
                                 + " pointers down.");
                 return;
             }
+            if (mEvents.size() == 0) {
+                return;
+            }
+            sendHoverExitAndTouchExplorationGestureEndIfNeeded(mPolicyFlags);
             // Send an accessibility event to announce the touch exploration start.
             mDispatcher.sendAccessibilityEvent(TYPE_TOUCH_EXPLORATION_GESTURE_START);
             if (isSendMotionEventsEnabled()) {
@@ -1612,6 +1608,19 @@ public class TouchExplorer extends BaseEventStreamTransformation
                 dispatchGesture(gestureEvent);
             }
             if (!mEvents.isEmpty() && !mRawEvents.isEmpty()) {
+                if (Flags.resetInputDispatcherBeforeFirstTouchExploration()
+                        && !mState.hasResetInputDispatcherState()) {
+                    // Cancel any possible ongoing touch gesture from before touch exploration
+                    // started. This clears out the InputDispatcher event stream state so that it
+                    // is ready to accept new injected HOVER events.
+                    mDispatcher.sendMotionEvent(
+                            mEvents.get(0),
+                            ACTION_CANCEL,
+                            mRawEvents.get(0),
+                            mPointerIdBits,
+                            mPolicyFlags);
+                    setHasResetInputDispatcherState(true);
+                }
                 // Deliver a down event.
                 mDispatcher.sendMotionEvent(
                         mEvents.get(0),
@@ -1771,5 +1780,10 @@ public class TouchExplorer extends BaseEventStreamTransformation
                 + ", mDoubleTapSlop: " + mDoubleTapSlop
                 + ", mDraggingPointerId: " + mDraggingPointerId
                 + " }";
+    }
+
+    @VisibleForTesting
+    void setHasResetInputDispatcherState(boolean value) {
+        mState.setHasResetInputDispatcherState(value);
     }
 }

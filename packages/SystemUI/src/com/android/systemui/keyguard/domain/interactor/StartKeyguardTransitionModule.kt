@@ -16,6 +16,7 @@
 package com.android.systemui.keyguard.domain.interactor
 
 import com.android.systemui.CoreStartable
+import com.android.systemui.keyguard.domain.interactor.scenetransition.LockscreenSceneTransitionInteractor
 import dagger.Binds
 import dagger.Module
 import dagger.multibindings.ClassKey
@@ -29,6 +30,13 @@ abstract class StartKeyguardTransitionModule {
     @IntoMap
     @ClassKey(KeyguardTransitionCoreStartable::class)
     abstract fun bind(impl: KeyguardTransitionCoreStartable): CoreStartable
+
+    @Binds
+    @IntoMap
+    @ClassKey(LockscreenSceneTransitionInteractor::class)
+    abstract fun bindLockscreenSceneTransitionInteractor(
+        impl: LockscreenSceneTransitionInteractor
+    ): CoreStartable
 
     @Binds
     @IntoSet
@@ -47,12 +55,6 @@ abstract class StartKeyguardTransitionModule {
     @Binds
     @IntoSet
     abstract fun fromDreaming(impl: FromDreamingTransitionInteractor): TransitionInteractor
-
-    @Binds
-    @IntoSet
-    abstract fun fromDreamingLockscreenHosted(
-        impl: FromDreamingLockscreenHostedTransitionInteractor
-    ): TransitionInteractor
 
     @Binds
     @IntoSet

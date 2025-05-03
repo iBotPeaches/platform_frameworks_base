@@ -23,8 +23,11 @@ import android.view.RemoteAnimationTarget
 import android.view.WindowManager
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.keyguard.domain.interactor.KeyguardDismissTransitionInteractor
 import com.android.systemui.keyguard.ui.binder.KeyguardSurfaceBehindParamsApplier
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import com.android.window.flags.Flags
+import com.android.wm.shell.keyguard.KeyguardTransitions
 import java.util.concurrent.Executor
 import javax.inject.Inject
 
@@ -40,6 +43,8 @@ constructor(
     private val activityTaskManagerService: IActivityTaskManager,
     private val keyguardStateController: KeyguardStateController,
     private val keyguardSurfaceBehindAnimator: KeyguardSurfaceBehindParamsApplier,
+    private val keyguardDismissTransitionInteractor: KeyguardDismissTransitionInteractor,
+    private val keyguardTransitions: KeyguardTransitions,
 ) {
 
     /**
@@ -95,25 +100,33 @@ constructor(
     /** Callback provided by WM to call once we're done with the going away animation. */
     private var goingAwayRemoteAnimationFinishedCallback: IRemoteAnimationFinishedCallback? = null
 
+    private val enableNewKeyguardShellTransitions: Boolean =
+        Flags.ensureKeyguardDoesTransitionStarting()
+
     /**
      * Set the visibility of the surface behind the keyguard, making the appropriate calls to Window
      * Manager to effect the change.
      */
     fun setSurfaceBehindVisibility(visible: Boolean) {
-        if (isKeyguardGoingAway == visible) {
-            Log.d(TAG, "WmLockscreenVisibilityManager#setVisibility -> already visible=$visible")
+        if (isKeyguardGoingAway && visible) {
+            Log.d(TAG, "#setSurfaceBehindVisibility: already visible, ignoring")
             return
         }
 
         // The surface behind is always visible if the lockscreen is not showing, so we're already
         // visible.
         if (visible && isLockscreenShowing != true) {
-            Log.d(TAG, "#setVisibility -> already visible since the lockscreen isn't showing")
+            Log.d(TAG, "#setSurfaceBehindVisibility: ignoring since the lockscreen isn't showing")
             return
         }
 
         if (visible) {
-            // Make the surface visible behind the keyguard by calling keyguardGoingAway. The
+            if (enableNewKeyguardShellTransitions) {
+                startKeyguardTransition(false, /* keyguardShowing */ false /* aodShowing */)
+                isKeyguardGoingAway = true
+                return
+            }
+            // Make the surface behind the keyguard visible by calling keyguardGoingAway. The
             // lockscreen is still showing as well, allowing us to animate unlocked.
             Log.d(TAG, "ActivityTaskManagerService#keyguardGoingAway()")
             activityTaskManagerService.keyguardGoingAway(0)
@@ -138,10 +151,26 @@ constructor(
         apps: Array<RemoteAnimationTarget>,
         wallpapers: Array<RemoteAnimationTarget>,
         nonApps: Array<RemoteAnimationTarget>,
-        finishedCallback: IRemoteAnimationFinishedCallback
+        finishedCallback: IRemoteAnimationFinishedCallback,
     ) {
-        goingAwayRemoteAnimationFinishedCallback = finishedCallback
-        keyguardSurfaceBehindAnimator.applyParamsToSurface(apps[0])
+        // Ensure that we've started a dismiss keyguard transition. WindowManager can start the
+        // going away animation on its own, if an activity launches and then requests dismissing the
+        // keyguard. In this case, this is the first and only signal we'll receive to start
+        // a transition to GONE. This transition needs to start even if we're not provided an app
+        // animation target - it's possible the app is destroyed on creation, etc. but we'll still
+        // be unlocking.
+        keyguardDismissTransitionInteractor.startDismissKeyguardTransition(
+            reason = "Going away remote animation started"
+        )
+
+        if (apps.isNotEmpty()) {
+            goingAwayRemoteAnimationFinishedCallback = finishedCallback
+            keyguardSurfaceBehindAnimator.applyParamsToSurface(apps[0])
+        } else {
+            // Nothing to do here if we have no apps, end the animation, which will cancel it and WM
+            // will make *something* visible.
+            finishedCallback.onAnimationFinished()
+        }
     }
 
     fun onKeyguardGoingAwayRemoteAnimationCancelled() {
@@ -167,35 +196,50 @@ constructor(
     /**
      * Sets the lockscreen state WM-side by calling ATMS#setLockScreenShown.
      *
-     * [lockscreenShowing] defaults to true, since it's only ever null during the boot sequence,
-     * when we haven't yet called ATMS#setLockScreenShown. Typically,
-     * setWmLockscreenState(lockscreenShowing = true) is called early in the boot sequence, before
-     * setWmLockscreenState(aodVisible = true), so we don't expect to need to use this default, but
-     * if so, true should be the right choice.
+     * If [lockscreenShowing] is null, it means we don't know if the lockscreen is showing yet. This
+     * will be decided by the [KeyguardTransitionBootInteractor] shortly.
      */
     private fun setWmLockscreenState(
-            lockscreenShowing: Boolean = this.isLockscreenShowing ?: true.also {
-                Log.d(TAG, "Using isLockscreenShowing=true default in setWmLockscreenState, " +
-                        "because setAodVisible was called before the first setLockscreenShown " +
-                        "call during boot. This is not typical, but is theoretically possible. " +
-                        "If you're investigating the lockscreen showing unexpectedly, start here.")
-            },
-            aodVisible: Boolean = this.isAodVisible
+        lockscreenShowing: Boolean? = this.isLockscreenShowing,
+        aodVisible: Boolean = this.isAodVisible,
     ) {
-        Log.d(
-            TAG,
-            "#setWmLockscreenState(" +
-                "isLockscreenShowing=$lockscreenShowing, " +
-                "aodVisible=$aodVisible)."
-        )
-
-        if (this.isLockscreenShowing == lockscreenShowing && this.isAodVisible == aodVisible) {
+        if (lockscreenShowing == null) {
+            Log.d(
+                TAG,
+                "isAodVisible=$aodVisible, but lockscreenShowing=null. Waiting for" +
+                    "non-null lockscreenShowing before calling ATMS#setLockScreenShown, which" +
+                    "will happen once KeyguardTransitionBootInteractor starts the boot transition.",
+            )
+            this.isAodVisible = aodVisible
             return
         }
 
-        activityTaskManagerService.setLockScreenShown(lockscreenShowing, aodVisible)
+        if (this.isLockscreenShowing == lockscreenShowing && this.isAodVisible == aodVisible) {
+            Log.d(
+                TAG,
+                "#setWmLockscreenState: lockscreenShowing=$lockscreenShowing and " +
+                    "isAodVisible=$aodVisible were both unchanged, not forwarding to ATMS.",
+            )
+            return
+        }
+
+        Log.d(
+            TAG,
+            "ATMS#setLockScreenShown(" +
+                "isLockscreenShowing=$lockscreenShowing, " +
+                "aodVisible=$aodVisible).",
+        )
+        if (enableNewKeyguardShellTransitions) {
+            startKeyguardTransition(lockscreenShowing, aodVisible)
+        } else {
+            activityTaskManagerService.setLockScreenShown(lockscreenShowing, aodVisible)
+        }
         this.isLockscreenShowing = lockscreenShowing
         this.isAodVisible = aodVisible
+    }
+
+    private fun startKeyguardTransition(keyguardShowing: Boolean, aodShowing: Boolean) {
+        keyguardTransitions.startKeyguardTransition(keyguardShowing, aodShowing)
     }
 
     private fun endKeyguardGoingAwayAnimation() {
@@ -203,7 +247,7 @@ constructor(
             Log.d(
                 TAG,
                 "#endKeyguardGoingAwayAnimation() called when isKeyguardGoingAway=false. " +
-                    "Short-circuiting."
+                    "Short-circuiting.",
             )
             return
         }

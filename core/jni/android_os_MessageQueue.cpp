@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
 
 #define LOG_TAG "MessageQueue-JNI"
 
@@ -225,7 +226,7 @@ static void android_os_MessageQueue_nativePollOnce(JNIEnv* env, jobject obj,
     nativeMessageQueue->pollOnce(env, obj, timeoutMillis);
 }
 
-static void android_os_MessageQueue_nativeWake(jlong ptr) {
+static void android_os_MessageQueue_nativeWake(JNIEnv* env, jclass clazz, jlong ptr) {
     NativeMessageQueue* nativeMessageQueue = reinterpret_cast<NativeMessageQueue*>(ptr);
     nativeMessageQueue->wake();
 }

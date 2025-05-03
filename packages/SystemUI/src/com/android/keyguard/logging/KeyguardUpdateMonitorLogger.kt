@@ -20,8 +20,6 @@ import android.content.Intent
 import android.hardware.biometrics.BiometricConstants.LockoutMode
 import android.hardware.biometrics.BiometricSourceType
 import android.os.PowerManager
-import android.telephony.ServiceState
-import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX
 import android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID
 import android.telephony.TelephonyManager
@@ -34,7 +32,6 @@ import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.log.core.LogLevel.DEBUG
 import com.android.systemui.log.core.LogLevel.ERROR
-import com.android.systemui.log.core.LogLevel.INFO
 import com.android.systemui.log.core.LogLevel.VERBOSE
 import com.android.systemui.log.core.LogLevel.WARNING
 import com.android.systemui.log.dagger.KeyguardUpdateMonitorLog
@@ -63,7 +60,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             "ActiveUnlock",
             DEBUG,
             { str1 = reason },
-            { "initiate active unlock triggerReason=$str1" }
+            { "initiate active unlock triggerReason=$str1" },
         )
     }
 
@@ -75,7 +72,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "Skip requesting active unlock from wake reason that doesn't trigger face auth" +
                     " reason=${PowerManager.wakeReasonToString(int1)}"
-            }
+            },
         )
     }
 
@@ -92,7 +89,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             DEBUG,
             { bool1 = deviceProvisioned },
-            { "DEVICE_PROVISIONED state = $bool1" }
+            { "DEVICE_PROVISIONED state = $bool1" },
         )
     }
 
@@ -108,7 +105,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 str1 = originalErrMsg
                 int1 = msgId
             },
-            { "Face error received: $str1 msgId= $int1" }
+            { "Face error received: $str1 msgId= $int1" },
         )
     }
 
@@ -117,7 +114,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             DEBUG,
             { int1 = authUserId },
-            { "Face authenticated for wrong user: $int1" }
+            { "Face authenticated for wrong user: $int1" },
         )
     }
 
@@ -130,7 +127,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             FP_LOG_TAG,
             DEBUG,
             { int1 = authUserId },
-            { "Fingerprint authenticated for wrong user: $int1" }
+            { "Fingerprint authenticated for wrong user: $int1" },
         )
     }
 
@@ -139,7 +136,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             FP_LOG_TAG,
             DEBUG,
             { int1 = userId },
-            { "Fingerprint disabled by DPM for userId: $int1" }
+            { "Fingerprint disabled by DPM for userId: $int1" },
         )
     }
 
@@ -148,7 +145,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             FP_LOG_TAG,
             DEBUG,
             { int1 = mode },
-            { "handleFingerprintLockoutReset: $int1" }
+            { "handleFingerprintLockoutReset: $int1" },
         )
     }
 
@@ -157,7 +154,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             FP_LOG_TAG,
             DEBUG,
             { int1 = fingerprintRunningState },
-            { "fingerprintRunningState: $int1" }
+            { "fingerprintRunningState: $int1" },
         )
     }
 
@@ -169,7 +166,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 int1 = userId
                 bool1 = isStrongBiometric
             },
-            { "Fingerprint auth successful: userId: $int1, isStrongBiometric: $bool1" }
+            { "Fingerprint auth successful: userId: $int1, isStrongBiometric: $bool1" },
         )
     }
 
@@ -181,7 +178,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 int1 = userId
                 bool1 = isStrongBiometric
             },
-            { "Face detected: userId: $int1, isStrongBiometric: $bool1" }
+            { "Face detected: userId: $int1, isStrongBiometric: $bool1" },
         )
     }
 
@@ -193,7 +190,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 int1 = userId
                 bool1 = isStrongBiometric
             },
-            { "Fingerprint detected: userId: $int1, isStrongBiometric: $bool1" }
+            { "Fingerprint detected: userId: $int1, isStrongBiometric: $bool1" },
         )
     }
 
@@ -205,22 +202,13 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 str1 = originalErrMsg
                 int1 = msgId
             },
-            { "Fingerprint error received: $str1 msgId= $int1" }
-        )
-    }
-
-    fun logInvalidSubId(subId: Int) {
-        logBuffer.log(
-            TAG,
-            INFO,
-            { int1 = subId },
-            { "Previously active sub id $int1 is now invalid, will remove" }
+            { "Fingerprint error received: $str1 msgId= $int1" },
         )
     }
 
     fun logPrimaryKeyguardBouncerChanged(
         primaryBouncerIsOrWillBeShowing: Boolean,
-        primaryBouncerFullyShown: Boolean
+        primaryBouncerFullyShown: Boolean,
     ) {
         logBuffer.log(
             TAG,
@@ -232,7 +220,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "handlePrimaryBouncerChanged " +
                     "primaryBouncerIsOrWillBeShowing=$bool1 primaryBouncerFullyShown=$bool2"
-            }
+            },
         )
     }
 
@@ -249,7 +237,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 bool2 = occluded
                 bool3 = visible
             },
-            { "keyguardShowingChanged(showing=$bool1 occluded=$bool2 visible=$bool3)" }
+            { "keyguardShowingChanged(showing=$bool1 occluded=$bool2 visible=$bool3)" },
         )
     }
 
@@ -258,7 +246,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             ERROR,
             { int1 = userId },
-            { "No Profile Owner or Device Owner supervision app found for User $int1" }
+            { "No Profile Owner or Device Owner supervision app found for User $int1" },
         )
     }
 
@@ -279,7 +267,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 int2 = delay
                 str1 = "$errString"
             },
-            { "Fingerprint scheduling retry auth after $int2 ms due to($int1) -> $str1" }
+            { "Fingerprint scheduling retry auth after $int2 ms due to($int1) -> $str1" },
         )
     }
 
@@ -288,7 +276,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             WARNING,
             { int1 = retryCount },
-            { "Retrying fingerprint attempt: $int1" }
+            { "Retrying fingerprint attempt: $int1" },
         )
     }
 
@@ -306,32 +294,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "sendPrimaryBouncerChanged primaryBouncerIsOrWillBeShowing=$bool1 " +
                     "primaryBouncerFullyShown=$bool2"
-            }
-        )
-    }
-
-    fun logServiceStateChange(subId: Int, serviceState: ServiceState?) {
-        logBuffer.log(
-            TAG,
-            DEBUG,
-            {
-                int1 = subId
-                str1 = "$serviceState"
             },
-            { "handleServiceStateChange(subId=$int1, serviceState=$str1)" }
-        )
-    }
-
-    fun logServiceStateIntent(action: String?, serviceState: ServiceState?, subId: Int) {
-        logBuffer.log(
-            TAG,
-            VERBOSE,
-            {
-                str1 = action
-                str2 = "$serviceState"
-                int1 = subId
-            },
-            { "action $str1 serviceState=$str2 subId=$int1" }
         )
     }
 
@@ -344,43 +307,8 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 str1 = intent.getStringExtra(TelephonyManager.EXTRA_SPN)
                 str2 = intent.getStringExtra(TelephonyManager.EXTRA_PLMN)
             },
-            { "action SERVICE_PROVIDERS_UPDATED subId=$int1 spn=$str1 plmn=$str2" }
+            { "action SERVICE_PROVIDERS_UPDATED subId=$int1 spn=$str1 plmn=$str2" },
         )
-    }
-
-    fun logSimState(subId: Int, slotId: Int, state: Int) {
-        logBuffer.log(
-            TAG,
-            DEBUG,
-            {
-                int1 = subId
-                int2 = slotId
-                long1 = state.toLong()
-            },
-            { "handleSimStateChange(subId=$int1, slotId=$int2, state=$long1)" }
-        )
-    }
-
-    fun logSimStateFromIntent(action: String?, extraSimState: String?, slotId: Int, subId: Int) {
-        logBuffer.log(
-            TAG,
-            VERBOSE,
-            {
-                str1 = action
-                str2 = extraSimState
-                int1 = slotId
-                int2 = subId
-            },
-            { "action $str1 state: $str2 slotId: $int1 subid: $int2" }
-        )
-    }
-
-    fun logSimUnlocked(subId: Int) {
-        logBuffer.log(TAG, VERBOSE, { int1 = subId }, { "reportSimUnlocked(subId=$int1)" })
-    }
-
-    fun logSubInfo(subInfo: SubscriptionInfo?) {
-        logBuffer.log(TAG, DEBUG, { str1 = "$subInfo" }, { "SubInfo:$str1" })
     }
 
     fun logTimeFormatChanged(newTimeFormat: String?) {
@@ -388,9 +316,10 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             DEBUG,
             { str1 = newTimeFormat },
-            { "handleTimeFormatUpdate timeFormat=$str1" }
+            { "handleTimeFormatUpdate timeFormat=$str1" },
         )
     }
+
     fun logUdfpsPointerDown(sensorId: Int) {
         logBuffer.log(TAG, DEBUG, { int1 = sensorId }, { "onUdfpsPointerDown, sensorId: $int1" })
     }
@@ -401,7 +330,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
 
     fun logUnexpectedFpCancellationSignalState(
         fingerprintRunningState: Int,
-        unlockPossible: Boolean
+        unlockPossible: Boolean,
     ) {
         logBuffer.log(
             TAG,
@@ -413,7 +342,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "Cancellation signal is not null, high chance of bug in " +
                     "fp auth lifecycle management. FP state: $int1, unlockPossible: $bool1"
-            }
+            },
         )
     }
 
@@ -424,7 +353,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
     fun logUserRequestedUnlock(
         requestOrigin: ActiveUnlockConfig.ActiveUnlockRequestOrigin,
         reason: String?,
-        dismissKeyguard: Boolean
+        dismissKeyguard: Boolean,
     ) {
         logBuffer.log(
             "ActiveUnlock",
@@ -434,7 +363,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 str2 = reason
                 bool1 = dismissKeyguard
             },
-            { "reportUserRequestedUnlock origin=$str1 reason=$str2 dismissKeyguard=$bool1" }
+            { "reportUserRequestedUnlock origin=$str1 reason=$str2 dismissKeyguard=$bool1" },
         )
     }
 
@@ -442,7 +371,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
         flags: Int,
         newlyUnlocked: Boolean,
         userId: Int,
-        message: String?
+        message: String?,
     ) {
         logBuffer.log(
             TAG,
@@ -456,7 +385,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "trustGrantedWithFlags[user=$int2] newlyUnlocked=$bool1 " +
                     "flags=${TrustGrantFlags(int1)} message=$str1"
-            }
+            },
         )
     }
 
@@ -469,7 +398,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 bool2 = isNowTrusted
                 int1 = userId
             },
-            { "onTrustChanged[user=$int1] wasTrusted=$bool1 isNowTrusted=$bool2" }
+            { "onTrustChanged[user=$int1] wasTrusted=$bool1 isNowTrusted=$bool2" },
         )
     }
 
@@ -477,7 +406,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
         secure: Boolean,
         canDismissLockScreen: Boolean,
         trusted: Boolean,
-        trustManaged: Boolean
+        trustManaged: Boolean,
     ) {
         logBuffer.log(
             "KeyguardState",
@@ -491,7 +420,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "#update secure=$bool1 canDismissKeyguard=$bool2" +
                     " trusted=$bool3 trustManaged=$bool4"
-            }
+            },
         )
     }
 
@@ -500,7 +429,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             VERBOSE,
             { bool1 = assistantVisible },
-            { "TaskStackChanged for ACTIVITY_TYPE_ASSISTANT, assistant visible: $bool1" }
+            { "TaskStackChanged for ACTIVITY_TYPE_ASSISTANT, assistant visible: $bool1" },
         )
     }
 
@@ -509,7 +438,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             VERBOSE,
             { bool1 = allow },
-            { "allowFingerprintOnCurrentOccludingActivityChanged: $bool1" }
+            { "allowFingerprintOnCurrentOccludingActivityChanged: $bool1" },
         )
     }
 
@@ -518,7 +447,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             VERBOSE,
             { bool1 = assistantVisible },
-            { "Updating mAssistantVisible to new value: $bool1" }
+            { "Updating mAssistantVisible to new value: $bool1" },
         )
     }
 
@@ -530,7 +459,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 bool1 = isStrongBiometric
                 int1 = userId
             },
-            { "reporting successful biometric unlock: isStrongBiometric: $bool1, userId: $int1" }
+            { "reporting successful biometric unlock: isStrongBiometric: $bool1, userId: $int1" },
         )
     }
 
@@ -542,7 +471,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             {
                 "MSG_BIOMETRIC_AUTHENTICATION_CONTINUE already queued up, " +
                     "ignoring updating FP listening state to $int1"
-            }
+            },
         )
     }
 
@@ -550,7 +479,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
         userId: Int,
         oldValue: Boolean,
         newValue: Boolean,
-        context: String
+        context: String,
     ) {
         logBuffer.log(
             TAG,
@@ -567,7 +496,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                     "old: $bool1, " +
                     "new: $bool2 " +
                     "context: $str1"
-            }
+            },
         )
     }
 
@@ -590,7 +519,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                     "plugged=$str1, " +
                     "chargingStatus=$int2, " +
                     "maxChargingWattage= $long2}"
-            }
+            },
         )
     }
 
@@ -603,7 +532,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             TAG,
             DEBUG,
             { str1 = "$biometricSourceType" },
-            { "notifying about enrollments changed: $str1" }
+            { "notifying about enrollments changed: $str1" },
         )
     }
 
@@ -615,7 +544,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 int1 = userId
                 str1 = context
             },
-            { "userCurrentlySwitching: $str1, userId: $int1" }
+            { "userCurrentlySwitching: $str1, userId: $int1" },
         )
     }
 
@@ -627,7 +556,7 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
                 int1 = userId
                 str1 = context
             },
-            { "userSwitchComplete: $str1, userId: $int1" }
+            { "userSwitchComplete: $str1, userId: $int1" },
         )
     }
 
@@ -636,15 +565,48 @@ constructor(@KeyguardUpdateMonitorLog private val logBuffer: LogBuffer) {
             FP_LOG_TAG,
             DEBUG,
             { int1 = acquireInfo },
-            { "fingerprint acquire message: $int1" }
+            { "fingerprint acquire message: $int1" },
         )
     }
+
     fun logForceIsDismissibleKeyguard(keepUnlocked: Boolean) {
         logBuffer.log(
-                TAG,
-                DEBUG,
-                { bool1 = keepUnlocked },
-                { "keepUnlockedOnFold changed to: $bool1" }
+            TAG,
+            DEBUG,
+            { bool1 = keepUnlocked },
+            { "keepUnlockedOnFold changed to: $bool1" },
+        )
+    }
+
+    fun logUserUnlocked(userId: Int) {
+        logBuffer.log(TAG, DEBUG, { int1 = userId }, { "userUnlocked userId: $int1" })
+    }
+
+    fun logUserStopped(userId: Int, isUnlocked: Boolean) {
+        logBuffer.log(
+            TAG,
+            DEBUG,
+            {
+                int1 = userId
+                bool1 = isUnlocked
+            },
+            { "userStopped userId: $int1 isUnlocked: $bool1" },
+        )
+    }
+
+    fun logUserRemoved(userId: Int) {
+        logBuffer.log(TAG, DEBUG, { int1 = userId }, { "userRemoved userId: $int1" })
+    }
+
+    fun logUserUnlockedInitialState(userId: Int, isUnlocked: Boolean) {
+        logBuffer.log(
+            TAG,
+            DEBUG,
+            {
+                int1 = userId
+                bool1 = isUnlocked
+            },
+            { "userUnlockedInitialState userId: $int1 isUnlocked: $bool1" },
         )
     }
 }

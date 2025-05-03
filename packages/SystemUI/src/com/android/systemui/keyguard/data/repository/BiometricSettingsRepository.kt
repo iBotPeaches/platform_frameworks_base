@@ -40,6 +40,7 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyguard.shared.model.AuthenticationFlags
 import com.android.systemui.keyguard.shared.model.DevicePosture
 import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepository
 import com.android.systemui.user.data.repository.UserRepository
 import java.io.PrintWriter
@@ -123,7 +124,7 @@ private const val TAG = "BiometricsRepositoryImpl"
 class BiometricSettingsRepositoryImpl
 @Inject
 constructor(
-    context: Context,
+    @ShadeDisplayAware context: Context,
     lockPatternUtils: LockPatternUtils,
     broadcastDispatcher: BroadcastDispatcher,
     authController: AuthController,
@@ -175,7 +176,6 @@ constructor(
         pw.println("isFingerprintAuthCurrentlyAllowed=${isFingerprintAuthCurrentlyAllowed.value}")
         pw.println("isNonStrongBiometricAllowed=${isNonStrongBiometricAllowed.value}")
         pw.println("isStrongBiometricAllowed=${isStrongBiometricAllowed.value}")
-        pw.println("isFingerprintEnabledByDevicePolicy=${isFingerprintEnabledByDevicePolicy.value}")
     }
 
     /** UserId of the current selected user. */
@@ -189,35 +189,33 @@ constructor(
         )
 
     private val isFingerprintEnrolled: Flow<Boolean> =
-        selectedUserId
-            .flatMapLatest { currentUserId ->
-                conflatedCallbackFlow {
-                    val callback =
-                        object : AuthController.Callback {
-                            override fun onEnrollmentsChanged(
-                                sensorBiometricType: BiometricType,
-                                userId: Int,
-                                hasEnrollments: Boolean
-                            ) {
-                                if (sensorBiometricType.isFingerprint && userId == currentUserId) {
-                                    trySendWithFailureLogging(
-                                        hasEnrollments,
-                                        TAG,
-                                        "update fpEnrollment"
-                                    )
-                                }
+        selectedUserId.flatMapLatest { currentUserId ->
+            conflatedCallbackFlow {
+                val callback =
+                    object : AuthController.Callback {
+                        override fun onEnrollmentsChanged(
+                            sensorBiometricType: BiometricType,
+                            userId: Int,
+                            hasEnrollments: Boolean
+                        ) {
+                            if (sensorBiometricType.isFingerprint && userId == currentUserId) {
+                                trySendWithFailureLogging(
+                                    hasEnrollments,
+                                    TAG,
+                                    "update fpEnrollment"
+                                )
                             }
                         }
-                    authController.addCallback(callback)
-                    awaitClose { authController.removeCallback(callback) }
-                }
+                    }
+                authController.addCallback(callback)
+                trySendWithFailureLogging(
+                    authController.isFingerprintEnrolled(currentUserId),
+                    TAG,
+                    "Initial value of fingerprint enrollment"
+                )
+                awaitClose { authController.removeCallback(callback) }
             }
-            .stateIn(
-                scope,
-                started = SharingStarted.Eagerly,
-                initialValue =
-                    authController.isFingerprintEnrolled(userRepository.getSelectedUserInfo().id)
-            )
+        }
 
     private val isFaceEnrolled: Flow<Boolean> =
         selectedUserId.flatMapLatest { selectedUserId: Int ->
@@ -324,22 +322,14 @@ constructor(
             else isNonStrongBiometricAllowed
         }
 
-    private val isFingerprintEnabledByDevicePolicy: StateFlow<Boolean> =
-        selectedUserId
-            .flatMapLatest { userId ->
-                devicePolicyChangedForAllUsers
-                    .transformLatest { emit(devicePolicyManager.isFingerprintDisabled(userId)) }
-                    .flowOn(backgroundDispatcher)
-                    .distinctUntilChanged()
-            }
-            .stateIn(
-                scope,
-                started = SharingStarted.Eagerly,
-                initialValue =
-                    devicePolicyManager.isFingerprintDisabled(
-                        userRepository.getSelectedUserInfo().id
-                    )
-            )
+    private val isFingerprintEnabledByDevicePolicy: Flow<Boolean> =
+        selectedUserId.flatMapLatest { userId ->
+            devicePolicyChangedForAllUsers
+                .transformLatest { emit(devicePolicyManager.isFingerprintDisabled(userId)) }
+                .onStart { emit(devicePolicyManager.isFingerprintDisabled(userId)) }
+                .flowOn(backgroundDispatcher)
+                .distinctUntilChanged()
+        }
 
     override val isFingerprintEnrolledAndEnabled: StateFlow<Boolean> =
         isFingerprintEnrolled
@@ -365,7 +355,10 @@ constructor(
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-private class StrongAuthTracker(private val userRepository: UserRepository, context: Context?) :
+private class StrongAuthTracker(
+    private val userRepository: UserRepository,
+    @ShadeDisplayAware context: Context?
+) :
     LockPatternUtils.StrongAuthTracker(context) {
 
     private val selectedUserId =

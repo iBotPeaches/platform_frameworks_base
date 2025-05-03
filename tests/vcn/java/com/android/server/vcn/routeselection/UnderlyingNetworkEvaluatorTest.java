@@ -17,9 +17,9 @@
 package com.android.server.vcn.routeselection;
 
 import static android.net.vcn.VcnManager.VCN_NETWORK_SELECTION_PENALTY_TIMEOUT_MINUTES_LIST_KEY;
+import static android.net.vcn.util.PersistableBundleUtils.PersistableBundleWrapper;
 
 import static com.android.server.vcn.routeselection.NetworkPriorityClassifier.PRIORITY_INVALID;
-import static com.android.server.vcn.util.PersistableBundleUtils.PersistableBundleWrapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,18 +39,24 @@ import static org.mockito.Mockito.when;
 import android.net.IpSecTransform;
 import android.net.vcn.VcnGatewayConnectionConfig;
 
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
 import com.android.server.vcn.routeselection.NetworkMetricMonitor.NetworkMetricMonitorCallback;
 import com.android.server.vcn.routeselection.UnderlyingNetworkEvaluator.Dependencies;
 import com.android.server.vcn.routeselection.UnderlyingNetworkEvaluator.NetworkEvaluatorCallback;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 
 import java.util.concurrent.TimeUnit;
 
+@RunWith(AndroidJUnit4.class)
+@SmallTest
 public class UnderlyingNetworkEvaluatorTest extends NetworkEvaluationTestBase {
     private static final int PENALTY_TIMEOUT_MIN = 10;
     private static final long PENALTY_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(PENALTY_TIMEOUT_MIN);

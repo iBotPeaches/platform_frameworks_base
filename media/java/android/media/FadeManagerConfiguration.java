@@ -673,6 +673,7 @@ public final class FadeManagerConfiguration implements Parcelable {
         return config != null ? config.getDuration() : DURATION_NOT_SET;
     }
 
+    @Nullable
     private VolumeShaper.Configuration getVolumeShaperConfigFromWrapper(
             FadeVolumeShaperConfigsWrapper wrapper, boolean isFadeIn) {
         // if no volume shaper config is available, return null
@@ -694,7 +695,8 @@ public final class FadeManagerConfiguration implements Parcelable {
     }
 
     private static boolean isUsageValid(int usage) {
-        return AudioAttributes.isSdkUsage(usage) || AudioAttributes.isSystemUsage(usage);
+        return AudioAttributes.isSdkUsage(usage) || AudioAttributes.isSystemUsage(usage)
+                || AudioAttributes.isHiddenUsage(usage);
     }
 
     private void ensureFadingIsEnabled() {
@@ -835,7 +837,7 @@ public final class FadeManagerConfiguration implements Parcelable {
          */
         public Builder(@NonNull FadeManagerConfiguration fmc) {
             mFadeState = fmc.mFadeState;
-            mUsageToFadeWrapperMap = fmc.mUsageToFadeWrapperMap.clone();
+            copyUsageToFadeWrapperMapInternal(fmc.mUsageToFadeWrapperMap);
             mAttrToFadeWrapperMap = new ArrayMap<AudioAttributes, FadeVolumeShaperConfigsWrapper>(
                     fmc.mAttrToFadeWrapperMap);
             mFadeableUsages = fmc.mFadeableUsages.clone();
@@ -1458,6 +1460,14 @@ public final class FadeManagerConfiguration implements Parcelable {
             }
         }
 
+        private  void copyUsageToFadeWrapperMapInternal(
+                SparseArray<FadeVolumeShaperConfigsWrapper> usageToFadeWrapperMap) {
+            for (int index = 0; index < usageToFadeWrapperMap.size(); index++) {
+                mUsageToFadeWrapperMap.put(usageToFadeWrapperMap.keyAt(index),
+                        new FadeVolumeShaperConfigsWrapper(usageToFadeWrapperMap.valueAt(index)));
+            }
+        }
+
         private void validateFadeState(int state) {
             switch(state) {
                 case FADE_STATE_DISABLED:
@@ -1549,6 +1559,12 @@ public final class FadeManagerConfiguration implements Parcelable {
         private @Nullable VolumeShaper.Configuration mFadeInVolShaperConfig;
 
         FadeVolumeShaperConfigsWrapper() {}
+
+        FadeVolumeShaperConfigsWrapper(@NonNull FadeVolumeShaperConfigsWrapper wrapper) {
+            Objects.requireNonNull(wrapper, "Fade volume shaper configs wrapper cannot be null");
+            this.mFadeOutVolShaperConfig = wrapper.mFadeOutVolShaperConfig;
+            this.mFadeInVolShaperConfig = wrapper.mFadeInVolShaperConfig;
+        }
 
         public void setFadeOutVolShaperConfig(@Nullable VolumeShaper.Configuration fadeOutConfig) {
             mFadeOutVolShaperConfig = fadeOutConfig;

@@ -30,7 +30,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-/** Tests for VcnGatewayConnection.DisconnectedState */
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class VcnGatewayConnectionDisconnectingStateTest extends VcnGatewayConnectionTestBase {

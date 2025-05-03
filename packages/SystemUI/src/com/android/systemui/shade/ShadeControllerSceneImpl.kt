@@ -17,22 +17,20 @@
 package com.android.systemui.shade
 
 import android.view.MotionEvent
-import com.android.compose.animation.scene.SceneKey
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.assist.AssistManager
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
-import com.android.systemui.deviceentry.domain.interactor.DeviceEntryInteractor
-import com.android.systemui.log.LogBuffer
-import com.android.systemui.log.dagger.ShadeTouchLog
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.model.Scenes
-import com.android.systemui.scene.shared.model.TransitionKeys.CollapseShadeInstantly
+import com.android.systemui.scene.shared.model.TransitionKeys.Instant
 import com.android.systemui.scene.shared.model.TransitionKeys.SlightlyFasterShadeCollapse
 import com.android.systemui.shade.ShadeController.ShadeVisibilityListener
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.CommandQueue
 import com.android.systemui.statusbar.NotificationShadeWindowController
+import com.android.systemui.statusbar.VibratorHelper
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager
 import dagger.Lazy
@@ -42,7 +40,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -59,16 +56,14 @@ constructor(
     @Background private val scope: CoroutineScope,
     private val shadeInteractor: ShadeInteractor,
     private val sceneInteractor: SceneInteractor,
-    private val deviceEntryInteractor: DeviceEntryInteractor,
     private val notificationStackScrollLayout: NotificationStackScrollLayout,
-    @ShadeTouchLog private val touchLog: LogBuffer,
+    private val vibratorHelper: VibratorHelper,
     commandQueue: CommandQueue,
     statusBarKeyguardViewManager: StatusBarKeyguardViewManager,
     notificationShadeWindowController: NotificationShadeWindowController,
     assistManagerLazy: Lazy<AssistManager>,
 ) :
     BaseShadeControllerImpl(
-        touchLog,
         commandQueue,
         statusBarKeyguardViewManager,
         notificationShadeWindowController,
@@ -79,29 +74,30 @@ constructor(
         scope.launch {
             shadeInteractor.isAnyExpanded.collect {
                 if (!it) {
-                    runPostCollapseActions()
+                    withContext(mainDispatcher) { runPostCollapseActions() }
                 }
             }
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun isShadeEnabled() = shadeInteractor.isShadeEnabled.value
 
+    @Deprecated("Deprecated in Java")
     override fun isShadeFullyOpen(): Boolean = shadeInteractor.isAnyFullyExpanded.value
 
-    override fun isExpandingOrCollapsing(): Boolean =
-        shadeInteractor.anyExpansion.value > 0f && shadeInteractor.anyExpansion.value < 1f
+    @Deprecated("Deprecated in Java")
+    override fun isExpandingOrCollapsing(): Boolean = shadeInteractor.isUserInteracting.value
 
+    @Deprecated("Deprecated in Java")
     override fun instantExpandShade() {
         // Do nothing
     }
 
     override fun instantCollapseShade() {
-        // TODO(b/325602936) add support for instant transition
-        sceneInteractor.changeScene(
-            getCollapseDestinationScene(),
-            "hide shade",
-            CollapseShadeInstantly,
+        shadeInteractor.collapseNotificationsShade(
+            loggingReason = "ShadeControllerSceneImpl.instantCollapseShade",
+            transitionKey = Instant,
         )
     }
 
@@ -109,7 +105,7 @@ constructor(
         flags: Int,
         force: Boolean,
         delayed: Boolean,
-        speedUpFactor: Float
+        speedUpFactor: Float,
     ) {
         if (!force && !shadeInteractor.isAnyExpanded.value) {
             runPostCollapseActions()
@@ -122,11 +118,10 @@ constructor(
             // release focus immediately to kick off focus change transition
             notificationShadeWindowController.setNotificationShadeFocusable(false)
             notificationStackScrollLayout.cancelExpandHelper()
-            sceneInteractor.changeScene(Scenes.Shade, "ShadeController.animateExpandShade")
             if (delayed) {
                 scope.launch {
                     delay(125)
-                    animateCollapseShadeInternal()
+                    withContext(mainDispatcher) { animateCollapseShadeInternal() }
                 }
             } else {
                 animateCollapseShadeInternal()
@@ -134,25 +129,17 @@ constructor(
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun collapseWithDuration(animationDuration: Int) {
         // TODO(b/300258424) inline this. The only caller uses the default duration.
         animateCollapseShade()
     }
 
     private fun animateCollapseShadeInternal() {
-        sceneInteractor.changeScene(
-            getCollapseDestinationScene(),
-            "ShadeController.animateCollapseShade",
-            SlightlyFasterShadeCollapse,
+        shadeInteractor.collapseEitherShade(
+            loggingReason = "ShadeController.animateCollapseShade",
+            transitionKey = SlightlyFasterShadeCollapse,
         )
-    }
-
-    private fun getCollapseDestinationScene(): SceneKey {
-        return if (deviceEntryInteractor.isDeviceEntered.value) {
-            Scenes.Gone
-        } else {
-            Scenes.Lockscreen
-        }
     }
 
     override fun cancelExpansionAndCollapseShade() {
@@ -160,11 +147,12 @@ constructor(
         animateCollapseShade()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun closeShadeIfOpen(): Boolean {
         if (shadeInteractor.isAnyExpanded.value) {
             commandQueue.animateCollapsePanels(
                 CommandQueue.FLAG_EXCLUDE_RECENTS_PANEL,
-                true /* force */
+                true, /* force */
             )
             assistManagerLazy.get().hideAssist()
         }
@@ -175,6 +163,7 @@ constructor(
         animateCollapseShadeForcedDelayed()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun collapseShade(animate: Boolean) {
         if (animate) {
             animateCollapseShade()
@@ -183,17 +172,18 @@ constructor(
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun collapseOnMainThread() {
         // TODO if this works with delegation alone, we can deprecate and delete
         collapseShade()
     }
 
     override fun expandToNotifications() {
-        sceneInteractor.changeScene(Scenes.Shade, "ShadeController.animateExpandShade")
+        shadeInteractor.expandNotificationsShade("ShadeController.animateExpandShade")
     }
 
     override fun expandToQs() {
-        sceneInteractor.changeScene(Scenes.QuickSettings, "ShadeController.animateExpandQs")
+        shadeInteractor.expandQuickSettingsShade("ShadeController.animateExpandQs")
     }
 
     override fun setVisibilityListener(listener: ShadeVisibilityListener) {
@@ -213,14 +203,17 @@ constructor(
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun postAnimateCollapseShade() {
         animateCollapseShade()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun postAnimateForceCollapseShade() {
         animateCollapseShadeForced()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun postAnimateExpandQs() {
         expandToQs()
     }
@@ -234,20 +227,29 @@ constructor(
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun makeExpandedInvisible() {
         // Do nothing
     }
 
+    @Deprecated("Deprecated in Java")
     override fun makeExpandedVisible(force: Boolean) {
         // Do nothing
     }
 
+    @Deprecated("Deprecated in Java")
     override fun isExpandedVisible(): Boolean {
-        return sceneInteractor.currentScene.value != Scenes.Gone
+        return sceneInteractor.currentScene.value != Scenes.Gone ||
+            sceneInteractor.currentOverlays.value.isNotEmpty()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onStatusBarTouch(event: MotionEvent) {
-        // The only call to this doesn't happen with migrateClocksToBlueprint() enabled
+        // The only call to this doesn't happen with MigrateClocksToBlueprint.isEnabled enabled
         throw UnsupportedOperationException()
+    }
+
+    override fun performHapticFeedback(constant: Int) {
+        vibratorHelper.performHapticFeedback(notificationStackScrollLayout, constant)
     }
 }

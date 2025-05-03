@@ -15,9 +15,20 @@
  */
 package android.platform.test.ravenwood;
 
-import java.io.File;
-import java.io.PrintStream;
-import java.util.Arrays;
+import static com.android.ravenwood.common.RavenwoodCommonUtils.ReflectedMethod.reflectMethod;
+
+import android.annotation.NonNull;
+import android.annotation.Nullable;
+import android.os.Handler;
+import android.os.Looper;
+
+import com.android.ravenwood.common.RavenwoodCommonUtils;
+import com.android.ravenwood.common.SneakyThrow;
+
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Utilities for writing (bivalent) ravenwood tests.
@@ -47,85 +58,131 @@ public class RavenwoodUtils {
      * it uses {@code JNI_OnLoad()} as the entry point name on both.
      */
     public static void loadJniLibrary(String libname) {
-        if (RavenwoodRule.isOnRavenwood()) {
-            loadLibraryOnRavenwood(libname);
-        } else {
-            // Just delegate to the loadLibrary().
-            System.loadLibrary(libname);
+        RavenwoodCommonUtils.loadJniLibrary(libname);
+    }
+
+    private class MainHandlerHolder {
+        static Handler sMainHandler = new Handler(Looper.getMainLooper());
+    }
+
+    /**
+     * Returns the main thread handler.
+     */
+    public static Handler getMainHandler() {
+        return MainHandlerHolder.sMainHandler;
+    }
+
+    /**
+     * Run a Callable on Handler and wait for it to complete.
+     */
+    @Nullable
+    public static <T> T runOnHandlerSync(@NonNull Handler h, @NonNull Callable<T> c) {
+        var result = new AtomicReference<T>();
+        var thrown = new AtomicReference<Throwable>();
+        var latch = new CountDownLatch(1);
+        h.post(() -> {
+            try {
+                result.set(c.call());
+            } catch (Throwable th) {
+                thrown.set(th);
+            }
+            latch.countDown();
+        });
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while waiting on the Runnable", e);
+        }
+        var th = thrown.get();
+        if (th != null) {
+            SneakyThrow.sneakyThrow(th);
+        }
+        return result.get();
+    }
+
+
+    /**
+     * Run a Runnable on Handler and wait for it to complete.
+     */
+    @Nullable
+    public static void runOnHandlerSync(@NonNull Handler h, @NonNull Runnable r) {
+        runOnHandlerSync(h, () -> {
+            r.run();
+            return null;
+        });
+    }
+
+    /**
+     * Run a Callable on main thread and wait for it to complete.
+     */
+    @Nullable
+    public static <T> T runOnMainThreadSync(@NonNull Callable<T> c) {
+        return runOnHandlerSync(getMainHandler(), c);
+    }
+
+    /**
+     * Run a Runnable on main thread and wait for it to complete.
+     */
+    @Nullable
+    public static void runOnMainThreadSync(@NonNull Runnable r) {
+        runOnHandlerSync(getMainHandler(), r);
+    }
+
+    public static class MockitoHelper {
+        private MockitoHelper() {
+        }
+
+        /**
+         * Allow verifyZeroInteractions to work on ravenwood. It was replaced with a different
+         * method on. (Maybe we should do it in Ravenizer.)
+         */
+        public static void verifyZeroInteractions(Object... mocks) {
+            if (RavenwoodRule.isOnRavenwood()) {
+                // Mockito 4 or later
+                reflectMethod("org.mockito.Mockito", "verifyNoInteractions", Object[].class)
+                        .callStatic(new Object[]{mocks});
+            } else {
+                // Mockito 2
+                reflectMethod("org.mockito.Mockito", "verifyZeroInteractions", Object[].class)
+                        .callStatic(new Object[]{mocks});
+            }
         }
     }
 
-    private static void loadLibraryOnRavenwood(String libname) {
-        var path = System.getProperty("java.library.path");
-        var filename = "lib" + libname + ".so";
 
-        System.out.println("Looking for library " + libname + ".so in java.library.path:" + path);
+    /**
+     * Wrap the given {@link Supplier} to become memoized.
+     *
+     * The underlying {@link Supplier} will only be invoked once, and that result will be cached
+     * and returned for any future requests.
+     */
+    static <T> Supplier<T> memoize(ThrowingSupplier<T> supplier) {
+        return new Supplier<>() {
+            private T mInstance;
 
-        try {
-            if (path == null) {
-                throw new UnsatisfiedLinkError("Cannot load library " + libname + "."
-                        + " Property java.library.path not set!");
-            }
-            for (var dir : path.split(":")) {
-                var file = new File(dir + "/" + filename);
-                if (file.exists()) {
-                    System.load(file.getAbsolutePath());
-                    return;
+            @Override
+            public T get() {
+                synchronized (this) {
+                    if (mInstance == null) {
+                        mInstance = create();
+                    }
+                    return mInstance;
                 }
             }
-            throw new UnsatisfiedLinkError("Library " + libname + " not found in "
-                    + "java.library.path: " + path);
-        } catch (Throwable e) {
-            dumpFiles(System.out);
-            throw e;
-        }
-    }
 
-    private static void dumpFiles(PrintStream out) {
-        try {
-            var path = System.getProperty("java.library.path");
-            out.println("# java.library.path=" + path);
-
-            for (var dir : path.split(":")) {
-                listFiles(out, new File(dir), "");
-
-                var gparent = new File((new File(dir)).getAbsolutePath() + "../../..")
-                        .getCanonicalFile();
-                if (gparent.getName().contains("testcases")) {
-                    // Special case: if we found this directory, dump its contents too.
-                    listFiles(out, gparent, "");
+            private T create() {
+                try {
+                    return supplier.get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
             }
-
-            var gparent = new File("../..").getCanonicalFile();
-            out.println("# ../..=" + gparent);
-            listFiles(out, gparent, "");
-        } catch (Throwable th) {
-            out.println("Error: " + th.toString());
-            th.printStackTrace(out);
-        }
+        };
     }
 
-    private static void listFiles(PrintStream out, File dir, String prefix) {
-        if (!dir.isDirectory()) {
-            out.println(prefix + dir.getAbsolutePath() + " is not a directory!");
-            return;
-        }
-        out.println(prefix + ":" + dir.getAbsolutePath() + "/");
-        // First, list the files.
-        for (var file : Arrays.stream(dir.listFiles()).sorted().toList()) {
-            out.println(prefix + "  " + file.getName() + "" + (file.isDirectory() ? "/" : ""));
-        }
-
-        // Then recurse.
-        if (dir.getAbsolutePath().startsWith("/usr") || dir.getAbsolutePath().startsWith("/lib")) {
-            // There would be too many files, so don't recurse.
-            return;
-        }
-        for (var file : Arrays.stream(dir.listFiles()).sorted().toList()) {
-            if (file.isDirectory()) {
-                listFiles(out, file, prefix + "  ");
-            }
-        }
+    /** Used by {@link #memoize(ThrowingSupplier)}  */
+    public interface ThrowingSupplier<T> {
+        /** */
+        T get() throws Exception;
     }
 }

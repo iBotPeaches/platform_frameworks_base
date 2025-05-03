@@ -15,24 +15,29 @@
  */
 package com.android.systemui.shade
 
-import android.view.ViewPropertyAnimator
+import com.android.systemui.shade.domain.interactor.PanelExpansionInteractor
 import com.android.systemui.shade.domain.interactor.ShadeBackActionInteractor
+import com.android.systemui.shade.domain.interactor.ShadeLockscreenInteractor
 import com.android.systemui.statusbar.GestureRecorder
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
 import com.android.systemui.statusbar.phone.CentralSurfaces
-import com.android.systemui.statusbar.policy.HeadsUpManager
 
 /**
  * Allows CentralSurfacesImpl to interact with the shade. Only CentralSurfacesImpl should reference
  * this class. If any method in this class is needed outside of CentralSurfacesImpl, it must be
  * pulled up into ShadeViewController.
  */
-interface ShadeSurface : ShadeViewController, ShadeBackActionInteractor, ShadeLockscreenInteractor {
+interface ShadeSurface :
+    ShadeViewController,
+    ShadeBackActionInteractor,
+    ShadeLockscreenInteractor,
+    PanelExpansionInteractor {
     /** Initialize objects instead of injecting to avoid circular dependencies. */
     fun initDependencies(
         centralSurfaces: CentralSurfaces,
         recorder: GestureRecorder,
         hideExpandedRunnable: Runnable,
-        headsUpManager: HeadsUpManager
+        headsUpManager: HeadsUpManager,
     )
 
     /** Cancels any pending collapses. */
@@ -42,7 +47,7 @@ interface ShadeSurface : ShadeViewController, ShadeBackActionInteractor, ShadeLo
     fun cancelAnimation()
 
     /** Animates the view from its current alpha to zero then runs the runnable. */
-    fun fadeOut(startDelayMs: Long, durationMs: Long, endAction: Runnable): ViewPropertyAnimator
+    fun fadeOut(startDelayMs: Long, durationMs: Long, endAction: Runnable)
 
     /** Set whether the bouncer is showing. */
     fun setBouncerShowing(bouncerShowing: Boolean)

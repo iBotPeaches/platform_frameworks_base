@@ -16,6 +16,7 @@
 package com.android.systemui.deviceentry.data.repository
 
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.deviceentry.shared.model.DeviceUnlockStatus
 import dagger.Binds
 import dagger.Module
 import javax.inject.Inject
@@ -26,28 +27,30 @@ import kotlinx.coroutines.flow.asStateFlow
 /** Fake implementation of [DeviceEntryRepository] */
 @SysUISingleton
 class FakeDeviceEntryRepository @Inject constructor() : DeviceEntryRepository {
-    private var isLockscreenEnabled = true
+
+    private val _isLockscreenEnabled = MutableStateFlow(true)
+    override val isLockscreenEnabled: StateFlow<Boolean> = _isLockscreenEnabled.asStateFlow()
 
     private val _isBypassEnabled = MutableStateFlow(false)
     override val isBypassEnabled: StateFlow<Boolean> = _isBypassEnabled
 
-    private val _isUnlocked = MutableStateFlow(false)
-    override val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
+    private var pendingLockscreenEnabled = _isLockscreenEnabled.value
+
+    override val deviceUnlockStatus =
+        MutableStateFlow(DeviceUnlockStatus(isUnlocked = false, deviceUnlockSource = null))
 
     override suspend fun isLockscreenEnabled(): Boolean {
-        return isLockscreenEnabled
-    }
-
-    override fun reportSuccessfulAuthentication() {
-        _isUnlocked.value = true
-    }
-
-    fun setUnlocked(isUnlocked: Boolean) {
-        _isUnlocked.value = isUnlocked
+        _isLockscreenEnabled.value = pendingLockscreenEnabled
+        return isLockscreenEnabled.value
     }
 
     fun setLockscreenEnabled(isLockscreenEnabled: Boolean) {
-        this.isLockscreenEnabled = isLockscreenEnabled
+        _isLockscreenEnabled.value = isLockscreenEnabled
+        pendingLockscreenEnabled = _isLockscreenEnabled.value
+    }
+
+    fun setPendingLockscreenEnabled(isLockscreenEnabled: Boolean) {
+        pendingLockscreenEnabled = isLockscreenEnabled
     }
 
     fun setBypassEnabled(isBypassEnabled: Boolean) {

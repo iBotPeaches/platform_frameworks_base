@@ -22,8 +22,12 @@ import android.os.UserManager;
 
 import com.android.internal.R;
 import com.android.settingslib.devicestate.DeviceStateRotationLockSettingsManager;
+import com.android.settingslib.notification.modes.ZenIconLoader;
+import com.android.systemui.common.ui.GlobalConfig;
 import com.android.systemui.dagger.SysUISingleton;
+import com.android.systemui.dagger.qualifiers.Application;
 import com.android.systemui.dagger.qualifiers.Main;
+import com.android.systemui.dagger.qualifiers.UiBackground;
 import com.android.systemui.log.LogBuffer;
 import com.android.systemui.log.LogBufferFactory;
 import com.android.systemui.settings.UserTracker;
@@ -33,6 +37,7 @@ import com.android.systemui.statusbar.connectivity.NetworkController;
 import com.android.systemui.statusbar.connectivity.NetworkControllerImpl;
 import com.android.systemui.statusbar.connectivity.WifiPickerTrackerFactory;
 import com.android.systemui.statusbar.phone.ConfigurationControllerImpl;
+import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 import com.android.systemui.statusbar.policy.BatteryControllerLogger;
 import com.android.systemui.statusbar.policy.BluetoothController;
 import com.android.systemui.statusbar.policy.BluetoothControllerImpl;
@@ -73,18 +78,18 @@ import com.android.systemui.statusbar.policy.ZenModeControllerImpl;
 import com.android.systemui.statusbar.policy.bluetooth.BluetoothRepository;
 import com.android.systemui.statusbar.policy.bluetooth.BluetoothRepositoryImpl;
 import com.android.systemui.statusbar.policy.data.repository.DeviceProvisioningRepositoryModule;
-import com.android.systemui.statusbar.policy.data.repository.ZenModeRepositoryModule;
 
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 import javax.inject.Named;
 
 /** Dagger Module for code in the statusbar.policy package. */
-@Module(includes = { DeviceProvisioningRepositoryModule.class, ZenModeRepositoryModule.class })
+@Module(includes = {DeviceProvisioningRepositoryModule.class})
 public interface StatusBarPolicyModule {
 
     String DEVICE_STATE_ROTATION_LOCK_DEFAULTS = "DEVICE_STATE_ROTATION_LOCK_DEFAULTS";
@@ -101,9 +106,12 @@ public interface StatusBarPolicyModule {
     @Binds
     CastController provideCastController(CastControllerImpl controllerImpl);
 
-    /** */
+    /**
+     * @deprecated: unscoped configuration controller shouldn't be injected as it might lead to
+     * wrong updates in case of secondary displays.
+     */
     @Binds
-    ConfigurationController bindConfigurationController(ConfigurationControllerImpl impl);
+    ConfigurationController bindConfigurationController(@GlobalConfig ConfigurationController impl);
 
     /** */
     @Binds
@@ -179,15 +187,33 @@ public interface StatusBarPolicyModule {
             DevicePostureControllerImpl devicePostureControllerImpl);
 
     /** */
+    @Binds
+    @SysUISingleton
+    @GlobalConfig
+    ConfigurationForwarder provideGlobalConfigurationForwarder(
+            @GlobalConfig ConfigurationController configurationController);
+
+    /** */
+    @Provides
+    @SysUISingleton
+    @GlobalConfig
+    static ConfigurationController provideGlobalConfigurationController(
+            @Application Context context, ConfigurationControllerImpl.Factory factory) {
+        return factory.create(context);
+    }
+
+    /** */
     @SysUISingleton
     @Provides
     static AccessPointControllerImpl  provideAccessPointControllerImpl(
+            @Application Context context,
             UserManager userManager,
             UserTracker userTracker,
             @Main Executor mainExecutor,
             WifiPickerTrackerFactory wifiPickerTrackerFactory
     ) {
         AccessPointControllerImpl controller = new AccessPointControllerImpl(
+                context,
                 userManager,
                 userTracker,
                 mainExecutor,
@@ -228,5 +254,21 @@ public interface StatusBarPolicyModule {
     @BatteryControllerLog
     static LogBuffer provideBatteryControllerLog(LogBufferFactory factory) {
         return factory.create(BatteryControllerLogger.TAG, 30);
+    }
+
+    /** Provides a log buffer for CastControllerImpl */
+    @Provides
+    @SysUISingleton
+    @CastControllerLog
+    static LogBuffer provideCastControllerLog(LogBufferFactory factory) {
+        return factory.create("CastControllerLog", 50);
+    }
+
+    /** Provides a {@link ZenIconLoader} that fetches icons in a background thread. */
+    @Provides
+    @SysUISingleton
+    static ZenIconLoader provideZenIconLoader(
+            @UiBackground ExecutorService backgroundExecutorService) {
+        return new ZenIconLoader(backgroundExecutorService);
     }
 }

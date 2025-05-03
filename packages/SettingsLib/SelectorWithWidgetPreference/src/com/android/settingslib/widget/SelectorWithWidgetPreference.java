@@ -17,15 +17,21 @@
 package com.android.settingslib.widget;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.preference.CheckBoxPreference;
 import androidx.preference.PreferenceViewHolder;
 
 import com.android.settingslib.widget.preference.selector.R;
+import com.android.settingslib.widget.selectorwithwidgetpreference.flags.Flags;
 
 /**
  * Selector preference (checkbox or radio button) with an optional additional widget.
@@ -41,6 +47,8 @@ import com.android.settingslib.widget.preference.selector.R;
  * on the right side that can open another page.
  */
 public class SelectorWithWidgetPreference extends CheckBoxPreference {
+    @VisibleForTesting
+    static final int DEFAULT_MAX_LINES = 2;
 
     /**
      * Interface definition for a callback to be invoked when the preference is clicked.
@@ -60,9 +68,12 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
 
     private View mExtraWidgetContainer;
     private ImageView mExtraWidget;
+    @Nullable private String mExtraWidgetContentDescription;
     private boolean mIsCheckBox = false;  // whether to display this button as a checkbox
 
     private View.OnClickListener mExtraWidgetOnClickListener;
+    private int mTitleMaxLines;
+
 
     /**
      * Perform inflation from XML and apply a class-specific base style.
@@ -74,9 +85,10 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
      *                 resource that supplies default values for the view. Can be 0 to not
      *                 look for defaults.
      */
-    public SelectorWithWidgetPreference(Context context, AttributeSet attrs, int defStyle) {
+    public SelectorWithWidgetPreference(@NonNull Context context, @Nullable AttributeSet attrs,
+            int defStyle) {
         super(context, attrs, defStyle);
-        init();
+        init(context, attrs, defStyle, /* defStyleRes= */ 0);
     }
 
     /**
@@ -88,7 +100,7 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
      */
     public SelectorWithWidgetPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
-        init();
+        init(context, attrs, /* defStyleAttr= */ 0, /* defStyleRes= */ 0);
     }
 
     /**
@@ -100,7 +112,7 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
     public SelectorWithWidgetPreference(Context context, boolean isCheckbox) {
         super(context, null);
         mIsCheckBox = isCheckbox;
-        init();
+        init(context, /* attrs= */ null, /* defStyleAttr= */ 0, /* defStyleRes= */ 0);
     }
 
     /**
@@ -161,6 +173,17 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
         mExtraWidgetContainer = holder.findViewById(R.id.selector_extra_widget_container);
 
         setExtraWidgetOnClickListener(mExtraWidgetOnClickListener);
+
+        if (mExtraWidget != null) {
+            mExtraWidget.setContentDescription(mExtraWidgetContentDescription != null
+                    ? mExtraWidgetContentDescription
+                    : getContext().getString(R.string.settings_label));
+        }
+
+        if (Flags.allowSetTitleMaxLines()) {
+            TextView title = (TextView) holder.findViewById(android.R.id.title);
+            title.setMaxLines(mTitleMaxLines);
+        }
     }
 
     /**
@@ -194,13 +217,25 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
     }
 
     /**
+     * Sets the content description of the extra widget. If {@code null}, a default content
+     * description will be used ("Settings").
+     */
+    public void setExtraWidgetContentDescription(@Nullable String contentDescription) {
+        if (!TextUtils.equals(mExtraWidgetContentDescription, contentDescription)) {
+            mExtraWidgetContentDescription = contentDescription;
+            notifyChanged();
+        }
+    }
+
+    /**
      * Returns whether this preference is a checkbox.
      */
     public boolean isCheckBox() {
         return mIsCheckBox;
     }
 
-    private void init() {
+    private void init(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr,
+            int defStyleRes) {
         if (mIsCheckBox) {
             setWidgetLayoutResource(R.layout.preference_widget_checkbox);
         } else {
@@ -208,5 +243,21 @@ public class SelectorWithWidgetPreference extends CheckBoxPreference {
         }
         setLayoutResource(R.layout.preference_selector_with_widget);
         setIconSpaceReserved(false);
+
+        if (Flags.allowSetTitleMaxLines()) {
+            final TypedArray a =
+                    context.obtainStyledAttributes(
+                            attrs, R.styleable.SelectorWithWidgetPreference, defStyleAttr,
+                            defStyleRes);
+            mTitleMaxLines =
+                    a.getInt(R.styleable.SelectorWithWidgetPreference_titleMaxLines,
+                            DEFAULT_MAX_LINES);
+            a.recycle();
+        }
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    public View getExtraWidget() {
+        return mExtraWidget;
     }
 }

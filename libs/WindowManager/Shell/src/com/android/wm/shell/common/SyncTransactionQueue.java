@@ -16,6 +16,8 @@
 
 package com.android.wm.shell.common;
 
+import static com.android.wm.shell.protolog.ShellProtoLogGroup.WM_SHELL;
+
 import android.annotation.BinderThread;
 import android.annotation.NonNull;
 import android.os.RemoteException;
@@ -26,6 +28,8 @@ import android.window.WindowContainerTransaction;
 import android.window.WindowContainerTransactionCallback;
 import android.window.WindowOrganizer;
 
+import com.android.internal.protolog.ProtoLog;
+import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.transition.LegacyTransitions;
 
 import java.util.ArrayList;
@@ -188,15 +192,22 @@ public final class SyncTransactionQueue {
                 throw new IllegalStateException("Sync Transactions must be serialized. In Flight: "
                         + mInFlight.mId + " - " + mInFlight.mWCT);
             }
-            mInFlight = this;
             if (DEBUG) Slog.d(TAG, "Sending sync transaction: " + mWCT);
-            if (mLegacyTransition != null) {
-                mId = new WindowOrganizer().startLegacyTransition(mLegacyTransition.getType(),
-                        mLegacyTransition.getAdapter(), this, mWCT);
-            } else {
-                mId = new WindowOrganizer().applySyncTransaction(mWCT, this);
+            try {
+                if (mLegacyTransition != null) {
+                    mId = new WindowOrganizer().startLegacyTransition(mLegacyTransition.getType(),
+                            mLegacyTransition.getAdapter(), this, mWCT);
+                } else {
+                    mId = new WindowOrganizer().applySyncTransaction(mWCT, this);
+                }
+            } catch (RuntimeException e) {
+                Slog.e(TAG, "Send failed", e);
+                // Finish current sync callback immediately.
+                onTransactionReady(mId, new SurfaceControl.Transaction());
+                return;
             }
             if (DEBUG) Slog.d(TAG, " Sent sync transaction. Got id=" + mId);
+            mInFlight = this;
             mMainExecutor.executeDelayed(mOnReplyTimeout, REPLY_TIMEOUT);
         }
 
@@ -204,6 +215,7 @@ public final class SyncTransactionQueue {
         @Override
         public void onTransactionReady(int id,
                 @NonNull SurfaceControl.Transaction t) {
+            ProtoLog.v(WM_SHELL, "SyncTransactionQueue.onTransactionReady(): syncId=%d", id);
             mMainExecutor.execute(() -> {
                 synchronized (mQueue) {
                     if (mId != id) {
@@ -223,6 +235,8 @@ public final class SyncTransactionQueue {
                             Slog.e(TAG, "Error sending callback to legacy transition: " + mId, e);
                         }
                     } else {
+                        ProtoLog.v(WM_SHELL,
+                                "SyncTransactionQueue.onTransactionReady(): syncId=%d apply", id);
                         t.apply();
                         t.close();
                     }

@@ -19,21 +19,22 @@ package com.android.server.am;
 import static android.app.ActivityManager.PROCESS_CAPABILITY_NONE;
 import static android.app.ActivityManager.PROCESS_STATE_CACHED_EMPTY;
 import static android.app.ActivityManager.PROCESS_STATE_NONEXISTENT;
-import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UI_VISIBILITY;
 import static android.app.ProcessMemoryState.HOSTING_COMPONENT_TYPE_ACTIVITY;
 import static android.app.ProcessMemoryState.HOSTING_COMPONENT_TYPE_BROADCAST_RECEIVER;
 import static android.app.ProcessMemoryState.HOSTING_COMPONENT_TYPE_STARTED_SERVICE;
 
-import static com.android.server.am.ActivityManagerDebugConfig.DEBUG_OOM_ADJ;
 import static com.android.server.am.ProcessList.CACHED_APP_MIN_ADJ;
-import static com.android.server.am.ProcessRecord.TAG;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_PAUSING_OR_PAUSED;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_VISIBLE;
+import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_MASK_MIN_TASK_LAYER;
 
 import android.annotation.ElapsedRealtimeLong;
 import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.os.SystemClock;
 import android.os.Trace;
-import android.util.Slog;
 import android.util.TimeUtils;
 
 import com.android.internal.annotations.CompositeRWLock;
@@ -449,6 +450,9 @@ final class ProcessStateRecord {
     @GuardedBy("mService")
     private boolean mScheduleLikeTopApp = false;
 
+    @GuardedBy("mService")
+    private long mFollowupUpdateUptimeMs = Long.MAX_VALUE;
+
     ProcessStateRecord(ProcessRecord app) {
         mApp = app;
         mService = app.mService;
@@ -782,15 +786,7 @@ final class ProcessStateRecord {
 
     @GuardedBy("mService")
     void setRunningRemoteAnimation(boolean runningRemoteAnimation) {
-        if (mRunningRemoteAnimation == runningRemoteAnimation) {
-            return;
-        }
         mRunningRemoteAnimation = runningRemoteAnimation;
-        if (DEBUG_OOM_ADJ) {
-            Slog.i(TAG, "Setting runningRemoteAnimation=" + runningRemoteAnimation
-                    + " for pid=" + mApp.getPid());
-        }
-        mService.updateOomAdjLocked(mApp, OOM_ADJ_REASON_UI_VISIBILITY);
     }
 
     @GuardedBy({"mService", "mProcLock"})
@@ -1105,6 +1101,7 @@ final class ProcessStateRecord {
         return mCachedCompatChanges[cachedCompatChangeId] == VALUE_TRUE;
     }
 
+    /** This is only called if the process contains activities and is not the global top. */
     @GuardedBy("mService")
     void computeOomAdjFromActivitiesIfNecessary(OomAdjuster.ComputeOomAdjWindowCallback callback,
             int adj, boolean foregroundActivities, boolean hasVisibleActivities, int procState,
@@ -1114,8 +1111,17 @@ final class ProcessStateRecord {
         }
         callback.initialize(mApp, adj, foregroundActivities, hasVisibleActivities, procState,
                 schedGroup, appUid, logUid, processCurTop);
-        final int minLayer = Math.min(ProcessList.VISIBLE_APP_LAYER_MAX,
-                mApp.getWindowProcessController().computeOomAdjFromActivities(callback));
+        final int flags = mApp.getWindowProcessController().getActivityStateFlags();
+
+        if ((flags & ACTIVITY_STATE_FLAG_IS_VISIBLE) != 0) {
+            callback.onVisibleActivity(flags);
+        } else if ((flags & ACTIVITY_STATE_FLAG_IS_PAUSING_OR_PAUSED) != 0) {
+            callback.onPausedActivity();
+        } else if ((flags & ACTIVITY_STATE_FLAG_IS_STOPPING) != 0) {
+            callback.onStoppingActivity((flags & ACTIVITY_STATE_FLAG_IS_STOPPING_FINISHING) != 0);
+        } else {
+            callback.onOtherActivity();
+        }
 
         mCachedAdj = callback.adj;
         mCachedForegroundActivities = callback.foregroundActivities;
@@ -1125,6 +1131,8 @@ final class ProcessStateRecord {
         mCachedAdjType = callback.mAdjType;
 
         if (mCachedAdj == ProcessList.VISIBLE_APP_ADJ) {
+            final int taskLayer = flags & ACTIVITY_STATE_FLAG_MASK_MIN_TASK_LAYER;
+            final int minLayer = Math.min(ProcessList.VISIBLE_APP_LAYER_MAX, taskLayer);
             mCachedAdj += minLayer;
         }
     }
@@ -1162,6 +1170,16 @@ final class ProcessStateRecord {
     @GuardedBy("mService")
     void setScheduleLikeTopApp(boolean scheduleLikeTopApp) {
         mScheduleLikeTopApp = scheduleLikeTopApp;
+    }
+
+    @GuardedBy("mService")
+    long getFollowupUpdateUptimeMs() {
+        return mFollowupUpdateUptimeMs;
+    }
+
+    @GuardedBy("mService")
+    void setFollowupUpdateUptimeMs(long updateUptimeMs) {
+        mFollowupUpdateUptimeMs = updateUptimeMs;
     }
 
     @GuardedBy(anyOf = {"mService", "mProcLock"})

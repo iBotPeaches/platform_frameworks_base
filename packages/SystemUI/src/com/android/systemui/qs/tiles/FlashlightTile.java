@@ -22,14 +22,13 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
 import android.service.quicksettings.Tile;
-import android.view.View;
 import android.widget.Switch;
 
 import androidx.annotation.Nullable;
 
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
-import com.android.systemui.res.R;
+import com.android.systemui.animation.Expandable;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.plugins.ActivityStarter;
@@ -40,6 +39,7 @@ import com.android.systemui.qs.QSHost;
 import com.android.systemui.qs.QsEventLogger;
 import com.android.systemui.qs.logging.QSLogger;
 import com.android.systemui.qs.tileimpl.QSTileImpl;
+import com.android.systemui.res.R;
 import com.android.systemui.statusbar.policy.FlashlightController;
 
 import javax.inject.Inject;
@@ -99,7 +99,7 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
     }
 
     @Override
-    protected void handleClick(@Nullable View view) {
+    protected void handleClick(@Nullable Expandable expandable) {
         if (ActivityManager.isUserAMonkey()) {
             return;
         }
@@ -114,8 +114,8 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
     }
 
     @Override
-    protected void handleLongClick(@Nullable View view) {
-        handleClick(view);
+    protected void handleLongClick(@Nullable Expandable expandable) {
+        handleClick(expandable);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
                     R.string.quick_settings_flashlight_camera_in_use);
             state.stateDescription = state.secondaryLabel;
             state.state = Tile.STATE_UNAVAILABLE;
-            state.icon = ResourceIcon.get(R.drawable.qs_flashlight_icon_off);
+            state.icon = maybeLoadResourceIcon(R.drawable.qs_flashlight_icon_off);
             return;
         }
         if (arg instanceof Boolean) {
@@ -143,7 +143,7 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
         state.contentDescription = mContext.getString(R.string.quick_settings_flashlight_label);
         state.expandedAccessibilityClassName = Switch.class.getName();
         state.state = state.value ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE;
-        state.icon = ResourceIcon.get(state.value
+        state.icon = maybeLoadResourceIcon(state.value
                 ? R.drawable.qs_flashlight_icon_on : R.drawable.qs_flashlight_icon_off);
     }
 

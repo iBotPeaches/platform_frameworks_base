@@ -22,6 +22,7 @@ import android.annotation.Nullable;
 import android.annotation.Size;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -198,6 +199,21 @@ public interface PackageState {
     int getCategoryOverride();
 
     /**
+     * Returns true if ELF files will be loaded in Page size compatibility mode
+     *
+     * @hide
+     */
+    boolean isPageSizeAppCompatEnabled();
+
+    /**
+     * Returns dialog string based on alignment of uncompressed shared libs inside the APK and ELF
+     * alignment.
+     *
+     * @hide
+     */
+    String getPageSizeCompatWarningMessage(Context context);
+
+    /**
      * The install time CPU override, if any. This value is written at install time
      * and doesn't change during the life of an install. If non-null,
      * {@link #getPrimaryCpuAbiLegacy()} will also contain the same value.
@@ -272,6 +288,14 @@ public interface PackageState {
      * @hide
      */
     boolean isPendingRestore();
+
+    /**
+     * @see ApplicationInfo#FLAG_DEBUGGABLE
+     * @see R.styleable#AndroidManifestApplication_debuggable
+     * @see AndroidPackage#isDebuggable
+     * @hide
+     */
+    boolean isDebuggable();
 
     /**
      * Retrieves the shared user app ID. Note that the actual shared user data is not available here
@@ -480,4 +504,10 @@ public interface PackageState {
      * @hide
      */
     boolean isScannedAsStoppedSystemApp();
+
+    /**
+     * see AndroidPackage#isLeavingSharedUser()
+     * @hide
+     */
+    boolean isLeavingSharedUser();
 }

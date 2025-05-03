@@ -32,21 +32,28 @@ class SystemUIIssueRegistry : IssueRegistry() {
                 BindServiceOnMainThreadDetector.ISSUE,
                 BroadcastSentViaContextDetector.ISSUE,
                 CleanArchitectureDependencyViolationDetector.ISSUE,
+                CollectAsStateDetector.ISSUE,
                 DumpableNotRegisteredDetector.ISSUE,
+                FlowDetector.SHARED_FLOW_CREATION,
                 SlowUserQueryDetector.ISSUE_SLOW_USER_ID_QUERY,
                 SlowUserQueryDetector.ISSUE_SLOW_USER_INFO_QUERY,
                 NonInjectedMainThreadDetector.ISSUE,
                 RegisterReceiverViaContextDetector.ISSUE,
                 SoftwareBitmapDetector.ISSUE,
                 NonInjectedServiceDetector.ISSUE,
+                SingletonAndroidComponentDetector.ISSUE,
                 StaticSettingsProviderDetector.ISSUE,
                 DemotingTestWithoutBugDetector.ISSUE,
                 TestFunctionNameViolationDetector.ISSUE,
                 MissingApacheLicenseDetector.ISSUE,
+                ShadeDisplayAwareDetector.ISSUE,
+                RegisterContentObserverSyncViaSettingsProxyDetector.SYNC_WARNING,
+                RegisterContentObserverViaContentResolverDetector.CONTENT_RESOLVER_ERROR,
             )
 
     override val api: Int
         get() = CURRENT_API
+
     override val minApi: Int
         get() = 8
 
@@ -54,6 +61,6 @@ class SystemUIIssueRegistry : IssueRegistry() {
         Vendor(
             vendorName = "Android",
             feedbackUrl = "http://b/issues/new?component=78010",
-            contact = "jernej@google.com"
+            contact = "jernej@google.com",
         )
 }

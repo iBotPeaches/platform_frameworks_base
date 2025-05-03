@@ -16,7 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaCodec-JNI"
+#define ATRACE_TAG  ATRACE_TAG_VIDEO
 #include <utils/Log.h>
+#include <utils/Trace.h>
 
 #include <type_traits>
 
@@ -38,6 +40,8 @@
 #include <C2BlockInternal.h>
 #include <C2Buffer.h>
 #include <C2PlatformSupport.h>
+
+#include <android_media_codec.h>
 
 #include <android/hardware/cas/native/1.0/IDescrambler.h>
 
@@ -188,6 +192,22 @@ static struct {
     jmethodID ctorId;
     jmethodID setId;
 } gBufferInfo;
+
+static struct {
+    jclass clazz;
+    jmethodID ctorId;
+    jfieldID resourceId;
+    jfieldID capacityId;
+    jfieldID availableId;
+} gGlobalResourceInfo;
+
+static struct {
+    jclass clazz;
+    jmethodID ctorId;
+    jfieldID resourceId;
+    jfieldID staticCountId;
+    jfieldID perFrameCountId;
+} gInstanceResourceInfo;
 
 struct fields_t {
     jmethodID postEventFromNativeID;
@@ -1129,6 +1149,37 @@ status_t JMediaCodec::unsubscribeFromVendorParameters(JNIEnv *env, jobject names
     return mCodec->unsubscribeFromVendorParameters(names);
 }
 
+static jobject getJavaResources(
+        JNIEnv *env,
+        const std::vector<InstanceResourceInfo>& resources) {
+    jobject resourcesObj = env->NewObject(gArrayListInfo.clazz, gArrayListInfo.ctorId);
+    for (const InstanceResourceInfo& res : resources) {
+        ScopedLocalRef<jobject> object{env, env->NewObject(
+                gInstanceResourceInfo.clazz, gInstanceResourceInfo.ctorId)};
+        ScopedLocalRef<jstring> nameStr{env, env->NewStringUTF(res.mName.c_str())};
+        env->SetObjectField(object.get(), gInstanceResourceInfo.resourceId, nameStr.get());
+        env->SetLongField(object.get(),
+                          gInstanceResourceInfo.staticCountId,
+                          (jlong)res.mStaticCount);
+        env->SetLongField(object.get(),
+                          gInstanceResourceInfo.perFrameCountId,
+                          (jlong)res.mPerFrameCount);
+        (void)env->CallBooleanMethod(resourcesObj, gArrayListInfo.addId, object.get());
+    }
+
+    return resourcesObj;
+}
+
+status_t JMediaCodec::getRequiredResources(JNIEnv *env, jobject *resourcesObj) {
+    std::vector<InstanceResourceInfo> resources;
+    status_t status = mCodec->getRequiredResources(resources);
+    if (status != OK) {
+        return status;
+    }
+    *resourcesObj = getJavaResources(env, resources);
+    return OK;
+}
+
 static jthrowable createCodecException(
         JNIEnv *env, status_t err, int32_t actionCode, const char *msg = NULL) {
     ScopedLocalRef<jclass> clazz(
@@ -1181,63 +1232,73 @@ static void AMessageToCryptoInfo(JNIEnv * env, const jobject & obj,
     sp<ABuffer> ivBuffer;
     CryptoPlugin::Mode mode;
     CryptoPlugin::Pattern pattern;
-    CHECK(msg->findInt32("mode", (int*)&mode));
-    CHECK(msg->findSize("numSubSamples", &numSubSamples));
-    CHECK(msg->findBuffer("subSamples", &subSamplesBuffer));
-    CHECK(msg->findInt32("encryptBlocks", (int32_t *)&pattern.mEncryptBlocks));
-    CHECK(msg->findInt32("skipBlocks", (int32_t *)&pattern.mSkipBlocks));
-    CHECK(msg->findBuffer("iv", &ivBuffer));
-    CHECK(msg->findBuffer("key", &keyBuffer));
-
-    // subsamples
+    CryptoPlugin::SubSample *samplesArray = nullptr;
+    ScopedLocalRef<jbyteArray> keyArray(env, env->NewByteArray(16));
+    ScopedLocalRef<jbyteArray> ivArray(env, env->NewByteArray(16));
+    jboolean isCopy;
+    sp<RefBase> cryptoInfosObj;
+    if (msg->findObject("cryptoInfos", &cryptoInfosObj)) {
+        sp<CryptoInfosWrapper> cryptoInfos((CryptoInfosWrapper*)cryptoInfosObj.get());
+        CHECK(!cryptoInfos->value.empty() && (cryptoInfos->value[0] != nullptr));
+        std::unique_ptr<CodecCryptoInfo> &info = cryptoInfos->value[0];
+        mode = info->mMode;
+        numSubSamples = info->mNumSubSamples;
+        samplesArray = info->mSubSamples;
+        pattern = info->mPattern;
+        if (info->mKey != nullptr) {
+            jbyte * dstKey = env->GetByteArrayElements(keyArray.get(), &isCopy);
+            memcpy(dstKey, info->mKey, 16);
+            env->ReleaseByteArrayElements(keyArray.get(), dstKey, 0);
+        }
+        if (info->mIv != nullptr) {
+            jbyte * dstIv = env->GetByteArrayElements(ivArray.get(), &isCopy);
+            memcpy(dstIv, info->mIv, 16);
+            env->ReleaseByteArrayElements(ivArray.get(), dstIv, 0);
+        }
+    } else {
+        CHECK(msg->findInt32("mode", (int*)&mode));
+        CHECK(msg->findSize("numSubSamples", &numSubSamples));
+        CHECK(msg->findBuffer("subSamples", &subSamplesBuffer));
+        CHECK(msg->findInt32("encryptBlocks", (int32_t *)&pattern.mEncryptBlocks));
+        CHECK(msg->findInt32("skipBlocks", (int32_t *)&pattern.mSkipBlocks));
+        CHECK(msg->findBuffer("iv", &ivBuffer));
+        CHECK(msg->findBuffer("key", &keyBuffer));
+        samplesArray =
+                (CryptoPlugin::SubSample*)(subSamplesBuffer.get()->data());
+        if (keyBuffer.get() != nullptr && keyBuffer->size() > 0) {
+            jbyte * dstKey = env->GetByteArrayElements(keyArray.get(), &isCopy);
+            memcpy(dstKey, keyBuffer->data(), keyBuffer->size());
+            env->ReleaseByteArrayElements(keyArray.get(), dstKey, 0);
+        }
+        if (ivBuffer.get() != nullptr && ivBuffer->size() > 0) {
+            jbyte * dstIv = env->GetByteArrayElements(ivArray.get(), &isCopy);
+            memcpy(dstIv, ivBuffer->data(), ivBuffer->size());
+            env->ReleaseByteArrayElements(ivArray.get(), dstIv, 0);
+        }
+    }
     ScopedLocalRef<jintArray> samplesOfEncryptedDataArr(env, env->NewIntArray(numSubSamples));
     ScopedLocalRef<jintArray> samplesOfClearDataArr(env, env->NewIntArray(numSubSamples));
-    jboolean isCopy;
-    jint *dstEncryptedSamples =
-        env->GetIntArrayElements(samplesOfEncryptedDataArr.get(), &isCopy);
-    jint * dstClearSamples =
-        env->GetIntArrayElements(samplesOfClearDataArr.get(), &isCopy);
-
-    CryptoPlugin::SubSample * samplesArray =
-        (CryptoPlugin::SubSample*)(subSamplesBuffer.get()->data());
-
-    for(int i = 0 ; i < numSubSamples ; i++) {
-        dstEncryptedSamples[i] = samplesArray[i].mNumBytesOfEncryptedData;
-        dstClearSamples[i] = samplesArray[i].mNumBytesOfClearData;
+    if (numSubSamples > 0) {
+        jint *dstEncryptedSamples =
+            env->GetIntArrayElements(samplesOfEncryptedDataArr.get(), &isCopy);
+        jint * dstClearSamples =
+            env->GetIntArrayElements(samplesOfClearDataArr.get(), &isCopy);
+        for(int i = 0 ; i < numSubSamples ; i++) {
+            dstEncryptedSamples[i] = samplesArray[i].mNumBytesOfEncryptedData;
+            dstClearSamples[i] = samplesArray[i].mNumBytesOfClearData;
+        }
+        env->ReleaseIntArrayElements(samplesOfEncryptedDataArr.get(), dstEncryptedSamples, 0);
+        env->ReleaseIntArrayElements(samplesOfClearDataArr.get(), dstClearSamples, 0);
     }
-    env->ReleaseIntArrayElements(samplesOfEncryptedDataArr.get(), dstEncryptedSamples, 0);
-    env->ReleaseIntArrayElements(samplesOfClearDataArr.get(), dstClearSamples, 0);
-    // key and iv
-    jbyteArray keyArray = NULL;
-    jbyteArray ivArray = NULL;
-    if (keyBuffer.get() != nullptr && keyBuffer->size() > 0) {
-        keyArray = env->NewByteArray(keyBuffer->size());
-        jbyte * dstKey = env->GetByteArrayElements(keyArray, &isCopy);
-        memcpy(dstKey, keyBuffer->data(), keyBuffer->size());
-        env->ReleaseByteArrayElements(keyArray,dstKey,0);
-    }
-    if (ivBuffer.get() != nullptr && ivBuffer->size() > 0) {
-        ivArray = env->NewByteArray(ivBuffer->size());
-        jbyte *dstIv = env->GetByteArrayElements(ivArray, &isCopy);
-        memcpy(dstIv, ivBuffer->data(), ivBuffer->size());
-        env->ReleaseByteArrayElements(ivArray, dstIv,0);
-    }
-    // set samples, key and iv
     env->CallVoidMethod(
         obj,
         gFields.cryptoInfoSetID,
         (jint)numSubSamples,
         samplesOfClearDataArr.get(),
         samplesOfEncryptedDataArr.get(),
-        keyArray,
-        ivArray,
+        keyArray.get(),
+        ivArray.get(),
         mode);
-    if (keyArray != NULL) {
-        env->DeleteLocalRef(keyArray);
-    }
-    if (ivArray != NULL) {
-        env->DeleteLocalRef(ivArray);
-    }
     // set pattern
     env->CallVoidMethod(
         obj,
@@ -1458,6 +1519,25 @@ void JMediaCodec::handleCallback(const sp<AMessage> &msg) {
                 return;
             }
 
+            break;
+        }
+
+        case MediaCodec::CB_METRICS_FLUSHED:
+        {
+            sp<WrapperObject<std::unique_ptr<mediametrics::Item>>> metrics;
+            CHECK(msg->findObject("metrics", (sp<RefBase>*)&metrics));
+
+            // metrics should never be null. Not sure if checking it here adds any value.
+            if (metrics == nullptr) {
+                return;
+            }
+
+            mediametrics::Item *item = metrics->value.get();
+            obj = MediaMetricsJNI::writeMetricsToBundle(env, item, NULL);
+            break;
+        }
+        case MediaCodec::CB_REQUIRED_RESOURCES_CHANGED:
+        {
             break;
         }
 
@@ -2038,7 +2118,7 @@ static void android_media_MediaCodec_queueInputBuffer(
         jlong timestampUs,
         jint flags) {
     ALOGV("android_media_MediaCodec_queueInputBuffer");
-
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueInputBuffer#jni");
     sp<JMediaCodec> codec = getMediaCodec(env, thiz);
 
     if (codec == NULL || codec->initCheck() != OK) {
@@ -2124,6 +2204,7 @@ static void android_media_MediaCodec_queueInputBuffers(
         jint index,
         jobjectArray objArray) {
     ALOGV("android_media_MediaCodec_queueInputBuffers");
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueInputBuffers#jni");
     sp<JMediaCodec> codec = getMediaCodec(env, thiz);
     if (codec == NULL || codec->initCheck() != OK || objArray == NULL) {
         throwExceptionAsNecessary(env, INVALID_OPERATION, codec);
@@ -2363,6 +2444,7 @@ static void android_media_MediaCodec_queueSecureInputBuffer(
         jobject cryptoInfoObj,
         jlong timestampUs,
         jint flags) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueSecureInputBuffer#jni");
     ALOGV("android_media_MediaCodec_queueSecureInputBuffer");
 
     sp<JMediaCodec> codec = getMediaCodec(env, thiz);
@@ -2573,6 +2655,7 @@ static void android_media_MediaCodec_queueSecureInputBuffers(
         jint index,
         jobjectArray bufferInfosObjs,
         jobjectArray cryptoInfoObjs) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueSecureInputBuffers#jni");
     ALOGV("android_media_MediaCodec_queueSecureInputBuffers");
 
     sp<JMediaCodec> codec = getMediaCodec(env, thiz);
@@ -2617,6 +2700,7 @@ static void android_media_MediaCodec_queueSecureInputBuffers(
 }
 
 static jobject android_media_MediaCodec_mapHardwareBuffer(JNIEnv *env, jclass, jobject bufferObj) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::mapHardwareBuffer#jni");
     ALOGV("android_media_MediaCodec_mapHardwareBuffer");
     AHardwareBuffer *hardwareBuffer = android_hardware_HardwareBuffer_getNativeHardwareBuffer(
             env, bufferObj);
@@ -2906,11 +2990,16 @@ static void extractMemoryFromContext(
         }
         *memory = context->toHidlMemory();
     }
-    if (context->mBlock == nullptr || context->mReadWriteMapping == nullptr) {
-        ALOGW("extractMemoryFromContext: Cannot extract memory as C2Block is not created/mapped");
+    if (context->mBlock == nullptr) {
+        // this should be ok as we may only have IMemory/hidlMemory
+        // e.g. video codecs may only have IMemory and no mBlock
         return;
     }
-    if (context->mReadWriteMapping->error() != C2_OK) {
+
+    // if we have mBlock and memory, then we will copy data from mBlock to hidlMemory
+    // e.g. audio codecs may only have mBlock and wanted to decrypt using hidlMemory
+    // and also wanted to re-use mBlock
+    if (context->mReadWriteMapping == nullptr || context->mReadWriteMapping->error() != C2_OK) {
         ALOGW("extractMemoryFromContext: failed to map C2Block (%d)",
                 context->mReadWriteMapping->error());
         return;
@@ -2960,6 +3049,7 @@ static void extractBufferFromContext(
 static void android_media_MediaCodec_native_queueLinearBlock(
         JNIEnv *env, jobject thiz, jint index, jobject bufferObj,
         jobjectArray cryptoInfoArray, jobjectArray objArray, jobject keys, jobject values) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueLinearBlock#jni");
     ALOGV("android_media_MediaCodec_native_queueLinearBlock");
 
     sp<JMediaCodec> codec = getMediaCodec(env, thiz);
@@ -3077,6 +3167,7 @@ static void android_media_MediaCodec_native_queueHardwareBuffer(
         JNIEnv *env, jobject thiz, jint index, jobject bufferObj,
         jlong presentationTimeUs, jint flags, jobject keys, jobject values) {
     ALOGV("android_media_MediaCodec_native_queueHardwareBuffer");
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueHardwareBuffer#jni");
 
     sp<JMediaCodec> codec = getMediaCodec(env, thiz);
 
@@ -3545,6 +3636,64 @@ static void android_media_MediaCodec_unsubscribeFromVendorParameters(
     return;
 }
 
+static jobject getJavaResources(
+        JNIEnv *env,
+        const std::vector<GlobalResourceInfo>& resources) {
+    jobject resourcesObj = env->NewObject(gArrayListInfo.clazz, gArrayListInfo.ctorId);
+    for (const GlobalResourceInfo& res : resources) {
+        ScopedLocalRef<jobject> object{env, env->NewObject(
+                gGlobalResourceInfo.clazz, gGlobalResourceInfo.ctorId)};
+        ScopedLocalRef<jstring> nameStr{env, env->NewStringUTF(res.mName.c_str())};
+        env->SetObjectField(object.get(), gInstanceResourceInfo.resourceId, nameStr.get());
+        env->SetLongField(object.get(), gGlobalResourceInfo.capacityId, (jlong)res.mCapacity);
+        env->SetLongField(object.get(), gGlobalResourceInfo.availableId, (jlong)res.mAvailable);
+        (void)env->CallBooleanMethod(resourcesObj, gArrayListInfo.addId, object.get());
+    }
+
+    return resourcesObj;
+}
+
+static jobject android_media_MediaCodec_getGloballyAvailableResources(
+        JNIEnv *env, jobject thiz) {
+    (void)thiz;
+    std::vector<GlobalResourceInfo> resources;
+    status_t status = MediaCodec::getGloballyAvailableResources(resources);
+    if (status != OK) {
+        if (status == ERROR_UNSUPPORTED) {
+            jniThrowException(env, "java/lang/UnsupportedOperationException",
+                              "Function Not Implemented");
+        } else {
+            throwExceptionAsNecessary(env, status, nullptr);
+        }
+        return nullptr;
+    }
+
+    return getJavaResources(env, resources);
+}
+
+static jobject android_media_MediaCodec_getRequiredResources(
+        JNIEnv *env, jobject thiz) {
+    sp<JMediaCodec> codec = getMediaCodec(env, thiz);
+    if (codec == nullptr || codec->initCheck() != OK) {
+        throwExceptionAsNecessary(env, INVALID_OPERATION, codec);
+        return nullptr;
+    }
+
+    jobject ret = nullptr;
+    status_t status = codec->getRequiredResources(env, &ret);
+    if (status != OK) {
+        if (status == ERROR_UNSUPPORTED) {
+            jniThrowException(env, "java/lang/UnsupportedOperationException",
+                              "Function Not Implemented");
+        } else {
+            throwExceptionAsNecessary(env, status, nullptr);
+        }
+        return nullptr;
+    }
+
+    return ret;
+}
+
 static void android_media_MediaCodec_native_init(JNIEnv *env, jclass) {
     ScopedLocalRef<jclass> clazz(
             env, env->FindClass("android/media/MediaCodec"));
@@ -3890,6 +4039,36 @@ static void android_media_MediaCodec_native_init(JNIEnv *env, jclass) {
     gFields.bufferInfoOffset = env->GetFieldID(clazz.get(), "offset", "I");
     gFields.bufferInfoPresentationTimeUs =
             env->GetFieldID(clazz.get(), "presentationTimeUs", "J");
+
+    // Since these TestApis are defined under the flag, make sure they are
+    // accessed only when the flag is set.
+    if (android::media::codec::codec_availability()) {
+        clazz.reset(env->FindClass("android/media/MediaCodec$GlobalResourceInfo"));
+        CHECK(clazz.get() != NULL);
+        gGlobalResourceInfo.clazz = (jclass)env->NewGlobalRef(clazz.get());
+        gGlobalResourceInfo.ctorId = env->GetMethodID(clazz.get(), "<init>", "()V");
+        CHECK(gGlobalResourceInfo.ctorId != NULL);
+        gGlobalResourceInfo.resourceId =
+                env->GetFieldID(clazz.get(), "mName", "Ljava/lang/String;");
+        CHECK(gGlobalResourceInfo.resourceId != NULL);
+        gGlobalResourceInfo.capacityId = env->GetFieldID(clazz.get(), "mCapacity", "J");
+        CHECK(gGlobalResourceInfo.capacityId != NULL);
+        gGlobalResourceInfo.availableId = env->GetFieldID(clazz.get(), "mAvailable", "J");
+        CHECK(gGlobalResourceInfo.availableId != NULL);
+
+        clazz.reset(env->FindClass("android/media/MediaCodec$InstanceResourceInfo"));
+        CHECK(clazz.get() != NULL);
+        gInstanceResourceInfo.clazz = (jclass)env->NewGlobalRef(clazz.get());
+        gInstanceResourceInfo.ctorId = env->GetMethodID(clazz.get(), "<init>", "()V");
+        CHECK(gInstanceResourceInfo.ctorId != NULL);
+        gInstanceResourceInfo.resourceId =
+                env->GetFieldID(clazz.get(), "mName", "Ljava/lang/String;");
+        CHECK(gInstanceResourceInfo.resourceId != NULL);
+        gInstanceResourceInfo.staticCountId= env->GetFieldID(clazz.get(), "mStaticCount", "J");
+        CHECK(gInstanceResourceInfo.staticCountId != NULL);
+        gInstanceResourceInfo.perFrameCountId = env->GetFieldID(clazz.get(), "mPerFrameCount", "J");
+        CHECK(gInstanceResourceInfo.perFrameCountId != NULL);
+    }
 }
 
 static void android_media_MediaCodec_native_setup(
@@ -4246,6 +4425,12 @@ static const JNINativeMethod gMethods[] = {
 
     { "native_finalize", "()V",
       (void *)android_media_MediaCodec_native_finalize },
+
+    { "native_getGloballyAvailableResources", "()Ljava/util/List;",
+      (void *)android_media_MediaCodec_getGloballyAvailableResources},
+
+    { "native_getRequiredResources", "()Ljava/util/List;",
+      (void *)android_media_MediaCodec_getRequiredResources},
 };
 
 static const JNINativeMethod gLinearBlockMethods[] = {

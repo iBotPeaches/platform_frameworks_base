@@ -19,7 +19,6 @@ package com.android.server.display;
 import static android.media.AudioDeviceInfo.TYPE_HDMI;
 import static android.media.AudioDeviceInfo.TYPE_HDMI_ARC;
 import static android.media.AudioDeviceInfo.TYPE_USB_DEVICE;
-import static android.provider.Settings.Global.DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -32,7 +31,6 @@ import android.media.AudioManager.AudioPlaybackCallback;
 import android.media.AudioPlaybackConfiguration;
 import android.os.Handler;
 import android.os.PowerManager;
-import android.provider.Settings;
 import android.util.Slog;
 import android.util.SparseIntArray;
 import android.view.Display;
@@ -44,6 +42,7 @@ import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.display.utils.DebugUtils;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 
 /**
@@ -203,8 +202,9 @@ public final class ExternalDisplayStatsService {
         }
     };
 
-    ExternalDisplayStatsService(Context context, Handler handler) {
-        this(new Injector(context, handler));
+    ExternalDisplayStatsService(Context context, Handler handler,
+            BooleanSupplier isExtendedDisplayEnabled) {
+        this(new Injector(context, handler, isExtendedDisplayEnabled));
     }
 
     @VisibleForTesting
@@ -518,18 +518,24 @@ public final class ExternalDisplayStatsService {
     private void logExternalDisplayIdleStarted() {
         synchronized (mExternalDisplayStates) {
             for (var i = 0; i < mExternalDisplayStates.size(); i++) {
-                mInjector.writeLog(FrameworkStatsLog.EXTERNAL_DISPLAY_STATE_CHANGED,
-                        KEYGUARD, i + 1, mIsExternalDisplayUsedForAudio);
-                if (DEBUG) {
-                    final int displayId = mExternalDisplayStates.keyAt(i);
-                    final int state = mExternalDisplayStates.get(displayId, DISCONNECTED_STATE);
-                    Slog.d(TAG, "logExternalDisplayIdleStarted"
-                                        + " displayId=" + displayId
-                                        + " currentState=" + state
-                                        + " countOfExternalDisplays=" + (i + 1)
-                                        + " state=" + KEYGUARD
-                                        + " mIsExternalDisplayUsedForAudio="
-                                        + mIsExternalDisplayUsedForAudio);
+                final int displayId = mExternalDisplayStates.keyAt(i);
+                final int state = mExternalDisplayStates.get(displayId, DISCONNECTED_STATE);
+                // Don't try to stop "connected" session by keyguard event.
+                // There is no purpose to measure how long keyguard is shown while external
+                // display is connected but not used for mirroring or extended display.
+                // Therefore there no need to log this event.
+                if (state != DISCONNECTED_STATE && state != CONNECTED_STATE) {
+                    mInjector.writeLog(FrameworkStatsLog.EXTERNAL_DISPLAY_STATE_CHANGED,
+                            KEYGUARD, i + 1, mIsExternalDisplayUsedForAudio);
+                    if (DEBUG) {
+                        Slog.d(TAG, "logExternalDisplayIdleStarted"
+                                            + " displayId=" + displayId
+                                            + " currentState=" + state
+                                            + " countOfExternalDisplays=" + (i + 1)
+                                            + " state=" + KEYGUARD
+                                            + " mIsExternalDisplayUsedForAudio="
+                                            + mIsExternalDisplayUsedForAudio);
+                    }
                 }
             }
         }
@@ -540,7 +546,11 @@ public final class ExternalDisplayStatsService {
             for (var i = 0; i < mExternalDisplayStates.size(); i++) {
                 final int displayId = mExternalDisplayStates.keyAt(i);
                 final int state = mExternalDisplayStates.get(displayId, DISCONNECTED_STATE);
-                if (state == DISCONNECTED_STATE) {
+                // No need to restart "connected" session after keyguard is stopped.
+                // This is because the connection is continuous even if keyguard is shown.
+                // In case in the future keyguard needs to be measured also while display
+                // is not used, then a 'keyguard finished' event needs to be emitted in this case.
+                if (state == DISCONNECTED_STATE || state == CONNECTED_STATE) {
                     return;
                 }
                 mInjector.writeLog(FrameworkStatsLog.EXTERNAL_DISPLAY_STATE_CHANGED,
@@ -589,25 +599,21 @@ public final class ExternalDisplayStatsService {
         private final Context mContext;
         @NonNull
         private final Handler mHandler;
+        private final BooleanSupplier mIsExtendedDisplayEnabled;
         @Nullable
         private AudioManager mAudioManager;
         @Nullable
         private PowerManager mPowerManager;
 
-        Injector(@NonNull Context context, @NonNull Handler handler) {
+        Injector(@NonNull Context context, @NonNull Handler handler,
+                BooleanSupplier isExtendedDisplayEnabled) {
             mContext = context;
             mHandler = handler;
+            mIsExtendedDisplayEnabled = isExtendedDisplayEnabled;
         }
 
         boolean isExtendedDisplayEnabled() {
-            try {
-                return 0 != Settings.Global.getInt(
-                        mContext.getContentResolver(),
-                        DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS, 0);
-            } catch (Throwable e) {
-                // Some services might not be initialised yet to be able to call getInt
-                return false;
-            }
+            return mIsExtendedDisplayEnabled.getAsBoolean();
         }
 
         void registerInteractivityReceiver(BroadcastReceiver interactivityReceiver,

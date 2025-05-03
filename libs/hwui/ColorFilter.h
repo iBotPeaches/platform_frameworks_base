@@ -22,18 +22,44 @@
 #include <memory>
 
 #include "GraphicsJNI.h"
+#include "RuntimeEffectUtils.h"
 #include "SkColorFilter.h"
-#include "SkiaWrapper.h"
 
 namespace android {
 namespace uirenderer {
 
-class ColorFilter : public SkiaWrapper<SkColorFilter> {
+class ColorFilter : public VirtualLightRefBase {
 public:
     static ColorFilter* fromJava(jlong handle) { return reinterpret_cast<ColorFilter*>(handle); }
 
+    sk_sp<SkColorFilter> getInstance() {
+        if (mInstance != nullptr && shouldDiscardInstance()) {
+            mInstance = nullptr;
+        }
+
+        if (mInstance == nullptr) {
+            mInstance = createInstance();
+            if (mInstance) {
+                mInstance = mInstance->makeWithWorkingColorSpace(SkColorSpace::MakeSRGB());
+            }
+            mGenerationId++;
+        }
+        return mInstance;
+    }
+
+    virtual bool shouldDiscardInstance() const { return false; }
+
+    void discardInstance() { mInstance = nullptr; }
+
+    [[nodiscard]] int32_t getGenerationId() const { return mGenerationId; }
+
 protected:
     ColorFilter() = default;
+    virtual sk_sp<SkColorFilter> createInstance() = 0;
+
+private:
+    sk_sp<SkColorFilter> mInstance = nullptr;
+    int32_t mGenerationId = 0;
 };
 
 class BlendModeColorFilter : public ColorFilter {
@@ -81,11 +107,41 @@ public:
 
 private:
     sk_sp<SkColorFilter> createInstance() override {
-        return SkColorFilters::Matrix(mMatrix.data());
+        return SkColorFilters::Matrix(mMatrix.data(), SkColorFilters::Clamp::kNo);
     }
 
 private:
     std::vector<float> mMatrix;
+};
+
+class RuntimeColorFilter : public ColorFilter {
+public:
+    RuntimeColorFilter(SkRuntimeEffectBuilder* builder) : mBuilder(builder) {}
+
+    void updateUniforms(JNIEnv* env, const char* name, const float vals[], int count,
+                        bool isColor) {
+        UpdateFloatUniforms(env, mBuilder, name, vals, count, isColor);
+        discardInstance();
+    }
+
+    void updateUniforms(JNIEnv* env, const char* name, const int vals[], int count) {
+        UpdateIntUniforms(env, mBuilder, name, vals, count);
+        discardInstance();
+    }
+
+    void updateChild(JNIEnv* env, const char* name, SkFlattenable* childEffect) {
+        UpdateChild(env, mBuilder, name, childEffect);
+        discardInstance();
+    }
+
+private:
+    sk_sp<SkColorFilter> createInstance() override {
+        // TODO: throw error if null
+        return mBuilder->makeColorFilter();
+    }
+
+private:
+    SkRuntimeEffectBuilder* mBuilder;
 };
 
 }  // namespace uirenderer

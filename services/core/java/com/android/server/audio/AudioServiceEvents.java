@@ -151,13 +151,13 @@ public class AudioServiceEvents {
 
     static final class VolChangedBroadcastEvent extends EventLogger.Event {
         final int mStreamType;
-        final int mAliasStreamType;
+        final String mAliasStreamIndexes;
         final int mIndex;
         final int mOldIndex;
 
-        VolChangedBroadcastEvent(int stream, int alias, int index, int oldIndex) {
+        VolChangedBroadcastEvent(int stream, String aliasIndexes, int index, int oldIndex) {
             mStreamType = stream;
-            mAliasStreamType = alias;
+            mAliasStreamIndexes = aliasIndexes;
             mIndex = index;
             mOldIndex = oldIndex;
         }
@@ -167,8 +167,8 @@ public class AudioServiceEvents {
             return new StringBuilder("sending VOLUME_CHANGED stream:")
                     .append(AudioSystem.streamToString(mStreamType))
                     .append(" index:").append(mIndex)
-                    .append(" (was:").append(mOldIndex)
-                    .append(") alias:").append(AudioSystem.streamToString(mAliasStreamType))
+                    .append(" (was:").append(mOldIndex).append(")")
+                    .append(mAliasStreamIndexes)
                     .toString();
         }
     }
@@ -227,13 +227,14 @@ public class AudioServiceEvents {
         static final int VOL_SET_HEARING_AID_VOL = 3;
         static final int VOL_SET_AVRCP_VOL = 4;
         static final int VOL_ADJUST_VOL_UID = 5;
-        static final int VOL_VOICE_ACTIVITY_HEARING_AID = 6;
+        static final int VOL_VOICE_ACTIVITY_CONTEXTUAL_VOLUME = 6;
         static final int VOL_MODE_CHANGE_HEARING_AID = 7;
         static final int VOL_SET_GROUP_VOL = 8;
         static final int VOL_MUTE_STREAM_INT = 9;
         static final int VOL_SET_LE_AUDIO_VOL = 10;
         static final int VOL_ADJUST_GROUP_VOL = 11;
         static final int VOL_MASTER_MUTE = 12;
+        static final int VOL_ABS_DEVICE_ENABLED_ERROR = 13;
 
         final int mOp;
         final int mStream;
@@ -299,14 +300,14 @@ public class AudioServiceEvents {
             logMetricEvent();
         }
 
-        /** used for VOL_VOICE_ACTIVITY_HEARING_AID */
-        VolumeEvent(int op, boolean voiceActive, int stream, int index) {
+        /** used for VOL_VOICE_ACTIVITY_CONTEXTUAL_VOLUME */
+        VolumeEvent(int op, boolean voiceActive, int stream, int index, int device) {
             mOp = op;
             mStream = stream;
             mVal1 = index;
             mVal2 = voiceActive ? 1 : 0;
             // unused
-            mVal3 = -1;
+            mVal3 = device;
             mCaller = null;
             mGroupName = null;
             logMetricEvent();
@@ -360,6 +361,19 @@ public class AudioServiceEvents {
             mVal2 = 0;
             // unused
             mVal3 = -1;
+            mCaller = null;
+            mGroupName = null;
+            logMetricEvent();
+        }
+
+        /** used for VOL_ABS_DEVICE_ENABLED_ERROR */
+        VolumeEvent(int op, int result, int device, boolean enabled, int streamType) {
+            mOp = op;
+            mStream = streamType;
+            mVal1 = device;
+            mVal2 = enabled ? 1 : 0;
+            mVal3 = result;
+            // unused
             mCaller = null;
             mGroupName = null;
             logMetricEvent();
@@ -445,14 +459,16 @@ public class AudioServiceEvents {
                             .set(MediaMetrics.Property.INDEX, mVal1)
                             .record();
                     return;
-                case VOL_VOICE_ACTIVITY_HEARING_AID:
+                case VOL_VOICE_ACTIVITY_CONTEXTUAL_VOLUME:
                     new MediaMetrics.Item(mMetricsId)
-                            .set(MediaMetrics.Property.EVENT, "voiceActivityHearingAid")
+                            .set(MediaMetrics.Property.EVENT, "voiceActivityContextualVolume")
                             .set(MediaMetrics.Property.INDEX, mVal1)
                             .set(MediaMetrics.Property.STATE,
                                     mVal2 == 1 ? "active" : "inactive")
                             .set(MediaMetrics.Property.STREAM_TYPE,
                                     AudioSystem.streamToString(mStream))
+                            .set(MediaMetrics.Property.DEVICE,
+                                    AudioSystem.getOutputDeviceName(mVal3))
                             .record();
                     return;
                 case VOL_MODE_CHANGE_HEARING_AID:
@@ -477,6 +493,9 @@ public class AudioServiceEvents {
                     // No value in logging metrics for this internal event
                     return;
                 case VOL_MASTER_MUTE:
+                    // No value in logging metrics for this internal event
+                    return;
+                case VOL_ABS_DEVICE_ENABLED_ERROR:
                     // No value in logging metrics for this internal event
                     return;
                 default:
@@ -538,11 +557,12 @@ public class AudioServiceEvents {
                             .append(" flags:0x").append(Integer.toHexString(mVal2))
                             .append(") from ").append(mCaller)
                             .toString();
-                case VOL_VOICE_ACTIVITY_HEARING_AID:
+                case VOL_VOICE_ACTIVITY_CONTEXTUAL_VOLUME:
                     return new StringBuilder("Voice activity change (")
                             .append(mVal2 == 1 ? "active" : "inactive")
-                            .append(") causes setting HEARING_AID volume to idx:").append(mVal1)
+                            .append(") causes setting volume to idx:").append(mVal1)
                             .append(" stream:").append(AudioSystem.streamToString(mStream))
+                            .append(" device:").append(AudioSystem.getOutputDeviceName(mVal3))
                             .toString();
                 case VOL_MODE_CHANGE_HEARING_AID:
                     return new StringBuilder("setMode(")
@@ -566,6 +586,13 @@ public class AudioServiceEvents {
                     return new StringBuilder("Master mute:")
                             .append(mVal1 == 1 ? " muted)" : " unmuted)")
                             .toString();
+                case VOL_ABS_DEVICE_ENABLED_ERROR:
+                    return new StringBuilder("setDeviceAbsoluteVolumeEnabled failed with ")
+                            .append(mVal3)
+                            .append(" for dev: 0x").append(Integer.toHexString(mVal1))
+                            .append(" enabled: ").append(mVal2)
+                            .append(" streamType: ").append(mStream)
+                            .toString();
                 default: return new StringBuilder("FIXME invalid op:").append(mOp).toString();
             }
         }
@@ -577,6 +604,7 @@ public class AudioServiceEvents {
         static final int DOSE_REPEAT_5X = 2;
         static final int DOSE_ACCUMULATION_START = 3;
         static final int LOWER_VOLUME_TO_RS1 = 4;
+        static final int UPDATE_ABS_VOLUME_ATTENUATION = 5;
 
         final int mEventType;
         final float mFloatValue;
@@ -608,6 +636,10 @@ public class AudioServiceEvents {
             return new SoundDoseEvent(LOWER_VOLUME_TO_RS1, 0 /*ignored*/, 0 /*ignored*/);
         }
 
+        static SoundDoseEvent getAbsVolumeAttenuationEvent(float attenuation, int device) {
+            return new SoundDoseEvent(UPDATE_ABS_VOLUME_ATTENUATION, attenuation, device);
+        }
+
         @Override
         public String eventToString() {
             switch (mEventType) {
@@ -623,6 +655,10 @@ public class AudioServiceEvents {
                     return "CSD accumulating: RS2 entered";
                 case LOWER_VOLUME_TO_RS1:
                     return "CSD lowering volume to RS1";
+                case UPDATE_ABS_VOLUME_ATTENUATION:
+                    return String.format(java.util.Locale.US,
+                            "Updating CSD absolute volume attenuation on device 0x%s with %.2f dB ",
+                            Long.toHexString(mLongValue), mFloatValue);
             }
             return new StringBuilder("FIXME invalid event type:").append(mEventType).toString();
         }

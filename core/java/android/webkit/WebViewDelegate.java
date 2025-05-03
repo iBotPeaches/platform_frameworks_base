@@ -28,7 +28,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.RecordingCanvas;
-import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.util.SparseArray;
@@ -137,9 +136,13 @@ public final class WebViewDelegate {
      */
     @Deprecated
     public void detachDrawGlFunctor(View containerView, long nativeDrawGLFunctor) {
-        ViewRootImpl viewRootImpl = containerView.getViewRootImpl();
-        if (nativeDrawGLFunctor != 0 && viewRootImpl != null) {
-            viewRootImpl.detachFunctor(nativeDrawGLFunctor);
+        if (Flags.mainlineApis()) {
+            throw new UnsupportedOperationException();
+        } else {
+            ViewRootImpl viewRootImpl = containerView.getViewRootImpl();
+            if (nativeDrawGLFunctor != 0 && viewRootImpl != null) {
+                viewRootImpl.detachFunctor(nativeDrawGLFunctor);
+            }
         }
     }
 
@@ -175,8 +178,16 @@ public final class WebViewDelegate {
 
     /**
      * Adds the WebView asset path to {@link android.content.res.AssetManager}.
+     * If {@link android.content.res.Flags#FLAG_REGISTER_RESOURCE_PATHS} is enabled, this function
+     * will be a no-op because the asset paths appending work will only be handled by
+     * {@link android.content.res.Resources#registerResourcePaths(String, ApplicationInfo)},
+     * otherwise it behaves the old way.
      */
     public void addWebViewAssetPath(Context context) {
+        if (android.content.res.Flags.registerResourcePaths()) {
+            return;
+        }
+
         final String[] newAssetPaths =
                 WebViewFactory.getLoadedPackageInfo().applicationInfo.getAllApkPaths();
         final ApplicationInfo appInfo = context.getApplicationInfo();
@@ -205,19 +216,7 @@ public final class WebViewDelegate {
      * Returns whether WebView should run in multiprocess mode.
      */
     public boolean isMultiProcessEnabled() {
-        if (Flags.updateServiceV2()) {
-            return true;
-        } else if (Flags.updateServiceIpcWrapper()) {
-            // We don't want to support this method in the new wrapper because updateServiceV2 is
-            // intended to ship in the same release (or sooner). It's only possible to disable it
-            // with an obscure adb command, so just return true here too.
-            return true;
-        }
-        try {
-            return WebViewFactory.getUpdateService().isMultiProcessEnabled();
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
+        return true;
     }
 
     /**

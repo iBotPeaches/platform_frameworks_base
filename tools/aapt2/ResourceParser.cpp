@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include "ResourceParser.h"
 
 #include <functional>
@@ -110,6 +109,8 @@ struct ParsedResource {
   bool allow_new = false;
   std::optional<OverlayableItem> overlayable_item;
   std::optional<StagedId> staged_alias;
+  std::optional<FeatureFlagAttribute> flag;
+  FlagStatus flag_status = FlagStatus::NoFlag;
 
   std::string comment;
   std::unique_ptr<Value> value;
@@ -151,6 +152,8 @@ static bool AddResourcesToTable(ResourceTable* table, android::IDiagnostics* dia
   }
 
   if (res->value != nullptr) {
+    res->value->SetFlag(res->flag);
+    res->value->SetFlagStatus(res->flag_status);
     // Attach the comment, source and config to the value.
     res->value->SetComment(std::move(res->comment));
     res->value->SetSource(std::move(res->source));
@@ -543,7 +546,26 @@ bool ResourceParser::ParseResource(xml::XmlPullParser* parser,
       {"symbol", std::mem_fn(&ResourceParser::ParseSymbol)},
   });
 
-  std::string resource_type = parser->element_name();
+  std::string_view resource_type = parser->element_name();
+  if (auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, "featureFlag"))) {
+    if (options_.flag) {
+      diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number()))
+                   << "Resource flag are not allowed both in the path and in the file");
+      return false;
+    }
+    out_resource->flag = std::move(flag);
+    std::string error;
+    auto flag_status = GetFlagStatus(out_resource->flag, options_.feature_flag_values, &error);
+    if (flag_status) {
+      out_resource->flag_status = flag_status.value();
+    } else {
+      diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number())) << error);
+      return false;
+    }
+  } else if (options_.flag) {
+    out_resource->flag = options_.flag;
+    out_resource->flag_status = options_.flag_status;
+  }
 
   // The value format accepted for this resource.
   uint32_t resource_format = 0u;
@@ -559,7 +581,7 @@ bool ResourceParser::ParseResource(xml::XmlPullParser* parser,
 
     // Items have their type encoded in the type attribute.
     if (std::optional<StringPiece> maybe_type = xml::FindNonEmptyAttribute(parser, "type")) {
-      resource_type = std::string(maybe_type.value());
+      resource_type = maybe_type.value();
     } else {
       diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number()))
                    << "<item> must have a 'type' attribute");
@@ -582,7 +604,7 @@ bool ResourceParser::ParseResource(xml::XmlPullParser* parser,
 
     // Bags have their type encoded in the type attribute.
     if (std::optional<StringPiece> maybe_type = xml::FindNonEmptyAttribute(parser, "type")) {
-      resource_type = std::string(maybe_type.value());
+      resource_type = maybe_type.value();
     } else {
       diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number()))
                    << "<bag> must have a 'type' attribute");
@@ -1507,13 +1529,34 @@ bool ResourceParser::ParseStyleItem(xml::XmlPullParser* parser, Style* style) {
   ResolvePackage(parser, &maybe_key.value());
   maybe_key.value().SetSource(source);
 
+  auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, "featureFlag"));
+
   std::unique_ptr<Item> value = ParseXml(parser, 0, kAllowRawString);
   if (!value) {
     diag_->Error(android::DiagMessage(source) << "could not parse style item");
     return false;
   }
 
-  style->entries.push_back(Style::Entry{std::move(maybe_key.value()), std::move(value)});
+  if (flag) {
+    if (options_.flag) {
+      diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number()))
+                   << "Resource flag are not allowed both in the path and in the file");
+      return false;
+    }
+    std::string error;
+    auto flag_status = GetFlagStatus(flag, options_.feature_flag_values, &error);
+    if (flag_status) {
+      value->SetFlagStatus(flag_status.value());
+      value->SetFlag(std::move(flag));
+    } else {
+      diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number())) << error);
+      return false;
+    }
+  }
+
+  if (value->GetFlagStatus() != FlagStatus::Disabled) {
+    style->entries.push_back(Style::Entry{std::move(maybe_key.value()), std::move(value)});
+  }
   return true;
 }
 
@@ -1631,15 +1674,25 @@ bool ResourceParser::ParseArrayImpl(xml::XmlPullParser* parser,
     const std::string& element_namespace = parser->element_namespace();
     const std::string& element_name = parser->element_name();
     if (element_namespace.empty() && element_name == "item") {
+      auto flag = ParseFlag(xml::FindAttribute(parser, xml::kSchemaAndroid, "featureFlag"));
       std::unique_ptr<Item> item = ParseXml(parser, typeMask, kNoRawString);
       if (!item) {
         diag_->Error(android::DiagMessage(item_source) << "could not parse array item");
         error = true;
         continue;
       }
+      item->SetFlag(flag);
+      std::string err;
+      auto status = GetFlagStatus(flag, options_.feature_flag_values, &err);
+      if (status) {
+        item->SetFlagStatus(status.value());
+      } else {
+        diag_->Error(android::DiagMessage(item_source) << err);
+        error = true;
+        continue;
+      }
       item->SetSource(item_source);
       array->elements.emplace_back(std::move(item));
-
     } else if (!ShouldIgnoreElement(element_namespace, element_name)) {
       diag_->Error(android::DiagMessage(source_.WithLine(parser->line_number()))
                    << "unknown tag <" << element_namespace << ":" << element_name << ">");

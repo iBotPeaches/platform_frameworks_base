@@ -41,6 +41,12 @@ class ActiveNotificationListRepository @Inject constructor() {
 
     /** Stats about the list of notifications attached to the shade */
     val notifStats = MutableStateFlow(NotifStats.empty)
+
+    /** The key of the top ongoing notification */
+    val topOngoingNotificationKey = MutableStateFlow<String?>(null)
+
+    /** The key of the top unseen notification */
+    val topUnseenNotificationKey = MutableStateFlow<String?>(null)
 }
 
 /** Represents the notification list, comprised of groups and individual notifications. */
@@ -60,7 +66,7 @@ data class ActiveNotificationsStore(
      * Map of notification key to rank, where rank is the 0-based index of the notification on the
      * system server, meaning that in the unfiltered flattened list of notification entries.
      */
-    val rankingsMap: Map<String, Int> = emptyMap()
+    val rankingsMap: Map<String, Int> = emptyMap(),
 ) {
     operator fun get(key: Key): ActiveNotificationEntryModel? {
         return when (key) {
@@ -72,6 +78,7 @@ data class ActiveNotificationsStore(
     /** Unique key identifying an [ActiveNotificationEntryModel] in the store. */
     sealed class Key {
         data class Individual(val key: String) : Key()
+
         data class Group(val key: String) : Key()
     }
 

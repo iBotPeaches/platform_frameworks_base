@@ -19,12 +19,12 @@ package com.android.systemui.statusbar.pipeline.dagger
 import android.net.wifi.WifiManager
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.flags.FeatureFlags
-import com.android.systemui.flags.Flags
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.LogBufferFactory
 import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.log.table.TableLogBufferFactory
+import com.android.systemui.statusbar.events.data.repository.SystemStatusEventAnimationRepository
+import com.android.systemui.statusbar.events.data.repository.SystemStatusEventAnimationRepositoryImpl
 import com.android.systemui.statusbar.pipeline.airplane.data.repository.AirplaneModeRepository
 import com.android.systemui.statusbar.pipeline.airplane.data.repository.AirplaneModeRepositoryImpl
 import com.android.systemui.statusbar.pipeline.airplane.ui.viewmodel.AirplaneModeViewModel
@@ -43,21 +43,22 @@ import com.android.systemui.statusbar.pipeline.mobile.util.MobileMappingsProxyIm
 import com.android.systemui.statusbar.pipeline.mobile.util.SubscriptionManagerProxy
 import com.android.systemui.statusbar.pipeline.mobile.util.SubscriptionManagerProxyImpl
 import com.android.systemui.statusbar.pipeline.satellite.data.DeviceBasedSatelliteRepository
+import com.android.systemui.statusbar.pipeline.satellite.data.DeviceBasedSatelliteRepositorySwitcher
+import com.android.systemui.statusbar.pipeline.satellite.data.RealDeviceBasedSatelliteRepository
 import com.android.systemui.statusbar.pipeline.satellite.data.prod.DeviceBasedSatelliteRepositoryImpl
+import com.android.systemui.statusbar.pipeline.satellite.ui.viewmodel.DeviceBasedSatelliteViewModel
+import com.android.systemui.statusbar.pipeline.satellite.ui.viewmodel.DeviceBasedSatelliteViewModelImpl
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepositoryImpl
-import com.android.systemui.statusbar.pipeline.shared.ui.binder.CollapsedStatusBarViewBinder
-import com.android.systemui.statusbar.pipeline.shared.ui.binder.CollapsedStatusBarViewBinderImpl
-import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.CollapsedStatusBarViewModel
-import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.CollapsedStatusBarViewModelImpl
+import com.android.systemui.statusbar.pipeline.shared.ui.binder.HomeStatusBarViewBinder
+import com.android.systemui.statusbar.pipeline.shared.ui.binder.HomeStatusBarViewBinderImpl
+import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.HomeStatusBarViewModel
+import com.android.systemui.statusbar.pipeline.shared.ui.viewmodel.HomeStatusBarViewModelImpl
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.RealWifiRepository
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepository
-import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepositoryDagger
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepositorySwitcher
-import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepositoryViaTrackerLibDagger
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.prod.DisabledWifiRepository
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.prod.WifiRepositoryImpl
-import com.android.systemui.statusbar.pipeline.wifi.data.repository.prod.WifiRepositoryViaTrackerLib
 import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.WifiInteractor
 import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.WifiInteractorImpl
 import com.android.systemui.statusbar.policy.data.repository.UserSetupRepository
@@ -86,9 +87,24 @@ abstract class StatusBarPipelineModule {
     abstract fun connectivityRepository(impl: ConnectivityRepositoryImpl): ConnectivityRepository
 
     @Binds
-    abstract fun deviceBasedSatelliteRepository(
+    abstract fun systemStatusEventAnimationRepository(
+        impl: SystemStatusEventAnimationRepositoryImpl
+    ): SystemStatusEventAnimationRepository
+
+    @Binds
+    abstract fun realDeviceBasedSatelliteRepository(
         impl: DeviceBasedSatelliteRepositoryImpl
+    ): RealDeviceBasedSatelliteRepository
+
+    @Binds
+    abstract fun deviceBasedSatelliteRepository(
+        impl: DeviceBasedSatelliteRepositorySwitcher
     ): DeviceBasedSatelliteRepository
+
+    @Binds
+    abstract fun deviceBasedSatelliteViewModel(
+        impl: DeviceBasedSatelliteViewModelImpl
+    ): DeviceBasedSatelliteViewModel
 
     @Binds abstract fun wifiRepository(impl: WifiRepositorySwitcher): WifiRepository
 
@@ -122,28 +138,20 @@ abstract class StatusBarPipelineModule {
     abstract fun bindCarrierConfigStartable(impl: CarrierConfigCoreStartable): CoreStartable
 
     @Binds
-    abstract fun collapsedStatusBarViewModel(
-        impl: CollapsedStatusBarViewModelImpl
-    ): CollapsedStatusBarViewModel
+    abstract fun homeStatusBarViewModel(impl: HomeStatusBarViewModelImpl): HomeStatusBarViewModel
 
     @Binds
-    abstract fun collapsedStatusBarViewBinder(
-        impl: CollapsedStatusBarViewBinderImpl
-    ): CollapsedStatusBarViewBinder
-
-    @Binds
-    @IntoMap
-    @ClassKey(WifiRepositoryDagger::class)
-    abstract fun bindWifiRepositoryDagger(impl: WifiRepositoryDagger): CoreStartable
+    abstract fun homeStatusBarViewBinder(impl: HomeStatusBarViewBinderImpl): HomeStatusBarViewBinder
 
     companion object {
+
         @Provides
         @SysUISingleton
-        fun provideWifiRepositoryDagger(
+        fun provideRealWifiRepository(
             wifiManager: WifiManager?,
             disabledWifiRepository: DisabledWifiRepository,
             wifiRepositoryImplFactory: WifiRepositoryImpl.Factory,
-        ): WifiRepositoryDagger {
+        ): RealWifiRepository {
             // If we have a null [WifiManager], then the wifi repository should be permanently
             // disabled.
             return if (wifiManager == null) {
@@ -155,39 +163,9 @@ abstract class StatusBarPipelineModule {
 
         @Provides
         @SysUISingleton
-        fun provideWifiRepositoryViaTrackerLibDagger(
-            wifiManager: WifiManager?,
-            disabledWifiRepository: DisabledWifiRepository,
-            wifiRepositoryFromTrackerLibFactory: WifiRepositoryViaTrackerLib.Factory,
-        ): WifiRepositoryViaTrackerLibDagger {
-            // If we have a null [WifiManager], then the wifi repository should be permanently
-            // disabled.
-            return if (wifiManager == null) {
-                disabledWifiRepository
-            } else {
-                wifiRepositoryFromTrackerLibFactory.create(wifiManager)
-            }
-        }
-
-        @Provides
-        @SysUISingleton
-        fun provideRealWifiRepository(
-            wifiRepository: WifiRepositoryDagger,
-            wifiRepositoryFromTrackerLib: WifiRepositoryViaTrackerLibDagger,
-            flags: FeatureFlags,
-        ): RealWifiRepository {
-            return if (flags.isEnabled(Flags.WIFI_TRACKER_LIB_FOR_WIFI_ICON)) {
-                wifiRepositoryFromTrackerLib
-            } else {
-                wifiRepository
-            }
-        }
-
-        @Provides
-        @SysUISingleton
         @Named(FIRST_MOBILE_SUB_SHOWING_NETWORK_TYPE_ICON)
         fun provideFirstMobileSubShowingNetworkTypeIconProvider(
-            mobileIconsViewModel: MobileIconsViewModel,
+            mobileIconsViewModel: MobileIconsViewModel
         ): Supplier<Flow<Boolean>> {
             return Supplier<Flow<Boolean>> {
                 mobileIconsViewModel.firstMobileSubShowingNetworkTypeIcon
@@ -197,16 +175,8 @@ abstract class StatusBarPipelineModule {
         @Provides
         @SysUISingleton
         @WifiInputLog
-        fun provideWifiInputLogBuffer(factory: LogBufferFactory): LogBuffer {
-            return factory.create("WifiInputLog", 50)
-        }
-
-        @Provides
-        @SysUISingleton
-        @WifiTrackerLibInputLog
-        fun provideWifiTrackerLibInputLogBuffer(factory: LogBufferFactory): LogBuffer {
-            // WifiTrackerLib is pretty noisy, so give it more room than WifiInputLog.
-            return factory.create("WifiTrackerLibInputLog", 200)
+        fun provideWifiLogBuffer(factory: LogBufferFactory): LogBuffer {
+            return factory.create("WifiInputLog", 200)
         }
 
         @Provides
@@ -214,13 +184,6 @@ abstract class StatusBarPipelineModule {
         @WifiTableLog
         fun provideWifiTableLogBuffer(factory: TableLogBufferFactory): TableLogBuffer {
             return factory.create("WifiTableLog", 100)
-        }
-
-        @Provides
-        @SysUISingleton
-        @WifiTrackerLibTableLog
-        fun provideWifiTrackerLibTableLogBuffer(factory: TableLogBufferFactory): TableLogBuffer {
-            return factory.create("WifiTrackerLibTableLog", 100)
         }
 
         @Provides
@@ -248,7 +211,7 @@ abstract class StatusBarPipelineModule {
         @SysUISingleton
         @MobileInputLog
         fun provideMobileInputLogBuffer(factory: LogBufferFactory): LogBuffer {
-            return factory.create("MobileInputLog", 100)
+            return factory.create("MobileInputLog", 300)
         }
 
         @Provides
@@ -267,9 +230,23 @@ abstract class StatusBarPipelineModule {
 
         @Provides
         @SysUISingleton
-        @OemSatelliteInputLog
-        fun provideOemSatelliteInputLog(factory: LogBufferFactory): LogBuffer {
-            return factory.create("DeviceBasedSatelliteInputLog", 32)
+        @DeviceBasedSatelliteInputLog
+        fun provideDeviceBasedSatelliteInputLog(factory: LogBufferFactory): LogBuffer {
+            return factory.create("DeviceBasedSatelliteInputLog", 200)
+        }
+
+        @Provides
+        @SysUISingleton
+        @VerboseDeviceBasedSatelliteInputLog
+        fun provideVerboseDeviceBasedSatelliteInputLog(factory: LogBufferFactory): LogBuffer {
+            return factory.create("VerboseDeviceBasedSatelliteInputLog", 200)
+        }
+
+        @Provides
+        @SysUISingleton
+        @DeviceBasedSatelliteTableLog
+        fun provideDeviceBasedSatelliteTableLog(factory: TableLogBufferFactory): TableLogBuffer {
+            return factory.create("DeviceBasedSatelliteTableLog", 200)
         }
 
         const val FIRST_MOBILE_SUB_SHOWING_NETWORK_TYPE_ICON =

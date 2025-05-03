@@ -18,6 +18,7 @@ package com.android.systemui.statusbar.notification.row;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.app.Flags;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -45,6 +46,7 @@ import android.widget.LinearLayout;
 import androidx.annotation.MainThread;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.logging.UiEventLogger;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.systemui.plugins.statusbar.NotificationMenuRowPlugin;
 import com.android.systemui.res.R;
@@ -58,9 +60,11 @@ import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.collection.render.GroupMembershipManager;
 import com.android.systemui.statusbar.notification.people.PeopleNotificationIdentifier;
 import com.android.systemui.statusbar.notification.row.shared.AsyncHybridViewInflation;
+import com.android.systemui.statusbar.notification.row.wrapper.NotificationCompactHeadsUpTemplateViewWrapper;
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationCustomViewWrapper;
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationHeaderViewWrapper;
 import com.android.systemui.statusbar.notification.row.wrapper.NotificationViewWrapper;
+import com.android.systemui.statusbar.phone.ExpandHeadsUpOnInlineReply;
 import com.android.systemui.statusbar.policy.InflatedSmartReplyState;
 import com.android.systemui.statusbar.policy.InflatedSmartReplyViewHolder;
 import com.android.systemui.statusbar.policy.RemoteInputView;
@@ -107,7 +111,8 @@ public class NotificationContentView extends FrameLayout implements Notification
     private View mContractedChild;
     private View mExpandedChild;
     private View mHeadsUpChild;
-    private HybridNotificationView mSingleLineView;
+    @VisibleForTesting
+    protected HybridNotificationView mSingleLineView;
 
     private RemoteInputView mExpandedRemoteInput;
     private RemoteInputView mHeadsUpRemoteInput;
@@ -200,6 +205,7 @@ public class NotificationContentView extends FrameLayout implements Notification
     private int mUnrestrictedContentHeight;
 
     private boolean mContentAnimating;
+    private UiEventLogger mUiEventLogger;
 
     public NotificationContentView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -212,12 +218,14 @@ public class NotificationContentView extends FrameLayout implements Notification
             RemoteInputViewSubcomponent.Factory rivSubcomponentFactory,
             SmartReplyConstants smartReplyConstants,
             SmartReplyController smartReplyController,
-            IStatusBarService statusBarService) {
+            IStatusBarService statusBarService,
+            UiEventLogger uiEventLogger) {
         mPeopleIdentifier = peopleNotificationIdentifier;
         mRemoteInputSubcomponentFactory = rivSubcomponentFactory;
         mSmartReplyConstants = smartReplyConstants;
         mSmartReplyController = smartReplyController;
         mStatusBarService = statusBarService;
+        mUiEventLogger = uiEventLogger;
         // We set root namespace so that we avoid searching children for id. Notification  might
         // contain custom view and their ids may clash with ids already existing in shade or
         // notification panel
@@ -547,11 +555,47 @@ public class NotificationContentView extends FrameLayout implements Notification
         mHeadsUpChild = child;
         mHeadsUpWrapper = NotificationViewWrapper.wrap(getContext(), child,
                 mContainingNotification);
+
+        if (Flags.compactHeadsUpNotification()
+                && mHeadsUpWrapper instanceof NotificationCompactHeadsUpTemplateViewWrapper) {
+            logCompactHUNShownEvent();
+        }
+
         if (mContainingNotification != null) {
             applySystemActions(mHeadsUpChild, mContainingNotification.getEntry());
         }
         // The heads up wrapper has changed. If this is the shown wrapper, we need to update it.
         updateShownWrapper(mVisibleType);
+    }
+
+    private void logCompactHUNShownEvent() {
+        if (mUiEventLogger == null) {
+            return;
+        }
+
+        final StatusBarNotification containingRowSbn = getContainingRowSbn();
+        if (containingRowSbn == null) {
+            return;
+        }
+
+        mUiEventLogger.logWithInstanceId(
+                NotificationCompactHeadsUpEvent.NOTIFICATION_COMPACT_HUN_SHOWN,
+                containingRowSbn.getUid(),
+                containingRowSbn.getPackageName(),
+                containingRowSbn.getInstanceId());
+    }
+
+    @Nullable
+    private StatusBarNotification getContainingRowSbn() {
+        if (mContainingNotification == null) {
+            return null;
+        }
+        final NotificationEntry entry = mContainingNotification.getEntry();
+        if (entry == null) {
+            return null;
+        }
+
+        return entry.getSbn();
     }
 
     /**
@@ -699,8 +743,7 @@ public class NotificationContentView extends FrameLayout implements Notification
         int hint;
         if (mHeadsUpChild != null && isVisibleOrTransitioning(VISIBLE_TYPE_HEADSUP)) {
             hint = getViewHeight(VISIBLE_TYPE_HEADSUP);
-            if (mHeadsUpRemoteInput != null && mHeadsUpRemoteInput.isAnimatingAppearance()
-                    && mHeadsUpRemoteInputController.isFocusAnimationFlagActive()) {
+            if (mHeadsUpRemoteInput != null && mHeadsUpRemoteInput.isAnimatingAppearance()) {
                 // While the RemoteInputView is animating its appearance, it should be allowed
                 // to overlap the hint, therefore no space is reserved for the hint during the
                 // appearance animation of the RemoteInputView
@@ -910,7 +953,9 @@ public class NotificationContentView extends FrameLayout implements Notification
                 View visibleView = getViewForVisibleType(visibleType);
                 if (visibleView != null) {
                     visibleView.setVisibility(VISIBLE);
-                    transferRemoteInputFocus(visibleType);
+                    if (!ExpandHeadsUpOnInlineReply.isEnabled()) {
+                        transferRemoteInputFocus(visibleType);
+                    }
                 }
 
                 if (animate && ((visibleType == VISIBLE_TYPE_EXPANDED && mExpandedChild != null)
@@ -1394,30 +1439,39 @@ public class NotificationContentView extends FrameLayout implements Notification
         mCachedExpandedRemoteInput = null;
         mCachedExpandedRemoteInputViewController = null;
 
-        if (mHeadsUpChild != null) {
-            RemoteInputViewData headsUpData = applyRemoteInput(mHeadsUpChild, mNotificationEntry,
-                    hasFreeformRemoteInput, mPreviousHeadsUpRemoteInputIntent,
-                    mCachedHeadsUpRemoteInput, mCachedHeadsUpRemoteInputViewController,
-                    mHeadsUpWrapper);
-            mHeadsUpRemoteInput = headsUpData.mView;
-            mHeadsUpRemoteInputController = headsUpData.mController;
-            if (mHeadsUpRemoteInputController != null) {
-                mHeadsUpRemoteInputController.bind();
-            }
-        } else {
+        if (ExpandHeadsUpOnInlineReply.isEnabled()) {
             mHeadsUpRemoteInput = null;
-            if (mHeadsUpRemoteInputController != null) {
-                mHeadsUpRemoteInputController.unbind();
-            }
             mHeadsUpRemoteInputController = null;
+            mCachedHeadsUpRemoteInput = null;
+            mCachedHeadsUpRemoteInputViewController = null;
+        } else {
+            ExpandHeadsUpOnInlineReply.assertInLegacyMode();
+            if (mHeadsUpChild != null) {
+                RemoteInputViewData headsUpData = applyRemoteInput(mHeadsUpChild,
+                        mNotificationEntry,
+                        hasFreeformRemoteInput, mPreviousHeadsUpRemoteInputIntent,
+                        mCachedHeadsUpRemoteInput, mCachedHeadsUpRemoteInputViewController,
+                        mHeadsUpWrapper);
+                mHeadsUpRemoteInput = headsUpData.mView;
+                mHeadsUpRemoteInputController = headsUpData.mController;
+                if (mHeadsUpRemoteInputController != null) {
+                    mHeadsUpRemoteInputController.bind();
+                }
+            } else {
+                mHeadsUpRemoteInput = null;
+                if (mHeadsUpRemoteInputController != null) {
+                    mHeadsUpRemoteInputController.unbind();
+                }
+                mHeadsUpRemoteInputController = null;
+            }
+            if (mCachedHeadsUpRemoteInput != null
+                    && mCachedHeadsUpRemoteInput != mHeadsUpRemoteInput) {
+                // We had a cached remote input but didn't reuse it. Clean up required.
+                mCachedHeadsUpRemoteInput.dispatchFinishTemporaryDetach();
+            }
+            mCachedHeadsUpRemoteInput = null;
+            mCachedHeadsUpRemoteInputViewController = null;
         }
-        if (mCachedHeadsUpRemoteInput != null
-                && mCachedHeadsUpRemoteInput != mHeadsUpRemoteInput) {
-            // We had a cached remote input but didn't reuse it. Clean up required.
-            mCachedHeadsUpRemoteInput.dispatchFinishTemporaryDetach();
-        }
-        mCachedHeadsUpRemoteInput = null;
-        mCachedHeadsUpRemoteInputViewController = null;
     }
 
     private RemoteInputViewData applyRemoteInput(View view, NotificationEntry entry,
@@ -1462,7 +1516,7 @@ public class NotificationContentView extends FrameLayout implements Notification
             }
             if (hasRemoteInput) {
                 result.mView.setWrapper(wrapper);
-                result.mView.addOnVisibilityChangedListener(this::setRemoteInputVisible);
+                result.mView.setOnVisibilityChangedListener(this::setRemoteInputVisible);
 
                 if (existingPendingIntent != null || result.mView.isActive()) {
                     // The current action could be gone, or the pending intent no longer valid.
@@ -1515,7 +1569,7 @@ public class NotificationContentView extends FrameLayout implements Notification
         }
         ImageView bubbleButton = layout.findViewById(com.android.internal.R.id.bubble_button);
         View actionContainer = layout.findViewById(com.android.internal.R.id.actions_container);
-        LinearLayout actionListMarginTarget = layout.findViewById(
+        ViewGroup actionListMarginTarget = layout.findViewById(
                 com.android.internal.R.id.notification_action_list_margin_target);
         if (bubbleButton == null || actionContainer == null) {
             return;

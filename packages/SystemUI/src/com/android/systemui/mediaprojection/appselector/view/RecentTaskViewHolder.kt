@@ -21,25 +21,25 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
-import com.android.systemui.res.R
 import com.android.systemui.mediaprojection.appselector.MediaProjectionAppSelector
-import com.android.systemui.mediaprojection.appselector.data.AppIconLoader
+import com.android.systemui.mediaprojection.appselector.data.BadgedAppIconLoader
 import com.android.systemui.mediaprojection.appselector.data.RecentTask
 import com.android.systemui.mediaprojection.appselector.data.RecentTaskLabelLoader
 import com.android.systemui.mediaprojection.appselector.data.RecentTaskThumbnailLoader
+import com.android.systemui.res.R
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 class RecentTaskViewHolder
 @AssistedInject
 constructor(
     @Assisted private val root: ViewGroup,
-    private val iconLoader: AppIconLoader,
+    private val iconLoader: BadgedAppIconLoader,
     private val thumbnailLoader: RecentTaskThumbnailLoader,
     private val labelLoader: RecentTaskLabelLoader,
     private val taskViewSizeProvider: TaskPreviewSizeProvider,
@@ -63,7 +63,7 @@ constructor(
             scope.launch {
                 task.baseIntentComponent?.let { component ->
                     launch {
-                        val icon = iconLoader.loadIcon(task.userId, component)
+                        val icon = iconLoader.loadIcon(task.userId, task.userType, component)
                         iconView.setImageDrawable(icon)
                     }
                     launch {

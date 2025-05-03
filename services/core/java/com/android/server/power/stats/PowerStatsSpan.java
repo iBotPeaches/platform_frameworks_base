@@ -25,6 +25,7 @@ import android.util.Slog;
 import android.util.TimeUtils;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.os.MonotonicClock;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
 
@@ -44,12 +45,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Contains power stats of various kinds, aggregated over a time span.
  */
-public class PowerStatsSpan {
+public class PowerStatsSpan implements AutoCloseable {
     private static final String TAG = "PowerStatsStore";
 
     /**
@@ -72,7 +74,7 @@ public class PowerStatsSpan {
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("MM-dd HH:mm:ss.SSS").withZone(ZoneId.systemDefault());
 
-    static class TimeFrame {
+    public static class TimeFrame {
         public final long startMonotonicTime;
         @CurrentTimeMillisLong
         public final long startTime;
@@ -119,7 +121,7 @@ public class PowerStatsSpan {
         }
     }
 
-    static class Metadata {
+    public static class Metadata {
         static final Comparator<Metadata> COMPARATOR = Comparator.comparing(Metadata::getId);
 
         private final long mId;
@@ -144,6 +146,40 @@ public class PowerStatsSpan {
 
         void addTimeFrame(TimeFrame timeFrame) {
             mTimeFrames.add(timeFrame);
+        }
+
+        long getStartTime() {
+            long startTime = Long.MAX_VALUE;
+            for (int i = 0; i < mTimeFrames.size(); i++) {
+                TimeFrame timeFrame = mTimeFrames.get(i);
+                if (timeFrame.startTime < startTime) {
+                    startTime = timeFrame.startTime;
+                }
+            }
+            return startTime != Long.MAX_VALUE ? startTime : 0;
+        }
+
+        long getStartMonotonicTime() {
+            long startTime = Long.MAX_VALUE;
+            for (int i = 0; i < mTimeFrames.size(); i++) {
+                TimeFrame timeFrame = mTimeFrames.get(i);
+                if (timeFrame.startMonotonicTime < startTime) {
+                    startTime = timeFrame.startMonotonicTime;
+                }
+            }
+            return startTime != Long.MAX_VALUE ? startTime : MonotonicClock.UNDEFINED;
+        }
+
+        long getEndMonotonicTime() {
+            long maxTime = Long.MIN_VALUE;
+            for (int i = 0; i < mTimeFrames.size(); i++) {
+                TimeFrame timeFrame = mTimeFrames.get(i);
+                long endTime = timeFrame.startMonotonicTime + timeFrame.duration;
+                if (endTime > maxTime) {
+                    maxTime = endTime;
+                }
+            }
+            return maxTime != Long.MIN_VALUE ? maxTime : MonotonicClock.UNDEFINED;
         }
 
         void addSection(String sectionType) {
@@ -262,7 +298,7 @@ public class PowerStatsSpan {
     public abstract static class Section {
         private final String mType;
 
-        Section(String type) {
+        protected Section(String type) {
             mType = type;
         }
 
@@ -274,13 +310,23 @@ public class PowerStatsSpan {
             return mType;
         }
 
-        abstract void write(TypedXmlSerializer serializer) throws IOException;
+        /**
+         * Adds the contents of this section to the XML doc.
+         */
+        public abstract void write(TypedXmlSerializer serializer) throws IOException;
 
         /**
          * Prints the section type.
          */
         public void dump(IndentingPrintWriter ipw) {
             ipw.println(mType);
+        }
+
+        /**
+         * Closes the section, releasing any resources it held. Once closed, the Section
+         * should not be used.
+         */
+        public void close() {
         }
     }
 
@@ -289,6 +335,11 @@ public class PowerStatsSpan {
      * supported section types as well as their corresponding XML formats.
      */
     public interface SectionReader {
+        /**
+         * Returns the unique type of content handled by this reader.
+         */
+        String getType();
+
         /**
          * Reads the contents of the section using the parser. The type of the object
          * read and the corresponding XML format are determined by the section type.
@@ -316,12 +367,18 @@ public class PowerStatsSpan {
         return mMetadata.mId;
     }
 
-    void addTimeFrame(long monotonicTime, @CurrentTimeMillisLong long wallClockTime,
+    /**
+     * Adds a time frame covered by this PowerStats span
+     */
+    public void addTimeFrame(long monotonicTime, @CurrentTimeMillisLong long wallClockTime,
             @DurationMillisLong long duration) {
         mMetadata.mTimeFrames.add(new TimeFrame(monotonicTime, wallClockTime, duration));
     }
 
-    void addSection(Section section) {
+    /**
+     * Adds the supplied section to the span.
+     */
+    public void addSection(Section section) {
         mMetadata.addSection(section.getType());
         mSections.add(section);
     }
@@ -354,7 +411,7 @@ public class PowerStatsSpan {
 
     @Nullable
     static PowerStatsSpan read(InputStream in, TypedXmlPullParser parser,
-            SectionReader sectionReader, String... sectionTypes)
+            Map<String, SectionReader> sectionReaders, String... sectionTypes)
             throws IOException, XmlPullParserException {
         Set<String> neededSections = Sets.newArraySet(sectionTypes);
         boolean selectSections = !neededSections.isEmpty();
@@ -386,7 +443,11 @@ public class PowerStatsSpan {
                 if (tag.equals(XML_TAG_SECTION)) {
                     String sectionType = parser.getAttributeValue(null, XML_ATTR_SECTION_TYPE);
                     if (!selectSections || neededSections.contains(sectionType)) {
-                        Section section = sectionReader.read(sectionType, parser);
+                        Section section = null;
+                        SectionReader sectionReader = sectionReaders.get(sectionType);
+                        if (sectionReader != null) {
+                            section = sectionReader.read(sectionType, parser);
+                        }
                         if (section == null) {
                             if (selectSections) {
                                 throw new XmlPullParserException(
@@ -396,11 +457,11 @@ public class PowerStatsSpan {
                                     @Override
                                     public void dump(IndentingPrintWriter ipw) {
                                         ipw.println("Unsupported PowerStatsStore section type: "
-                                                    + sectionType);
+                                                + sectionType);
                                     }
 
                                     @Override
-                                    void write(TypedXmlSerializer serializer) {
+                                    public void write(TypedXmlSerializer serializer) {
                                     }
                                 };
                             }
@@ -428,6 +489,12 @@ public class PowerStatsSpan {
             ipw.println(section.mType);
             section.dump(ipw);
             ipw.decreaseIndent();
+        }
+    }
+    @Override
+    public void close() {
+        for (int i = 0; i < mSections.size(); i++) {
+            mSections.get(i).close();
         }
     }
 }

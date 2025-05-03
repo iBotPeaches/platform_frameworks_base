@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,193 +16,169 @@
 
 package com.android.systemui.statusbar.pipeline.wifi.data.repository.prod
 
-import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED
-import android.net.NetworkCapabilities.TRANSPORT_CELLULAR
-import android.net.NetworkCapabilities.TRANSPORT_VPN
-import android.net.NetworkCapabilities.TRANSPORT_WIFI
-import android.net.TransportInfo
-import android.net.VpnTransportInfo
-import android.net.vcn.VcnTransportInfo
+import android.content.Context
+import android.content.pm.UserInfo
 import android.net.wifi.ScanResult
-import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
-import android.net.wifi.WifiManager.TrafficStateCallback
 import android.net.wifi.WifiManager.UNKNOWN_SSID
+import android.net.wifi.sharedconnectivity.app.NetworkProviderInfo
+import android.os.UserHandle
+import android.platform.test.annotations.DisableFlags
+import android.platform.test.annotations.EnableFlags
 import android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID
+import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.systemui.Flags.FLAG_MULTIUSER_WIFI_PICKER_TRACKER_SUPPORT
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
-import com.android.systemui.log.table.TableLogBuffer
-import com.android.systemui.statusbar.pipeline.shared.data.model.ConnectivitySlots
+import com.android.systemui.kosmos.testDispatcher
+import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
+import com.android.systemui.log.LogBuffer
+import com.android.systemui.log.table.logcatTableLogBuffer
+import com.android.systemui.statusbar.connectivity.WifiPickerTrackerFactory
 import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityModel
-import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
-import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepositoryImpl
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.prod.WifiRepositoryImpl.Companion.WIFI_NETWORK_DEFAULT
-import com.android.systemui.statusbar.pipeline.wifi.shared.WifiInputLogger
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiScanEntry
+import com.android.systemui.testKosmos
+import com.android.systemui.user.data.repository.fakeUserRepository
 import com.android.systemui.util.concurrency.FakeExecutor
-import com.android.systemui.util.mockito.any
-import com.android.systemui.util.mockito.argumentCaptor
-import com.android.systemui.util.mockito.mock
-import com.android.systemui.util.mockito.whenever
-import com.android.systemui.util.time.FakeSystemClock
+import com.android.systemui.util.time.fakeSystemClock
+import com.android.wifitrackerlib.HotspotNetworkEntry
+import com.android.wifitrackerlib.HotspotNetworkEntry.DeviceType
+import com.android.wifitrackerlib.MergedCarrierEntry
+import com.android.wifitrackerlib.WifiEntry
+import com.android.wifitrackerlib.WifiEntry.WIFI_LEVEL_MAX
+import com.android.wifitrackerlib.WifiEntry.WIFI_LEVEL_MIN
+import com.android.wifitrackerlib.WifiEntry.WIFI_LEVEL_UNREACHABLE
+import com.android.wifitrackerlib.WifiPickerTracker
 import com.google.common.truth.Truth.assertThat
-import java.util.concurrent.Executor
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mock
-import org.mockito.Mockito.verify
-import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.reset
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
-/**
- * Note: Any new tests added here may also need to be added to [WifiRepositoryViaTrackerLibTest].
- */
-@Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
+@TestableLooper.RunWithLooper(setAsMainLooper = true)
 class WifiRepositoryImplTest : SysuiTestCase() {
+    private val kosmos = testKosmos().useUnconfinedTestDispatcher()
+    private val userRepository = kosmos.fakeUserRepository
 
-    private lateinit var underTest: WifiRepositoryImpl
+    // Using lazy means that the class will only be constructed once it's fetched. Because the
+    // repository internally sets some values on construction, we need to set up some test
+    // parameters (like feature flags) *before* construction. Using lazy allows us to do that setup
+    // inside each test case without needing to manually recreate the repository.
+    private val underTest: WifiRepositoryImpl by lazy {
+        WifiRepositoryImpl(
+            mContext,
+            userRepository,
+            testScope.backgroundScope,
+            executor,
+            dispatcher,
+            wifiPickerTrackerFactory,
+            wifiManager,
+            logger,
+            tableLogger,
+        )
+    }
 
-    @Mock private lateinit var logger: WifiInputLogger
-    @Mock private lateinit var tableLogger: TableLogBuffer
-    @Mock private lateinit var connectivityManager: ConnectivityManager
-    @Mock private lateinit var wifiManager: WifiManager
-    private lateinit var executor: Executor
-    private lateinit var connectivityRepository: ConnectivityRepository
+    private val executor = FakeExecutor(kosmos.fakeSystemClock)
+    private val logger = LogBuffer("name", maxSize = 100, logcatEchoTracker = mock())
+    private val tableLogger = logcatTableLogBuffer(kosmos, "WifiRepositoryImplTest")
+    private val wifiManager =
+        mock<WifiManager>().apply { whenever(this.maxSignalLevel).thenReturn(10) }
+    private val wifiPickerTrackerFactory = mock<WifiPickerTrackerFactory>()
+    private val wifiPickerTracker = mock<WifiPickerTracker>()
 
-    private val dispatcher = StandardTestDispatcher()
-    private val testScope = TestScope(dispatcher)
+    private val callbackCaptor = argumentCaptor<WifiPickerTracker.WifiPickerTrackerCallback>()
+
+    private val dispatcher = kosmos.testDispatcher
+    private val testScope = kosmos.testScope
 
     @Before
     fun setUp() {
-        MockitoAnnotations.initMocks(this)
-        executor = FakeExecutor(FakeSystemClock())
-
-        connectivityRepository =
-            ConnectivityRepositoryImpl(
-                connectivityManager,
-                ConnectivitySlots(context),
-                context,
-                mock(),
-                mock(),
-                testScope.backgroundScope,
-                mock(),
-            )
-
-        underTest = createRepo()
+        userRepository.setUserInfos(listOf(PRIMARY_USER, ANOTHER_USER))
+        whenever(wifiPickerTrackerFactory.create(any(), any(), callbackCaptor.capture(), any()))
+            .thenReturn(wifiPickerTracker)
     }
 
     @Test
-    fun isWifiEnabled_initiallyGetsWifiManagerValue() =
-        testScope.runTest {
-            whenever(wifiManager.isWifiEnabled).thenReturn(true)
-
-            underTest = createRepo()
-            testScope.runCurrent()
-
-            assertThat(underTest.isWifiEnabled.value).isTrue()
-        }
-
-    @Test
-    fun isWifiEnabled_networkCapabilitiesChanged_valueUpdated() =
+    fun wifiPickerTrackerCreation_scansDisabled() =
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
+
+            verify(wifiPickerTracker).disableScanning()
+        }
+
+    @Test
+    fun isWifiEnabled_enabled_true() =
+        testScope.runTest {
             val latest by collectLastValue(underTest.isWifiEnabled)
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(true)
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
+            whenever(wifiPickerTracker.wifiState).thenReturn(WifiManager.WIFI_STATE_ENABLED)
+            getCallback().onWifiStateChanged()
 
             assertThat(latest).isTrue()
+        }
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(false)
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
+    @Test
+    fun isWifiEnabled_enabling_false() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.isWifiEnabled)
+
+            whenever(wifiPickerTracker.wifiState).thenReturn(WifiManager.WIFI_STATE_ENABLING)
+            getCallback().onWifiStateChanged()
 
             assertThat(latest).isFalse()
         }
 
     @Test
-    fun isWifiEnabled_networkLost_valueUpdated() =
+    fun isWifiEnabled_disabling_true() =
         testScope.runTest {
-            collectLastValue(underTest.wifiNetwork)
             val latest by collectLastValue(underTest.isWifiEnabled)
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(true)
-            getNetworkCallback().onLost(NETWORK)
-
-            assertThat(latest).isTrue()
-
-            whenever(wifiManager.isWifiEnabled).thenReturn(false)
-            getNetworkCallback().onLost(NETWORK)
+            whenever(wifiPickerTracker.wifiState).thenReturn(WifiManager.WIFI_STATE_DISABLING)
+            getCallback().onWifiStateChanged()
 
             assertThat(latest).isFalse()
         }
 
     @Test
-    fun isWifiEnabled_intentsReceived_valueUpdated() =
+    fun isWifiEnabled_disabled_false() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isWifiEnabled)
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(true)
-            fakeBroadcastDispatcher.sendIntentToMatchingReceiversOnly(
-                context,
-                Intent(WifiManager.WIFI_STATE_CHANGED_ACTION),
-            )
-
-            assertThat(latest).isTrue()
-
-            whenever(wifiManager.isWifiEnabled).thenReturn(false)
-            fakeBroadcastDispatcher.sendIntentToMatchingReceiversOnly(
-                context,
-                Intent(WifiManager.WIFI_STATE_CHANGED_ACTION),
-            )
+            whenever(wifiPickerTracker.wifiState).thenReturn(WifiManager.WIFI_STATE_DISABLED)
+            getCallback().onWifiStateChanged()
 
             assertThat(latest).isFalse()
         }
 
     @Test
-    fun isWifiEnabled_bothIntentAndNetworkUpdates_valueAlwaysUpdated() =
+    fun isWifiEnabled_respondsToUpdates() =
         testScope.runTest {
-            collectLastValue(underTest.wifiNetwork)
             val latest by collectLastValue(underTest.isWifiEnabled)
+            executor.runAllReady()
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(false)
-            fakeBroadcastDispatcher.sendIntentToMatchingReceiversOnly(
-                context,
-                Intent(WifiManager.WIFI_STATE_CHANGED_ACTION),
-            )
-            assertThat(latest).isFalse()
+            whenever(wifiPickerTracker.wifiState).thenReturn(WifiManager.WIFI_STATE_ENABLED)
+            getCallback().onWifiStateChanged()
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(true)
-            getNetworkCallback().onLost(NETWORK)
             assertThat(latest).isTrue()
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(false)
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
-            assertThat(latest).isFalse()
+            whenever(wifiPickerTracker.wifiState).thenReturn(WifiManager.WIFI_STATE_DISABLED)
+            getCallback().onWifiStateChanged()
 
-            whenever(wifiManager.isWifiEnabled).thenReturn(true)
-            fakeBroadcastDispatcher.sendIntentToMatchingReceiversOnly(
-                context,
-                Intent(WifiManager.WIFI_STATE_CHANGED_ACTION),
-            )
-            assertThat(latest).isTrue()
+            assertThat(latest).isFalse()
         }
 
     @Test
@@ -214,246 +190,73 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.isWifiDefault)
 
-            val wifiInfo = mock<WifiInfo>().apply { whenever(this.ssid).thenReturn(SSID) }
-
-            getDefaultNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-
-            assertThat(latest).isTrue()
-        }
-
-    /** Regression test for b/266628069. */
-    @Test
-    fun isWifiDefault_transportInfoIsNotWifi_andNoWifiTransport_false() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val transportInfo =
-                VpnTransportInfo(
-                    /* type= */ 0,
-                    /* sessionId= */ "sessionId",
-                )
-            val networkCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_VPN)).thenReturn(true)
-                    whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(false)
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(false)
-                    whenever(it.transportInfo).thenReturn(transportInfo)
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, networkCapabilities)
-
-            assertThat(latest).isFalse()
-        }
-
-    /** Regression test for b/266628069. */
-    @Test
-    fun isWifiDefault_transportInfoIsNotWifi_butHasWifiTransport_true() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val transportInfo =
-                VpnTransportInfo(
-                    /* type= */ 0,
-                    /* sessionId= */ "sessionId",
-                )
-            val networkCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_VPN)).thenReturn(true)
-                    whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(false)
-                    whenever(it.transportInfo).thenReturn(transportInfo)
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, networkCapabilities)
+            val wifiEntry =
+                mock<WifiEntry>().apply { whenever(this.isDefaultNetwork).thenReturn(true) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest).isTrue()
         }
 
     @Test
-    fun isWifiDefault_carrierMergedViaCellular_isTrue() =
+    fun isWifiDefault_carrierMerged_isTrue() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isWifiDefault)
 
-            val carrierMergedInfo =
-                mock<WifiInfo>().apply { whenever(this.isCarrierMerged).thenReturn(true) }
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.hasTransport(TRANSPORT_WIFI)).thenReturn(false)
-                    whenever(this.transportInfo).thenReturn(carrierMergedInfo)
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isDefaultNetwork).thenReturn(true)
                 }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest).isTrue()
         }
 
     @Test
-    fun isWifiDefault_carrierMergedViaCellular_withVcnTransport_isTrue() =
+    fun isWifiDefault_wifiNetworkNotDefault_isFalse() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isWifiDefault)
 
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.hasTransport(TRANSPORT_WIFI)).thenReturn(false)
-                    whenever(this.transportInfo).thenReturn(VcnTransportInfo(PRIMARY_WIFI_INFO))
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest).isTrue()
-        }
-
-    @Test
-    fun isWifiDefault_carrierMergedViaWifi_isTrue() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val carrierMergedInfo =
-                mock<WifiInfo>().apply { whenever(this.isCarrierMerged).thenReturn(true) }
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(false)
-                    whenever(this.transportInfo).thenReturn(carrierMergedInfo)
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest).isTrue()
-        }
-
-    @Test
-    fun isWifiDefault_carrierMergedViaWifi_withVcnTransport_isTrue() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(false)
-                    whenever(this.transportInfo).thenReturn(VcnTransportInfo(PRIMARY_WIFI_INFO))
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest).isTrue()
-        }
-
-    @Test
-    fun isWifiDefault_cellularAndWifiTransports_usesCellular_isTrue() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(this.transportInfo).thenReturn(VcnTransportInfo(PRIMARY_WIFI_INFO))
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest).isTrue()
-        }
-
-    @Test
-    fun isWifiDefault_cellularNotVcnNetwork_isFalse() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.transportInfo).thenReturn(mock())
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
+            val wifiEntry =
+                mock<WifiEntry>().apply { whenever(this.isDefaultNetwork).thenReturn(false) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest).isFalse()
         }
 
     @Test
-    fun isWifiDefault_isCarrierMergedViaUnderlyingWifi_isTrue() =
+    fun isWifiDefault_carrierMergedNotDefault_isFalse() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isWifiDefault)
 
-            val underlyingNetwork = mock<Network>()
-            val carrierMergedInfo =
-                mock<WifiInfo>().apply {
-                    mock<WifiInfo>().apply { whenever(this.isCarrierMerged).thenReturn(true) }
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isDefaultNetwork).thenReturn(false)
                 }
-            val underlyingWifiCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(carrierMergedInfo)
-                }
-            whenever(connectivityManager.getNetworkCapabilities(underlyingNetwork))
-                .thenReturn(underlyingWifiCapabilities)
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            getCallback().onWifiEntriesChanged()
 
-            // WHEN the main capabilities have an underlying carrier merged network via WIFI
-            // transport and WifiInfo
-            val mainCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(null)
-                    whenever(it.underlyingNetworks).thenReturn(listOf(underlyingNetwork))
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, mainCapabilities)
-
-            // THEN the wifi network is carrier merged, so wifi is default
-            assertThat(latest).isTrue()
+            assertThat(latest).isFalse()
         }
 
     @Test
-    fun isWifiDefault_isCarrierMergedViaUnderlyingCellular_isTrue() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.isWifiDefault)
-
-            val underlyingCarrierMergedNetwork = mock<Network>()
-            val carrierMergedInfo =
-                mock<WifiInfo>().apply { whenever(this.isCarrierMerged).thenReturn(true) }
-            val underlyingCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(VcnTransportInfo(carrierMergedInfo))
-                }
-            whenever(connectivityManager.getNetworkCapabilities(underlyingCarrierMergedNetwork))
-                .thenReturn(underlyingCapabilities)
-
-            // WHEN the main capabilities have an underlying carrier merged network via CELLULAR
-            // transport and VcnTransportInfo
-            val mainCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(null)
-                    whenever(it.underlyingNetworks)
-                        .thenReturn(listOf(underlyingCarrierMergedNetwork))
-                }
-
-            getDefaultNetworkCallback().onCapabilitiesChanged(NETWORK, mainCapabilities)
-
-            // THEN the wifi network is carrier merged, so wifi is default
-            assertThat(latest).isTrue()
-        }
-
-    @Test
-    fun isWifiDefault_wifiNetworkLost_isFalse() =
+    fun isWifiDefault_noWifiNetwork_isFalse() =
         testScope.runTest {
             val latest by collectLastValue(underTest.isWifiDefault)
 
             // First, add a network
-            getDefaultNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
+            val wifiEntry =
+                mock<WifiEntry>().apply { whenever(this.isDefaultNetwork).thenReturn(true) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
             assertThat(latest).isTrue()
 
             // WHEN the network is lost
-            getDefaultNetworkCallback().onLost(NETWORK)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
             // THEN we update to false
             assertThat(latest).isFalse()
@@ -472,40 +275,215 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    whenever(this.isPrimary).thenReturn(true)
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(3)
+                    whenever(this.title).thenReturn(TITLE)
                 }
-            val network = mock<Network>().apply { whenever(this.getNetId()).thenReturn(NETWORK_ID) }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(network, createWifiNetworkCapabilities(wifiInfo))
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest is WifiNetworkModel.Active).isTrue()
             val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestActive.ssid).isEqualTo(SSID)
+            assertThat(latestActive.level).isEqualTo(3)
+            assertThat(latestActive.ssid).isEqualTo(TITLE)
         }
 
     @Test
-    fun wifiNetwork_neverHasHotspot() =
+    fun wifiNetwork_unreachableLevel_inactiveNetwork() =
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    whenever(this.isPrimary).thenReturn(true)
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(WIFI_LEVEL_UNREACHABLE)
                 }
-            val network = mock<Network>().apply { whenever(this.getNetId()).thenReturn(NETWORK_ID) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(network, createWifiNetworkCapabilities(wifiInfo))
+            assertThat(latest).isInstanceOf(WifiNetworkModel.Inactive::class.java)
+            val inactiveReason = (latest as WifiNetworkModel.Inactive).inactiveReason
+            assertThat(inactiveReason).contains("level")
+            assertThat(inactiveReason).contains("$WIFI_LEVEL_UNREACHABLE")
+        }
 
-            assertThat(latest is WifiNetworkModel.Active).isTrue()
+    @Test
+    fun wifiNetwork_levelTooHigh_inactiveNetwork() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(WIFI_LEVEL_MAX + 1)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).isInstanceOf(WifiNetworkModel.Inactive::class.java)
+            val inactiveReason = (latest as WifiNetworkModel.Inactive).inactiveReason
+            assertThat(inactiveReason).contains("level")
+            assertThat(inactiveReason).contains("${WIFI_LEVEL_MAX + 1}")
+        }
+
+    @Test
+    fun wifiNetwork_levelTooLow_inactiveNetwork() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(WIFI_LEVEL_MIN - 1)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).isInstanceOf(WifiNetworkModel.Inactive::class.java)
+            val inactiveReason = (latest as WifiNetworkModel.Inactive).inactiveReason
+            assertThat(inactiveReason).contains("level")
+            assertThat(inactiveReason).contains("${WIFI_LEVEL_MIN - 1}")
+        }
+
+    @Test
+    fun wifiNetwork_levelIsMax_activeNetworkWithMaxLevel() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(WIFI_LEVEL_MAX)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).isInstanceOf(WifiNetworkModel.Active::class.java)
+            assertThat((latest as WifiNetworkModel.Active).level).isEqualTo(WIFI_LEVEL_MAX)
+        }
+
+    @Test
+    fun wifiNetwork_levelIsMin_activeNetworkWithMinLevel() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(WIFI_LEVEL_MIN)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).isInstanceOf(WifiNetworkModel.Active::class.java)
+            assertThat((latest as WifiNetworkModel.Active).level).isEqualTo(WIFI_LEVEL_MIN)
+        }
+
+    @Test
+    fun wifiNetwork_notHotspot_none() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry =
+                mock<WifiEntry>().apply { whenever(this.isPrimaryNetwork).thenReturn(true) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
             assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
                 .isEqualTo(WifiNetworkModel.HotspotDeviceType.NONE)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_unknown() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(NetworkProviderInfo.DEVICE_TYPE_UNKNOWN)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.UNKNOWN)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_phone() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(NetworkProviderInfo.DEVICE_TYPE_PHONE)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.PHONE)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_tablet() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(NetworkProviderInfo.DEVICE_TYPE_TABLET)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.TABLET)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_laptop() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(NetworkProviderInfo.DEVICE_TYPE_LAPTOP)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.LAPTOP)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_watch() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(NetworkProviderInfo.DEVICE_TYPE_WATCH)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.WATCH)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_auto() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(NetworkProviderInfo.DEVICE_TYPE_AUTO)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.AUTO)
+        }
+
+    @Test
+    fun wifiNetwork_hotspot_invalid() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry = createHotspotWithType(1234)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).hotspotDeviceType)
+                .isEqualTo(WifiNetworkModel.HotspotDeviceType.INVALID)
         }
 
     @Test
@@ -513,85 +491,41 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.isCarrierMerged).thenReturn(true)
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(3)
+                    whenever(this.subscriptionId).thenReturn(567)
+                    whenever(this.isDefaultNetwork).thenReturn(true)
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest is WifiNetworkModel.CarrierMerged).isTrue()
+            val latestMerged = latest as WifiNetworkModel.CarrierMerged
+            assertThat(latestMerged.level).isEqualTo(3)
+            assertThat(latestMerged.subscriptionId).isEqualTo(567)
         }
 
     @Test
-    fun wifiNetwork_isCarrierMergedViaUnderlyingWifi_flowHasCarrierMerged() =
+    fun wifiNetwork_isCarrierMerged_getsMaxSignalLevel() =
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val underlyingNetwork = mock<Network>()
-            val carrierMergedInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isCarrierMerged).thenReturn(true)
-                    whenever(this.isPrimary).thenReturn(true)
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.isDefaultNetwork).thenReturn(true)
                 }
-            val underlyingWifiCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(carrierMergedInfo)
-                }
-            whenever(connectivityManager.getNetworkCapabilities(underlyingNetwork))
-                .thenReturn(underlyingWifiCapabilities)
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            whenever(wifiManager.maxSignalLevel).thenReturn(5)
 
-            // WHEN the main capabilities have an underlying carrier merged network via WIFI
-            // transport and WifiInfo
-            val mainCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(null)
-                    whenever(it.underlyingNetworks).thenReturn(listOf(underlyingNetwork))
-                }
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback().onCapabilitiesChanged(NETWORK, mainCapabilities)
-
-            // THEN the wifi network is carrier merged
             assertThat(latest is WifiNetworkModel.CarrierMerged).isTrue()
-        }
-
-    @Test
-    fun wifiNetwork_isCarrierMergedViaUnderlyingCellular_flowHasCarrierMerged() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            val underlyingCarrierMergedNetwork = mock<Network>()
-            val carrierMergedInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isCarrierMerged).thenReturn(true)
-                    whenever(this.isPrimary).thenReturn(true)
-                }
-            val underlyingCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(VcnTransportInfo(carrierMergedInfo))
-                }
-            whenever(connectivityManager.getNetworkCapabilities(underlyingCarrierMergedNetwork))
-                .thenReturn(underlyingCapabilities)
-
-            // WHEN the main capabilities have an underlying carrier merged network via CELLULAR
-            // transport and VcnTransportInfo
-            val mainCapabilities =
-                mock<NetworkCapabilities>().also {
-                    whenever(it.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(it.transportInfo).thenReturn(null)
-                    whenever(it.underlyingNetworks)
-                        .thenReturn(listOf(underlyingCarrierMergedNetwork))
-                }
-
-            getNetworkCallback().onCapabilitiesChanged(NETWORK, mainCapabilities)
-
-            // THEN the wifi network is carrier merged
-            assertThat(latest is WifiNetworkModel.CarrierMerged).isTrue()
+            val latestMerged = latest as WifiNetworkModel.CarrierMerged
+            // numberOfLevels = maxSignalLevel + 1
+            assertThat(latestMerged.numberOfLevels).isEqualTo(6)
         }
 
     @Test
@@ -599,52 +533,36 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.isCarrierMerged).thenReturn(true)
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
                     whenever(this.subscriptionId).thenReturn(INVALID_SUBSCRIPTION_ID)
+                    whenever(this.isDefaultNetwork).thenReturn(true)
                 }
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(wifiInfo),
-                )
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest).isInstanceOf(WifiNetworkModel.Invalid::class.java)
         }
 
     @Test
-    fun wifiNetwork_isCarrierMerged_getsCorrectValues() =
+    fun wifiNetwork_carrierMergedButInvalidLevel_flowHasInvalid() =
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val rssi = -57
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.isCarrierMerged).thenReturn(true)
-                    whenever(this.rssi).thenReturn(rssi)
-                    whenever(this.subscriptionId).thenReturn(567)
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.subscriptionId).thenReturn(3)
+                    whenever(this.isDefaultNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(WIFI_LEVEL_UNREACHABLE)
                 }
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
 
-            whenever(wifiManager.calculateSignalLevel(rssi)).thenReturn(2)
-            whenever(wifiManager.maxSignalLevel).thenReturn(5)
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(wifiInfo),
-                )
-
-            assertThat(latest is WifiNetworkModel.CarrierMerged).isTrue()
-            val latestCarrierMerged = latest as WifiNetworkModel.CarrierMerged
-            assertThat(latestCarrierMerged.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestCarrierMerged.subscriptionId).isEqualTo(567)
-            assertThat(latestCarrierMerged.level).isEqualTo(2)
-            // numberOfLevels = maxSignalLevel + 1
-            assertThat(latestCarrierMerged.numberOfLevels).isEqualTo(6)
+            assertThat(latest).isInstanceOf(WifiNetworkModel.Invalid::class.java)
         }
 
     @Test
@@ -652,11 +570,13 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(PRIMARY_WIFI_INFO, isValidated = false)
-                )
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.hasInternetAccess()).thenReturn(false)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat((latest as WifiNetworkModel.Active).isValidated).isFalse()
         }
@@ -666,11 +586,13 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(PRIMARY_WIFI_INFO, isValidated = true)
-                )
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.hasInternetAccess()).thenReturn(true)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat((latest as WifiNetworkModel.Active).isValidated).isTrue()
         }
@@ -680,109 +602,28 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    whenever(this.isPrimary).thenReturn(false)
-                }
+            val wifiEntry =
+                mock<WifiEntry>().apply { whenever(this.isPrimaryNetwork).thenReturn(false) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-
-            assertThat(latest is WifiNetworkModel.Inactive).isTrue()
-        }
-
-    /** Regression test for b/266628069. */
-    @Test
-    fun wifiNetwork_transportInfoIsNotWifi_flowHasNoNetwork() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            val transportInfo =
-                VpnTransportInfo(
-                    /* type= */ 0,
-                    /* sessionId= */ "sessionId",
-                )
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(transportInfo))
-
-            assertThat(latest is WifiNetworkModel.Inactive).isTrue()
+            assertThat(latest).isEqualTo(WifiNetworkModel.Inactive())
         }
 
     @Test
-    fun wifiNetwork_cellularVcnNetworkAdded_flowHasNetwork() =
+    fun wifiNetwork_nonPrimaryCarrierMergedNetworkAdded_flowHasNoNetwork() =
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.transportInfo).thenReturn(VcnTransportInfo(PRIMARY_WIFI_INFO))
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(false)
                 }
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest is WifiNetworkModel.Active).isTrue()
-            val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestActive.ssid).isEqualTo(SSID)
-        }
-
-    @Test
-    fun wifiNetwork_nonPrimaryCellularVcnNetworkAdded_flowHasNoNetwork() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    whenever(this.isPrimary).thenReturn(false)
-                }
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.transportInfo).thenReturn(VcnTransportInfo(wifiInfo))
-                }
-
-            getNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest is WifiNetworkModel.Inactive).isTrue()
-        }
-
-    @Test
-    fun wifiNetwork_cellularNotVcnNetworkAdded_flowHasNoNetwork() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.transportInfo).thenReturn(mock())
-                }
-
-            getNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest is WifiNetworkModel.Inactive).isTrue()
-        }
-
-    @Test
-    fun wifiNetwork_cellularAndWifiTransports_usesCellular() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            val capabilities =
-                mock<NetworkCapabilities>().apply {
-                    whenever(this.hasTransport(TRANSPORT_CELLULAR)).thenReturn(true)
-                    whenever(this.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-                    whenever(this.transportInfo).thenReturn(VcnTransportInfo(PRIMARY_WIFI_INFO))
-                }
-
-            getNetworkCallback().onCapabilitiesChanged(NETWORK, capabilities)
-
-            assertThat(latest is WifiNetworkModel.Active).isTrue()
-            val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestActive.ssid).isEqualTo(SSID)
+            assertThat(latest).isEqualTo(WifiNetworkModel.Inactive())
         }
 
     @Test
@@ -791,98 +632,35 @@ class WifiRepositoryImplTest : SysuiTestCase() {
             val latest by collectLastValue(underTest.wifiNetwork)
 
             // Start with the original network
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(3)
+                    whenever(this.title).thenReturn("AB")
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest is WifiNetworkModel.Active).isTrue()
+            var latestActive = latest as WifiNetworkModel.Active
+            assertThat(latestActive.level).isEqualTo(3)
+            assertThat(latestActive.ssid).isEqualTo("AB")
 
             // WHEN we update to a new primary network
-            val newNetworkId = 456
-            val newNetwork =
-                mock<Network>().apply { whenever(this.getNetId()).thenReturn(newNetworkId) }
-            val newSsid = "CD"
-            val newWifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(newSsid)
-                    whenever(this.isPrimary).thenReturn(true)
+            val newWifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(4)
+                    whenever(this.title).thenReturn("CD")
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(newNetwork, createWifiNetworkCapabilities(newWifiInfo))
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(newWifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             // THEN we use the new network
             assertThat(latest is WifiNetworkModel.Active).isTrue()
-            val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(newNetworkId)
-            assertThat(latestActive.ssid).isEqualTo(newSsid)
-        }
-
-    @Test
-    fun wifiNetwork_newNonPrimaryWifiNetwork_flowHasOldNetwork() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            // Start with the original network
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
-
-            // WHEN we notify of a new but non-primary network
-            val newNetworkId = 456
-            val newNetwork =
-                mock<Network>().apply { whenever(this.getNetId()).thenReturn(newNetworkId) }
-            val newSsid = "EF"
-            val newWifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(newSsid)
-                    whenever(this.isPrimary).thenReturn(false)
-                }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(newNetwork, createWifiNetworkCapabilities(newWifiInfo))
-
-            // THEN we still use the original network
-            assertThat(latest is WifiNetworkModel.Active).isTrue()
-            val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestActive.ssid).isEqualTo(SSID)
-        }
-
-    @Test
-    fun wifiNetwork_newNetworkCapabilities_flowHasNewData() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    whenever(this.isPrimary).thenReturn(true)
-                }
-
-            // Start with the original network
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(wifiInfo, isValidated = true)
-                )
-
-            // WHEN we keep the same network ID but change the SSID
-            val newSsid = "CD"
-            val newWifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(newSsid)
-                    whenever(this.isPrimary).thenReturn(true)
-                }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(newWifiInfo, isValidated = false)
-                )
-
-            // THEN we've updated to the new SSID
-            assertThat(latest is WifiNetworkModel.Active).isTrue()
-            val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestActive.ssid).isEqualTo(newSsid)
-            assertThat(latestActive.isValidated).isFalse()
+            latestActive = latest as WifiNetworkModel.Active
+            assertThat(latestActive.level).isEqualTo(4)
+            assertThat(latestActive.ssid).isEqualTo("CD")
         }
 
     @Test
@@ -890,8 +668,9 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            // WHEN we receive #onLost without any #onCapabilitiesChanged beforehand
-            getNetworkCallback().onLost(NETWORK)
+            // WHEN we receive a null network without any networks beforehand
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
             // THEN there's no crash and we still have no network
             assertThat(latest is WifiNetworkModel.Inactive).isTrue()
@@ -902,12 +681,19 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
-            assertThat((latest as WifiNetworkModel.Active).networkId).isEqualTo(NETWORK_ID)
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.title).thenReturn(TITLE)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
+
+            assertThat((latest as WifiNetworkModel.Active).ssid).isEqualTo(TITLE)
 
             // WHEN we lose our current network
-            getNetworkCallback().onLost(NETWORK)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
             // THEN we update to no network
             assertThat(latest is WifiNetworkModel.Inactive).isTrue()
@@ -919,64 +705,26 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.isCarrierMerged).thenReturn(true)
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(3)
+                    whenever(this.isDefaultNetwork).thenReturn(true)
                 }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
             assertThat(latest is WifiNetworkModel.CarrierMerged).isTrue()
-            assertThat((latest as WifiNetworkModel.CarrierMerged).networkId).isEqualTo(NETWORK_ID)
+            assertThat((latest as WifiNetworkModel.CarrierMerged).level).isEqualTo(3)
 
             // WHEN we lose our current network
-            getNetworkCallback().onLost(NETWORK)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
             // THEN we update to no network
             assertThat(latest is WifiNetworkModel.Inactive).isTrue()
-        }
-
-    @Test
-    fun wifiNetwork_unknownNetworkLost_flowHasPreviousNetwork() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
-            assertThat((latest as WifiNetworkModel.Active).networkId).isEqualTo(NETWORK_ID)
-
-            // WHEN we lose an unknown network
-            val unknownNetwork = mock<Network>().apply { whenever(this.getNetId()).thenReturn(543) }
-            getNetworkCallback().onLost(unknownNetwork)
-
-            // THEN we still have our previous network
-            assertThat(latest is WifiNetworkModel.Active).isTrue()
-            val latestActive = latest as WifiNetworkModel.Active
-            assertThat(latestActive.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latestActive.ssid).isEqualTo(SSID)
-        }
-
-    @Test
-    fun wifiNetwork_notCurrentNetworkLost_flowHasCurrentNetwork() =
-        testScope.runTest {
-            val latest by collectLastValue(underTest.wifiNetwork)
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
-            assertThat((latest as WifiNetworkModel.Active).networkId).isEqualTo(NETWORK_ID)
-
-            // WHEN we update to a new network...
-            val newNetworkId = 89
-            val newNetwork =
-                mock<Network>().apply { whenever(this.getNetId()).thenReturn(newNetworkId) }
-            getNetworkCallback()
-                .onCapabilitiesChanged(newNetwork, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
-            // ...and lose the old network
-            getNetworkCallback().onLost(NETWORK)
-
-            // THEN we still have the new network
-            assertThat((latest as WifiNetworkModel.Active).networkId).isEqualTo(newNetworkId)
         }
 
     /** Regression test for b/244173280. */
@@ -985,13 +733,19 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest1 by collectLastValue(underTest.wifiNetwork)
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(PRIMARY_WIFI_INFO))
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(1)
+                    whenever(this.title).thenReturn(TITLE)
+                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(latest1 is WifiNetworkModel.Active).isTrue()
             val latest1Active = latest1 as WifiNetworkModel.Active
-            assertThat(latest1Active.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latest1Active.ssid).isEqualTo(SSID)
+            assertThat(latest1Active.level).isEqualTo(1)
+            assertThat(latest1Active.ssid).isEqualTo(TITLE)
 
             // WHEN we add a second subscriber after having already emitted a value
             val latest2 by collectLastValue(underTest.wifiNetwork)
@@ -999,29 +753,225 @@ class WifiRepositoryImplTest : SysuiTestCase() {
             // THEN the second subscribe receives the already-emitted value
             assertThat(latest2 is WifiNetworkModel.Active).isTrue()
             val latest2Active = latest2 as WifiNetworkModel.Active
-            assertThat(latest2Active.networkId).isEqualTo(NETWORK_ID)
-            assertThat(latest2Active.ssid).isEqualTo(SSID)
+            assertThat(latest2Active.level).isEqualTo(1)
+            assertThat(latest2Active.ssid).isEqualTo(TITLE)
         }
 
     @Test
-    fun secondaryNetworks_alwaysEmpty() =
+    fun wifiNetwork_carrierMerged_default_usesCarrierMergedInfo() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(3)
+                    whenever(this.isDefaultNetwork).thenReturn(true)
+                }
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(1)
+                    whenever(this.title).thenReturn(TITLE)
+                }
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest is WifiNetworkModel.CarrierMerged).isTrue()
+        }
+
+    @Test
+    fun wifiNetwork_carrierMerged_notDefault_usesConnectedInfo() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.wifiNetwork)
+
+            val mergedEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(3)
+                    whenever(this.isDefaultNetwork).thenReturn(false)
+                }
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(1)
+                    whenever(this.title).thenReturn(TITLE)
+                }
+            whenever(wifiPickerTracker.mergedCarrierEntry).thenReturn(mergedEntry)
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest is WifiNetworkModel.Active).isTrue()
+        }
+
+    @Test
+    fun secondaryNetworks_activeEntriesEmpty_isEmpty() =
         testScope.runTest {
             val latest by collectLastValue(underTest.secondaryNetworks)
-            collectLastValue(underTest.wifiNetwork)
 
-            // Even WHEN we do have non-primary wifi info
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    whenever(this.isPrimary).thenReturn(false)
-                }
-            val network = mock<Network>().apply { whenever(this.getNetId()).thenReturn(NETWORK_ID) }
+            whenever(wifiPickerTracker.activeWifiEntries).thenReturn(listOf())
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(network, createWifiNetworkCapabilities(wifiInfo))
+            getCallback().onWifiEntriesChanged()
 
-            // THEN the secondary networks list is empty because this repo doesn't support it
             assertThat(latest).isEmpty()
+        }
+
+    @Test
+    fun secondaryNetworks_oneActiveEntry_hasOne() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val wifiEntry = mock<WifiEntry>()
+            whenever(wifiPickerTracker.activeWifiEntries).thenReturn(listOf(wifiEntry))
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).hasSize(1)
+        }
+
+    @Test
+    fun secondaryNetworks_multipleActiveEntries_hasMultiple() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val wifiEntry1 = mock<WifiEntry>()
+            val wifiEntry2 = mock<WifiEntry>()
+            whenever(wifiPickerTracker.activeWifiEntries).thenReturn(listOf(wifiEntry1, wifiEntry2))
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).hasSize(2)
+        }
+
+    @Test
+    fun secondaryNetworks_mapsToInactive() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val inactiveEntry =
+                mock<WifiEntry>().apply { whenever(this.level).thenReturn(WIFI_LEVEL_UNREACHABLE) }
+            whenever(wifiPickerTracker.activeWifiEntries).thenReturn(listOf(inactiveEntry))
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).hasSize(1)
+            assertThat(latest!![0]).isInstanceOf(WifiNetworkModel.Inactive::class.java)
+        }
+
+    @Test
+    fun secondaryNetworks_mapsToActive() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val activeEntry = mock<WifiEntry>().apply { whenever(this.level).thenReturn(2) }
+            whenever(wifiPickerTracker.activeWifiEntries).thenReturn(listOf(activeEntry))
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).hasSize(1)
+            assertThat(latest!![0]).isInstanceOf(WifiNetworkModel.Active::class.java)
+            assertThat((latest!![0] as WifiNetworkModel.Active).level).isEqualTo(2)
+        }
+
+    @Test
+    fun secondaryNetworks_mapsToCarrierMerged() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val carrierMergedEntry =
+                mock<MergedCarrierEntry>().apply { whenever(this.level).thenReturn(3) }
+            whenever(wifiPickerTracker.activeWifiEntries).thenReturn(listOf(carrierMergedEntry))
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).hasSize(1)
+            assertThat(latest!![0]).isInstanceOf(WifiNetworkModel.CarrierMerged::class.java)
+            assertThat((latest!![0] as WifiNetworkModel.CarrierMerged).level).isEqualTo(3)
+        }
+
+    @Test
+    fun secondaryNetworks_mapsMultipleInOrder() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val activeEntry = mock<WifiEntry>().apply { whenever(this.level).thenReturn(2) }
+            val carrierMergedEntry =
+                mock<MergedCarrierEntry>().apply { whenever(this.level).thenReturn(3) }
+            whenever(wifiPickerTracker.activeWifiEntries)
+                .thenReturn(listOf(activeEntry, carrierMergedEntry))
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest!![0]).isInstanceOf(WifiNetworkModel.Active::class.java)
+            assertThat((latest!![0] as WifiNetworkModel.Active).level).isEqualTo(2)
+            assertThat(latest!![1]).isInstanceOf(WifiNetworkModel.CarrierMerged::class.java)
+            assertThat((latest!![1] as WifiNetworkModel.CarrierMerged).level).isEqualTo(3)
+        }
+
+    @Test
+    fun secondaryNetworks_filtersOutConnectedEntry() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val connectedEntry = mock<WifiEntry>().apply { whenever(this.level).thenReturn(1) }
+            val secondaryEntry1 = mock<WifiEntry>().apply { whenever(this.level).thenReturn(2) }
+            val secondaryEntry2 = mock<WifiEntry>().apply { whenever(this.level).thenReturn(3) }
+            // WHEN the active list has both a primary and secondary networks
+            whenever(wifiPickerTracker.activeWifiEntries)
+                .thenReturn(listOf(connectedEntry, secondaryEntry1, secondaryEntry2))
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(connectedEntry)
+
+            getCallback().onWifiEntriesChanged()
+
+            // THEN only the secondary networks are included
+            assertThat(latest).hasSize(2)
+            assertThat((latest!![0] as WifiNetworkModel.Active).level).isEqualTo(2)
+            assertThat((latest!![1] as WifiNetworkModel.Active).level).isEqualTo(3)
+        }
+
+    @Test
+    fun secondaryNetworks_noConnectedEntry_hasAllActiveEntries() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val secondaryEntry1 = mock<WifiEntry>().apply { whenever(this.level).thenReturn(2) }
+            val secondaryEntry2 = mock<WifiEntry>().apply { whenever(this.level).thenReturn(3) }
+            whenever(wifiPickerTracker.activeWifiEntries)
+                .thenReturn(listOf(secondaryEntry1, secondaryEntry2))
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+
+            getCallback().onWifiEntriesChanged()
+
+            assertThat(latest).hasSize(2)
+            assertThat((latest!![0] as WifiNetworkModel.Active).level).isEqualTo(2)
+            assertThat((latest!![1] as WifiNetworkModel.Active).level).isEqualTo(3)
+        }
+
+    @Test
+    fun secondaryNetworks_filtersOutPrimaryNetwork() =
+        testScope.runTest {
+            val latest by collectLastValue(underTest.secondaryNetworks)
+
+            val primaryEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.level).thenReturn(1)
+                }
+            val secondaryEntry1 = mock<WifiEntry>().apply { whenever(this.level).thenReturn(2) }
+            val secondaryEntry2 = mock<WifiEntry>().apply { whenever(this.level).thenReturn(3) }
+            // WHEN the active list has both a primary and secondary networks
+            whenever(wifiPickerTracker.activeWifiEntries)
+                .thenReturn(listOf(secondaryEntry1, primaryEntry, secondaryEntry2))
+
+            getCallback().onWifiEntriesChanged()
+
+            // THEN only the secondary networks are included
+            assertThat(latest).hasSize(2)
+            assertThat((latest!![0] as WifiNetworkModel.Active).level).isEqualTo(2)
+            assertThat((latest!![1] as WifiNetworkModel.Active).level).isEqualTo(3)
         }
 
     @Test
@@ -1029,15 +979,21 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.ssid).thenReturn(SSID)
-                    // A non-primary network is inactive
-                    whenever(this.isPrimary).thenReturn(false)
-                }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
+            assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
+        }
+
+    @Test
+    fun isWifiConnectedWithValidSsid_nonPrimaryNetwork_false() =
+        testScope.runTest {
+            collectLastValue(underTest.wifiNetwork)
+
+            val wifiEntry =
+                mock<WifiEntry>().apply { whenever(this.isPrimaryNetwork).thenReturn(false) }
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
         }
@@ -1047,15 +1003,12 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.isCarrierMerged).thenReturn(true)
+            val wifiEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
         }
@@ -1065,73 +1018,61 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.isCarrierMerged).thenReturn(true)
+            val wifiEntry =
+                mock<MergedCarrierEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
                     whenever(this.subscriptionId).thenReturn(INVALID_SUBSCRIPTION_ID)
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(
-                    NETWORK,
-                    createWifiNetworkCapabilities(wifiInfo),
-                )
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
         }
 
     @Test
-    fun isWifiConnectedWithValidSsid_activeNetwork_nullSsid_false() =
+    fun isWifiConnectedWithValidSsid_activeNetwork_nullTitle_false() =
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.ssid).thenReturn(null)
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.title).thenReturn(null)
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
         }
 
     @Test
-    fun isWifiConnectedWithValidSsid_activeNetwork_unknownSsid_false() =
+    fun isWifiConnectedWithValidSsid_activeNetwork_unknownTitle_false() =
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.ssid).thenReturn(UNKNOWN_SSID)
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.title).thenReturn(UNKNOWN_SSID)
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
         }
 
     @Test
-    fun isWifiConnectedWithValidSsid_activeNetwork_validSsid_true() =
+    fun isWifiConnectedWithValidSsid_activeNetwork_validTitle_true() =
         testScope.runTest {
             collectLastValue(underTest.wifiNetwork)
 
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.ssid).thenReturn("FakeSsid")
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.title).thenReturn("fakeSsid")
                 }
-
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isTrue()
         }
@@ -1142,20 +1083,19 @@ class WifiRepositoryImplTest : SysuiTestCase() {
             collectLastValue(underTest.wifiNetwork)
 
             // Start with active
-            val wifiInfo =
-                mock<WifiInfo>().apply {
-                    whenever(this.isPrimary).thenReturn(true)
-                    whenever(this.ssid).thenReturn("FakeSsid")
+            val wifiEntry =
+                mock<WifiEntry>().apply {
+                    whenever(this.isPrimaryNetwork).thenReturn(true)
+                    whenever(this.title).thenReturn("fakeSsid")
                 }
-            getNetworkCallback()
-                .onCapabilitiesChanged(NETWORK, createWifiNetworkCapabilities(wifiInfo))
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(wifiEntry)
+            getCallback().onWifiEntriesChanged()
 
             assertThat(underTest.isWifiConnectedWithValidSsid()).isTrue()
 
             // WHEN the network is lost
-            getNetworkCallback().onLost(NETWORK)
-            testScope.runCurrent()
+            whenever(wifiPickerTracker.connectedWifiEntry).thenReturn(null)
+            getCallback().onWifiEntriesChanged()
 
             // THEN the isWifiConnected updates
             assertThat(underTest.isWifiConnectedWithValidSsid()).isFalse()
@@ -1166,7 +1106,8 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiActivity)
 
-            getTrafficStateCallback().onStateChanged(TrafficStateCallback.DATA_ACTIVITY_NONE)
+            getTrafficStateCallback()
+                .onStateChanged(WifiManager.TrafficStateCallback.DATA_ACTIVITY_NONE)
 
             assertThat(latest)
                 .isEqualTo(DataActivityModel(hasActivityIn = false, hasActivityOut = false))
@@ -1177,7 +1118,8 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiActivity)
 
-            getTrafficStateCallback().onStateChanged(TrafficStateCallback.DATA_ACTIVITY_IN)
+            getTrafficStateCallback()
+                .onStateChanged(WifiManager.TrafficStateCallback.DATA_ACTIVITY_IN)
 
             assertThat(latest)
                 .isEqualTo(DataActivityModel(hasActivityIn = true, hasActivityOut = false))
@@ -1188,7 +1130,8 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiActivity)
 
-            getTrafficStateCallback().onStateChanged(TrafficStateCallback.DATA_ACTIVITY_OUT)
+            getTrafficStateCallback()
+                .onStateChanged(WifiManager.TrafficStateCallback.DATA_ACTIVITY_OUT)
 
             assertThat(latest)
                 .isEqualTo(DataActivityModel(hasActivityIn = false, hasActivityOut = true))
@@ -1199,7 +1142,8 @@ class WifiRepositoryImplTest : SysuiTestCase() {
         testScope.runTest {
             val latest by collectLastValue(underTest.wifiActivity)
 
-            getTrafficStateCallback().onStateChanged(TrafficStateCallback.DATA_ACTIVITY_INOUT)
+            getTrafficStateCallback()
+                .onStateChanged(WifiManager.TrafficStateCallback.DATA_ACTIVITY_INOUT)
 
             assertThat(latest)
                 .isEqualTo(DataActivityModel(hasActivityIn = true, hasActivityOut = true))
@@ -1250,74 +1194,144 @@ class WifiRepositoryImplTest : SysuiTestCase() {
             getScanResultsCallback().onScanResultsAvailable()
 
             // New scan representing no results
-            scanResults = emptyList()
+            scanResults = listOf()
             whenever(wifiManager.scanResults).thenReturn(scanResults)
             getScanResultsCallback().onScanResultsAvailable()
 
             assertThat(latest).isEmpty()
         }
 
-    private fun createRepo(): WifiRepositoryImpl {
-        return WifiRepositoryImpl(
-            fakeBroadcastDispatcher,
-            connectivityManager,
-            connectivityRepository,
-            logger,
-            tableLogger,
-            executor,
-            dispatcher,
-            testScope.backgroundScope,
-            wifiManager,
-        )
+    @Test
+    @EnableFlags(FLAG_MULTIUSER_WIFI_PICKER_TRACKER_SUPPORT)
+    fun oneUserVerifyCreatingWifiPickerTracker_multiuserFlagEnabled() =
+        testScope.runTest {
+            val primaryUserMockContext = mock<Context>()
+            mContext.prepareCreateContextAsUser(
+                UserHandle.of(PRIMARY_USER_ID),
+                primaryUserMockContext,
+            )
+
+            userRepository.setSelectedUserInfo(PRIMARY_USER)
+
+            collectLastValue(underTest.wifiNetwork)
+
+            val contextCaptor = argumentCaptor<Context>()
+            verify(wifiPickerTrackerFactory).create(contextCaptor.capture(), any(), any(), any())
+            // If the flag is on, verify that we use the context from #createContextAsUser and we
+            // do NOT use the top-level context
+            assertThat(contextCaptor.firstValue).isEqualTo(primaryUserMockContext)
+        }
+
+    @Test
+    @EnableFlags(FLAG_MULTIUSER_WIFI_PICKER_TRACKER_SUPPORT)
+    fun changeUserVerifyCreatingWifiPickerTracker_multiuserEnabled() =
+        testScope.runTest {
+            val primaryUserMockContext = mock<Context>()
+            mContext.prepareCreateContextAsUser(
+                UserHandle.of(PRIMARY_USER_ID),
+                primaryUserMockContext,
+            )
+            userRepository.setSelectedUserInfo(PRIMARY_USER)
+
+            collectLastValue(underTest.wifiNetwork)
+
+            val contextCaptor = argumentCaptor<Context>()
+            verify(wifiPickerTrackerFactory).create(contextCaptor.capture(), any(), any(), any())
+            assertThat(contextCaptor.firstValue).isEqualTo(primaryUserMockContext)
+
+            reset(wifiPickerTrackerFactory)
+
+            // WHEN we switch to a different user
+            val otherUserMockContext = mock<Context>()
+            mContext.prepareCreateContextAsUser(
+                UserHandle.of(ANOTHER_USER_ID),
+                otherUserMockContext,
+            )
+            userRepository.setSelectedUserInfo(ANOTHER_USER)
+            verify(wifiPickerTracker).onStop()
+
+            // THEN we use the different user's context to create WifiPickerTracker
+            val newCaptor = argumentCaptor<Context>()
+            verify(wifiPickerTrackerFactory).create(newCaptor.capture(), any(), any(), any())
+            verify(wifiPickerTracker).onStop()
+            assertThat(newCaptor.firstValue).isEqualTo(otherUserMockContext)
+        }
+
+    @Test
+    @DisableFlags(FLAG_MULTIUSER_WIFI_PICKER_TRACKER_SUPPORT)
+    fun changeUserVerifyCreatingWifiPickerTracker_multiuserDisabled() =
+        testScope.runTest {
+            val primaryUserMockContext = mock<Context>()
+            mContext.prepareCreateContextAsUser(
+                UserHandle.of(PRIMARY_USER_ID),
+                primaryUserMockContext,
+            )
+
+            userRepository.setSelectedUserInfo(PRIMARY_USER)
+
+            collectLastValue(underTest.wifiNetwork)
+
+            val contextCaptor = argumentCaptor<Context>()
+            verify(wifiPickerTrackerFactory).create(contextCaptor.capture(), any(), any(), any())
+            // If the flag is off, verify that we do NOT use the context from #createContextAsUser
+            // and we instead use the top-level context
+            assertThat(contextCaptor.firstValue).isNotEqualTo(primaryUserMockContext)
+            assertThat(contextCaptor.firstValue).isEqualTo(mContext)
+
+            reset(wifiPickerTrackerFactory)
+
+            // WHEN we switch to a different user
+            val otherUserMockContext = mock<Context>()
+            mContext.prepareCreateContextAsUser(
+                UserHandle.of(ANOTHER_USER_ID),
+                otherUserMockContext,
+            )
+            userRepository.setSelectedUserInfo(ANOTHER_USER)
+
+            // THEN we do NOT re-create WifiPickerTracker because the multiuser flag is off
+            verify(wifiPickerTrackerFactory, never()).create(any(), any(), any(), any())
+            verify(wifiPickerTracker, never()).onStop()
+        }
+
+    private fun getCallback(): WifiPickerTracker.WifiPickerTrackerCallback {
+        return callbackCaptor.firstValue
     }
 
-    private fun getTrafficStateCallback(): TrafficStateCallback {
-        testScope.runCurrent()
-        val callbackCaptor = argumentCaptor<TrafficStateCallback>()
+    private fun getTrafficStateCallback(): WifiManager.TrafficStateCallback {
+        val callbackCaptor = argumentCaptor<WifiManager.TrafficStateCallback>()
         verify(wifiManager).registerTrafficStateCallback(any(), callbackCaptor.capture())
-        return callbackCaptor.value!!
+        return callbackCaptor.firstValue
     }
 
-    private fun getNetworkCallback(): ConnectivityManager.NetworkCallback {
-        testScope.runCurrent()
-        val callbackCaptor = argumentCaptor<ConnectivityManager.NetworkCallback>()
-        verify(connectivityManager).registerNetworkCallback(any(), callbackCaptor.capture())
-        return callbackCaptor.value!!
-    }
-
-    private fun getDefaultNetworkCallback(): ConnectivityManager.NetworkCallback {
-        testScope.runCurrent()
-        val callbackCaptor = argumentCaptor<ConnectivityManager.NetworkCallback>()
-        verify(connectivityManager).registerDefaultNetworkCallback(callbackCaptor.capture())
-        return callbackCaptor.value!!
-    }
-
-    private fun getScanResultsCallback(): WifiManager.ScanResultsCallback {
-        testScope.runCurrent()
-        val callbackCaptor = argumentCaptor<WifiManager.ScanResultsCallback>()
-        verify(wifiManager).registerScanResultsCallback(any(), callbackCaptor.capture())
-        return callbackCaptor.value!!
-    }
-
-    private fun createWifiNetworkCapabilities(
-        transportInfo: TransportInfo,
-        isValidated: Boolean = true,
-    ): NetworkCapabilities {
-        return mock<NetworkCapabilities>().also {
-            whenever(it.hasTransport(TRANSPORT_WIFI)).thenReturn(true)
-            whenever(it.transportInfo).thenReturn(transportInfo)
-            whenever(it.hasCapability(NET_CAPABILITY_VALIDATED)).thenReturn(isValidated)
+    private fun createHotspotWithType(@DeviceType type: Int): HotspotNetworkEntry {
+        return mock<HotspotNetworkEntry>().apply {
+            whenever(this.isPrimaryNetwork).thenReturn(true)
+            whenever(this.deviceType).thenReturn(type)
         }
     }
 
+    private fun getScanResultsCallback(): WifiManager.ScanResultsCallback {
+        val callbackCaptor = argumentCaptor<WifiManager.ScanResultsCallback>()
+        verify(wifiManager).registerScanResultsCallback(any(), callbackCaptor.capture())
+        return callbackCaptor.firstValue
+    }
+
     private companion object {
-        const val NETWORK_ID = 45
-        val NETWORK = mock<Network>().apply { whenever(this.getNetId()).thenReturn(NETWORK_ID) }
-        const val SSID = "AB"
-        val PRIMARY_WIFI_INFO: WifiInfo =
-            mock<WifiInfo>().apply {
-                whenever(this.ssid).thenReturn(SSID)
-                whenever(this.isPrimary).thenReturn(true)
-            }
+        const val TITLE = "AB"
+        private const val PRIMARY_USER_ID = 0
+        private val PRIMARY_USER =
+            UserInfo(
+                /* id= */ PRIMARY_USER_ID,
+                /* name= */ "primary user",
+                /* flags= */ UserInfo.FLAG_PROFILE,
+            )
+
+        private const val ANOTHER_USER_ID = 1
+        private val ANOTHER_USER =
+            UserInfo(
+                /* id= */ ANOTHER_USER_ID,
+                /* name= */ "another user",
+                /* flags= */ UserInfo.FLAG_PROFILE,
+            )
     }
 }

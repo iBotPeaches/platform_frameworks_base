@@ -28,6 +28,7 @@ import android.companion.ObservingDevicePresenceRequest;
 import android.companion.datatransfer.PermissionSyncRequest;
 import android.content.ComponentName;
 import android.os.ParcelUuid;
+import android.companion.DeviceId;
 
 
 /**
@@ -59,12 +60,16 @@ interface ICompanionDeviceManager {
         int userId);
 
     @EnforcePermission("REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE")
-    void registerDevicePresenceListenerService(in String deviceAddress, in String callingPackage,
-        int userId);
+    void legacyStartObservingDevicePresence(in String deviceAddress, in String callingPackage, int userId);
 
     @EnforcePermission("REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE")
-    void unregisterDevicePresenceListenerService(in String deviceAddress, in String callingPackage,
-        int userId);
+    void legacyStopObservingDevicePresence(in String deviceAddress, in String callingPackage, int userId);
+
+    @EnforcePermission("REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE")
+    void startObservingDevicePresence(in ObservingDevicePresenceRequest request, in String packageName, int userId);
+
+    @EnforcePermission("REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE")
+    void stopObservingDevicePresence(in ObservingDevicePresenceRequest request, in String packageName, int userId);
 
     boolean canPairWithoutPrompt(in String packageName, in String deviceMacAddress, int userId);
 
@@ -93,9 +98,11 @@ interface ICompanionDeviceManager {
     @EnforcePermission("USE_COMPANION_TRANSPORTS")
     void removeOnMessageReceivedListener(int messageType, IOnMessageReceivedListener listener);
 
-    void notifyDeviceAppeared(int associationId);
+    @EnforcePermission("REQUEST_COMPANION_SELF_MANAGED")
+    void notifySelfManagedDeviceAppeared(int associationId);
 
-    void notifyDeviceDisappeared(int associationId);
+    @EnforcePermission("REQUEST_COMPANION_SELF_MANAGED")
+    void notifySelfManagedDeviceDisappeared(int associationId);
 
     PendingIntent buildPermissionTransferUserConsentIntent(String callingPackage, int userId,
         int associationId);
@@ -128,17 +135,12 @@ interface ICompanionDeviceManager {
     @EnforcePermission("MANAGE_COMPANION_DEVICES")
     void enableSecureTransport(boolean enabled);
 
-    void setAssociationTag(int associationId, String tag);
-
-    void clearAssociationTag(int associationId);
+    void setDeviceId(int associationId, in DeviceId deviceId);
 
     byte[] getBackupPayload(int userId);
 
     void applyRestoredPayload(in byte[] payload, int userId);
 
-    @EnforcePermission("REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE")
-    void startObservingDevicePresence(in ObservingDevicePresenceRequest request, in String packageName, int userId);
-
-    @EnforcePermission("REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE")
-    void stopObservingDevicePresence(in ObservingDevicePresenceRequest request, in String packageName, int userId);
+    @EnforcePermission("BLUETOOTH_CONNECT")
+    boolean removeBond(int associationId, in String packageName, int userId);
 }

@@ -219,7 +219,7 @@ public class LocaleManagerService extends SystemService {
         public void onShellCommand(FileDescriptor in, FileDescriptor out,
                 FileDescriptor err, String[] args, ShellCallback callback,
                 ResultReceiver resultReceiver) {
-            (new LocaleManagerShellCommand(mBinderService))
+            (new LocaleManagerShellCommand(mBinderService, mContext))
                     .exec(this, in, out, err, args, callback, resultReceiver);
         }
 
@@ -614,9 +614,10 @@ public class LocaleManagerService extends SystemService {
             LocaleConfig resLocaleConfig = null;
             try {
                 resLocaleConfig = LocaleConfig.fromContextIgnoringOverride(
-                        mContext.createPackageContext(appPackageName, 0));
+                        mContext.createPackageContextAsUser(appPackageName, /* flags= */ 0,
+                                UserHandle.of(userId)));
             } catch (PackageManager.NameNotFoundException e) {
-                Slog.e(TAG, "Unknown package name " + appPackageName);
+                Slog.e(TAG, "Unknown package name " + appPackageName + " for user " + userId);
                 return;
             }
             final File file = getXmlFileNameForUser(appPackageName, userId);

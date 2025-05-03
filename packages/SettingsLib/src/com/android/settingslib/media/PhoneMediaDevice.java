@@ -15,6 +15,7 @@
  */
 package com.android.settingslib.media;
 
+import static android.content.pm.PackageManager.FEATURE_PC;
 import static android.media.MediaRoute2Info.TYPE_BUILTIN_SPEAKER;
 import static android.media.MediaRoute2Info.TYPE_DOCK;
 import static android.media.MediaRoute2Info.TYPE_HDMI;
@@ -25,6 +26,9 @@ import static android.media.MediaRoute2Info.TYPE_USB_DEVICE;
 import static android.media.MediaRoute2Info.TYPE_USB_HEADSET;
 import static android.media.MediaRoute2Info.TYPE_WIRED_HEADPHONES;
 import static android.media.MediaRoute2Info.TYPE_WIRED_HEADSET;
+import static android.media.MediaRoute2Info.TYPE_LINE_DIGITAL;
+import static android.media.MediaRoute2Info.TYPE_LINE_ANALOG;
+import static android.media.MediaRoute2Info.TYPE_AUX_LINE;
 
 import static com.android.settingslib.media.MediaDevice.SelectionBehavior.SELECTION_BEHAVIOR_TRANSFER;
 
@@ -37,10 +41,12 @@ import android.hardware.hdmi.HdmiDeviceInfo;
 import android.hardware.hdmi.HdmiPortInfo;
 import android.media.MediaRoute2Info;
 import android.media.RouteListingPreference;
+import android.os.Build;
 import android.os.SystemProperties;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.settingslib.R;
@@ -68,9 +74,11 @@ public class PhoneMediaDevice extends MediaDevice {
     /** Returns this device name for media transfer. */
     public static @NonNull String getMediaTransferThisDeviceName(@NonNull Context context) {
         if (isTv(context)) {
-            return context.getString(R.string.media_transfer_this_device_name_tv);
+            return Build.MODEL;
         } else if (isTablet()) {
             return context.getString(R.string.media_transfer_this_device_name_tablet);
+        } else if (inputRoutingEnabledAndIsDesktop(context)) {
+            return context.getString(R.string.media_transfer_this_device_name_desktop);
         } else {
             return context.getString(R.string.media_transfer_this_device_name);
         }
@@ -84,10 +92,18 @@ public class PhoneMediaDevice extends MediaDevice {
         switch (routeInfo.getType()) {
             case TYPE_WIRED_HEADSET:
             case TYPE_WIRED_HEADPHONES:
+                name =
+                        inputRoutingEnabledAndIsDesktop(context)
+                                ? context.getString(R.string.media_transfer_headphone_name)
+                                : context.getString(R.string.media_transfer_wired_headphone_name);
+                break;
             case TYPE_USB_DEVICE:
             case TYPE_USB_HEADSET:
             case TYPE_USB_ACCESSORY:
-                name = context.getString(R.string.media_transfer_wired_usb_device_name);
+                name =
+                        inputRoutingEnabledAndIsDesktop(context)
+                                ? routeInfo.getName()
+                                : context.getString(R.string.media_transfer_wired_headphone_name);
                 break;
             case TYPE_DOCK:
                 name = context.getString(R.string.media_transfer_dock_speaker_device_name);
@@ -96,21 +112,10 @@ public class PhoneMediaDevice extends MediaDevice {
                 name = getMediaTransferThisDeviceName(context);
                 break;
             case TYPE_HDMI:
-                name = context.getString(isTv ? R.string.tv_media_transfer_default :
+                name = context.getString(isTv ? R.string.tv_media_transfer_hdmi_title :
                         R.string.media_transfer_external_device_name);
                 break;
             case TYPE_HDMI_ARC:
-                if (isTv) {
-                    String deviceName = getHdmiOutDeviceName(context);
-                    if (deviceName != null) {
-                        name = deviceName;
-                    } else {
-                        name = context.getString(R.string.tv_media_transfer_arc_fallback_title);
-                    }
-                } else {
-                    name = context.getString(R.string.media_transfer_external_device_name);
-                }
-                break;
             case TYPE_HDMI_EARC:
                 if (isTv) {
                     String deviceName = getHdmiOutDeviceName(context);
@@ -123,6 +128,15 @@ public class PhoneMediaDevice extends MediaDevice {
                     name = context.getString(R.string.media_transfer_external_device_name);
                 }
                 break;
+            case TYPE_LINE_DIGITAL:
+                name = context.getString(R.string.media_transfer_digital_line_name);
+                break;
+            case TYPE_LINE_ANALOG:
+                name = context.getString(R.string.media_transfer_analog_line_name);
+                break;
+            case TYPE_AUX_LINE:
+                name = context.getString(R.string.media_transfer_aux_line_name);
+                break;
             default:
                 name = context.getString(R.string.media_transfer_default_device_name);
                 break;
@@ -130,14 +144,10 @@ public class PhoneMediaDevice extends MediaDevice {
         return name.toString();
     }
 
-    PhoneMediaDevice(Context context, MediaRoute2Info info) {
-        this(context, info, null);
-    }
-
     PhoneMediaDevice(
-            Context context,
-            MediaRoute2Info info,
-            RouteListingPreference.Item item) {
+            @NonNull Context context,
+            @NonNull MediaRoute2Info info,
+            @Nullable RouteListingPreference.Item item) {
         super(context, info, item);
         mDeviceIconUtil = new DeviceIconUtil(mContext);
         initDeviceRecord();
@@ -151,6 +161,15 @@ public class PhoneMediaDevice extends MediaDevice {
     static boolean isTablet() {
         return Arrays.asList(SystemProperties.get("ro.build.characteristics").split(","))
                 .contains("tablet");
+    }
+
+    public static boolean isDesktop(@NonNull Context context) {
+        return context.getPackageManager().hasSystemFeature(FEATURE_PC);
+    }
+
+    public static boolean inputRoutingEnabledAndIsDesktop(@NonNull Context context) {
+        return com.android.media.flags.Flags.enableAudioInputDeviceRoutingAndVolumeControl()
+                && isDesktop(context);
     }
 
     // MediaRoute2Info.getType was made public on API 34, but exists since API 30.
@@ -206,8 +225,6 @@ public class PhoneMediaDevice extends MediaDevice {
         switch (mRouteInfo.getType()) {
             case TYPE_BUILTIN_SPEAKER:
                 return mContext.getString(R.string.tv_media_transfer_internal_speakers);
-            case TYPE_HDMI:
-                return mContext.getString(R.string.tv_media_transfer_hdmi);
             case TYPE_HDMI_ARC:
                 if (getHdmiOutDeviceName(mContext) == null) {
                     // Connection type is already part of the title.
@@ -262,6 +279,9 @@ public class PhoneMediaDevice extends MediaDevice {
         switch (mRouteInfo.getType()) {
             case TYPE_WIRED_HEADSET:
             case TYPE_WIRED_HEADPHONES:
+            case TYPE_LINE_ANALOG:
+            case TYPE_LINE_DIGITAL:
+            case TYPE_AUX_LINE:
                 id = WIRED_HEADSET_ID;
                 break;
             case TYPE_USB_DEVICE:

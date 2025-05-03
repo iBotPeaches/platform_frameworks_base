@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar;
 
+import static android.app.Flags.FLAG_KEYGUARD_PRIVATE_NOTIFICATIONS;
 import static android.app.Notification.VISIBILITY_PRIVATE;
 import static android.app.NotificationManager.IMPORTANCE_HIGH;
 import static android.app.NotificationManager.VISIBILITY_NO_OVERRIDE;
@@ -24,7 +25,7 @@ import static android.app.StatusBarManager.EXTRA_KM_PRIVATE_NOTIFS_ALLOWED;
 import static android.app.admin.DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED;
 import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_SECURE_NOTIFICATIONS;
 import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_UNREDACTED_NOTIFICATIONS;
-import static android.app.Flags.FLAG_KEYGUARD_PRIVATE_NOTIFICATIONS;
+import static android.multiuser.Flags.FLAG_ENABLE_PRIVATE_SPACE_FEATURES;
 import static android.os.Flags.FLAG_ALLOW_PRIVATE_PROFILE;
 import static android.os.UserHandle.USER_ALL;
 import static android.provider.Settings.Secure.LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS;
@@ -70,9 +71,12 @@ import androidx.test.filters.SmallTest;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.deviceentry.domain.interactor.DeviceUnlockedInteractor;
+import com.android.systemui.deviceentry.shared.model.DeviceUnlockStatus;
 import com.android.systemui.dump.DumpManager;
+import com.android.systemui.flags.DisableSceneContainer;
+import com.android.systemui.flags.EnableSceneContainer;
 import com.android.systemui.flags.FakeFeatureFlagsClassic;
-import com.android.systemui.flags.Flags;
 import com.android.systemui.log.LogWtfHandlerRule;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.recents.OverviewProxyService;
@@ -89,6 +93,10 @@ import com.android.systemui.util.settings.FakeSettings;
 import com.android.systemui.util.time.FakeSystemClock;
 
 import com.google.android.collect.Lists;
+
+import dagger.Lazy;
+
+import kotlinx.coroutines.flow.StateFlow;
 
 import org.junit.After;
 import org.junit.Before;
@@ -115,7 +123,8 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     public static List<FlagsParameterization> getParams() {
         return FlagsParameterization.allCombinationsOf(
                 FLAG_ALLOW_PRIVATE_PROFILE,
-                FLAG_KEYGUARD_PRIVATE_NOTIFICATIONS);
+                FLAG_KEYGUARD_PRIVATE_NOTIFICATIONS,
+                FLAG_ENABLE_PRIVATE_SPACE_FEATURES);
     }
 
     public NotificationLockscreenUserManagerTest(FlagsParameterization flags) {
@@ -151,6 +160,12 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     private BroadcastDispatcher mBroadcastDispatcher;
     @Mock
     private KeyguardStateController mKeyguardStateController;
+    @Mock
+    private Lazy<DeviceUnlockedInteractor> mDeviceUnlockedInteractorLazy;
+    @Mock
+    private DeviceUnlockedInteractor mDeviceUnlockedInteractor;
+    @Mock
+    private StateFlow<DeviceUnlockStatus> mDeviceUnlockStatusStateFlow;
 
     private UserInfo mCurrentUser;
     private UserInfo mSecondaryUser;
@@ -161,6 +176,7 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     private NotificationEntry mCurrentUserNotif;
     private NotificationEntry mSecondaryUserNotif;
     private NotificationEntry mWorkProfileNotif;
+    private NotificationEntry mSensitiveContentNotif;
     private final FakeFeatureFlagsClassic mFakeFeatureFlags = new FakeFeatureFlagsClassic();
     private final FakeSystemClock mFakeSystemClock = new FakeSystemClock();
     private final FakeExecutor mBackgroundExecutor = new FakeExecutor(mFakeSystemClock);
@@ -223,10 +239,21 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
         mWorkProfileNotif.setRanking(new RankingBuilder(mWorkProfileNotif.getRanking())
                 .setChannel(channel)
                 .setVisibilityOverride(VISIBILITY_NO_OVERRIDE).build());
+        mSensitiveContentNotif = new NotificationEntryBuilder()
+                .setNotification(notifWithPrivateVisibility)
+                .setUser(new UserHandle(mCurrentUser.id))
+                .build();
+        mSensitiveContentNotif.setRanking(new RankingBuilder(mCurrentUserNotif.getRanking())
+                .setChannel(channel)
+                .setSensitiveContent(true)
+                .setVisibilityOverride(VISIBILITY_NO_OVERRIDE).build());
         when(mNotifCollection.getEntry(mWorkProfileNotif.getKey())).thenReturn(mWorkProfileNotif);
 
         mLockscreenUserManager = new TestNotificationLockscreenUserManager(mContext);
         mLockscreenUserManager.setUpWithPresenter(mPresenter);
+
+        when(mDeviceUnlockedInteractor.getDeviceUnlockStatus())
+                .thenReturn(mDeviceUnlockStatusStateFlow);
 
         mBackgroundExecutor.runAllReady();
     }
@@ -458,6 +485,17 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     }
 
     @Test
+    public void testHasSensitiveContent_redacted() {
+        // Allow private notifications for this user
+        mSettings.putIntForUser(LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS, 0,
+                mCurrentUser.id);
+        changeSetting(LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS);
+
+        // Sensitive Content notifications are always redacted
+        assertTrue(mLockscreenUserManager.needsRedaction(mSensitiveContentNotif));
+    }
+
+    @Test
     public void testUserSwitchedCallsOnUserSwitching() {
         mLockscreenUserManager.getUserTrackerCallbackForTest().onUserChanging(mSecondaryUser.id,
                 mContext);
@@ -472,7 +510,8 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     }
 
     @Test
-    public void testUpdateIsPublicMode() {
+    @DisableSceneContainer
+    public void testUpdateIsPublicMode_sceneContainerDisabled() {
         when(mKeyguardStateController.isMethodSecure()).thenReturn(true);
         when(mKeyguardStateController.isShowing()).thenReturn(false);
 
@@ -494,6 +533,57 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
         verify(listener, never()).onNotificationStateChanged();
 
         // Calling again with keyguard now showing makes user 0 public; notifies
+        when(mKeyguardStateController.isShowing()).thenReturn(true);
+        mLockscreenUserManager.updatePublicMode();
+        mBackgroundExecutor.runAllReady();
+        assertTrue(mLockscreenUserManager.isLockscreenPublicMode(0));
+        verify(listener).onNotificationStateChanged();
+        clearInvocations(listener);
+
+        // calling again has no changes; does not notify
+        mLockscreenUserManager.updatePublicMode();
+        mBackgroundExecutor.runAllReady();
+        assertTrue(mLockscreenUserManager.isLockscreenPublicMode(0));
+        verify(listener, never()).onNotificationStateChanged();
+
+        verify(mDeviceUnlockedInteractorLazy, never()).get();
+    }
+
+    @Test
+    @EnableSceneContainer
+    public void testUpdateIsPublicMode_sceneContainerEnabled() {
+        when(mDeviceUnlockedInteractorLazy.get()).thenReturn(mDeviceUnlockedInteractor);
+
+        // device is unlocked
+        when(mDeviceUnlockStatusStateFlow.getValue()).thenReturn(new DeviceUnlockStatus(
+                /* isUnlocked = */ true,
+                /* deviceUnlockSource = */ null
+        ));
+
+        NotificationStateChangedListener listener = mock(NotificationStateChangedListener.class);
+        mLockscreenUserManager.addNotificationStateChangedListener(listener);
+        mLockscreenUserManager.mCurrentProfiles.append(0, mock(UserInfo.class));
+
+        // first call explicitly sets user 0 to not public; notifies
+        mLockscreenUserManager.updatePublicMode();
+        mBackgroundExecutor.runAllReady();
+        assertFalse(mLockscreenUserManager.isLockscreenPublicMode(0));
+        verify(listener).onNotificationStateChanged();
+        clearInvocations(listener);
+
+        // calling again has no changes; does not notify
+        mLockscreenUserManager.updatePublicMode();
+        mBackgroundExecutor.runAllReady();
+        assertFalse(mLockscreenUserManager.isLockscreenPublicMode(0));
+        verify(listener, never()).onNotificationStateChanged();
+
+        // device is not unlocked
+        when(mDeviceUnlockStatusStateFlow.getValue()).thenReturn(new DeviceUnlockStatus(
+                /* isUnlocked = */ false,
+                /* deviceUnlockSource = */ null
+        ));
+
+        // Calling again with device now not unlocked makes user 0 public; notifies
         when(mKeyguardStateController.isShowing()).thenReturn(true);
         mLockscreenUserManager.updatePublicMode();
         mBackgroundExecutor.runAllReady();
@@ -872,7 +962,7 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableFlags(FLAG_ALLOW_PRIVATE_PROFILE)
+    @EnableFlags({FLAG_ALLOW_PRIVATE_PROFILE, FLAG_ENABLE_PRIVATE_SPACE_FEATURES})
     public void testProfileAvailabilityIntent() {
         mLockscreenUserManager.mCurrentProfiles.clear();
         assertEquals(0, mLockscreenUserManager.mCurrentProfiles.size());
@@ -883,7 +973,7 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     }
 
     @Test
-    @EnableFlags(FLAG_ALLOW_PRIVATE_PROFILE)
+    @EnableFlags({FLAG_ALLOW_PRIVATE_PROFILE, FLAG_ENABLE_PRIVATE_SPACE_FEATURES})
     public void testProfileUnAvailabilityIntent() {
         mLockscreenUserManager.mCurrentProfiles.clear();
         assertEquals(0, mLockscreenUserManager.mCurrentProfiles.size());
@@ -894,7 +984,7 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     }
 
     @Test
-    @DisableFlags(FLAG_ALLOW_PRIVATE_PROFILE)
+    @DisableFlags({FLAG_ALLOW_PRIVATE_PROFILE, FLAG_ENABLE_PRIVATE_SPACE_FEATURES})
     public void testManagedProfileAvailabilityIntent() {
         mLockscreenUserManager.mCurrentProfiles.clear();
         mLockscreenUserManager.mCurrentManagedProfiles.clear();
@@ -908,7 +998,7 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
     }
 
     @Test
-    @DisableFlags(FLAG_ALLOW_PRIVATE_PROFILE)
+    @DisableFlags({FLAG_ALLOW_PRIVATE_PROFILE, FLAG_ENABLE_PRIVATE_SPACE_FEATURES})
     public void testManagedProfileUnAvailabilityIntent() {
         mLockscreenUserManager.mCurrentProfiles.clear();
         mLockscreenUserManager.mCurrentManagedProfiles.clear();
@@ -951,7 +1041,9 @@ public class NotificationLockscreenUserManagerTest extends SysuiTestCase {
                     mSettings,
                     mock(DumpManager.class),
                     mock(LockPatternUtils.class),
-                    mFakeFeatureFlags);
+                    mFakeFeatureFlags,
+                    mDeviceUnlockedInteractorLazy
+            );
         }
 
         public BroadcastReceiver getBaseBroadcastReceiverForTest() {

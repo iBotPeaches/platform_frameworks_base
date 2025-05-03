@@ -18,6 +18,7 @@ package com.android.server.input;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.hardware.display.DisplayTopologyGraph;
 import android.hardware.display.DisplayViewport;
 import android.hardware.input.InputSensorInfo;
 import android.hardware.lights.Light;
@@ -42,13 +43,15 @@ interface NativeInputManagerService {
 
     void setDisplayViewports(DisplayViewport[] viewports);
 
+    void setDisplayTopology(DisplayTopologyGraph topologyGraph);
+
     int getScanCodeState(int deviceId, int sourceMask, int scanCode);
 
     int getKeyCodeState(int deviceId, int sourceMask, int keyCode);
 
     int getSwitchState(int deviceId, int sourceMask, int sw);
 
-    void addKeyRemapping(int deviceId, int fromKeyCode, int toKeyCode);
+    void setKeyRemapping(int[] fromKeyCodes, int[] toKeyCodes);
 
     boolean hasKeys(int deviceId, int sourceMask, int[] keyCodes, boolean[] keyExists);
 
@@ -98,6 +101,8 @@ interface NativeInputManagerService {
 
     void toggleCapsLock(int deviceId);
 
+    void resetLockedModifierState();
+
     void displayRemoved(int displayId);
 
     void setInputDispatchMode(boolean enabled, boolean frozen);
@@ -127,6 +132,10 @@ interface NativeInputManagerService {
 
     void setMousePointerAccelerationEnabled(int displayId, boolean enabled);
 
+    void setMouseReverseVerticalScrollingEnabled(boolean enabled);
+
+    void setMouseSwapPrimaryButtonEnabled(boolean enabled);
+
     void setTouchpadPointerSpeed(int speed);
 
     void setTouchpadNaturalScrollingEnabled(boolean enabled);
@@ -135,11 +144,17 @@ interface NativeInputManagerService {
 
     void setTouchpadTapDraggingEnabled(boolean enabled);
 
+    void setShouldNotifyTouchpadHardwareState(boolean enabled);
+
     void setTouchpadRightClickZoneEnabled(boolean enabled);
+
+    void setTouchpadThreeFingerTapShortcutEnabled(boolean enabled);
+
+    void setTouchpadSystemGesturesEnabled(boolean enabled);
 
     void setShowTouches(boolean enabled);
 
-    void setInteractive(boolean interactive);
+    void setNonInteractiveDisplays(int[] displayIds);
 
     void reloadCalibration();
 
@@ -183,17 +198,11 @@ interface NativeInputManagerService {
 
     void monitor();
 
-    boolean isInputDeviceEnabled(int deviceId);
-
     void enableInputDevice(int deviceId);
 
     void disableInputDevice(int deviceId);
 
-    void setPointerIconType(int iconId);
-
     void reloadPointerIcons();
-
-    void setCustomPointerIcon(@NonNull PointerIcon icon);
 
     boolean setPointerIcon(@NonNull PointerIcon icon, int displayId, int deviceId, int pointerId,
             @NonNull IBinder inputToken);
@@ -216,9 +225,12 @@ interface NativeInputManagerService {
 
     void setMotionClassifierEnabled(boolean enabled);
 
-    void setKeyRepeatConfiguration(int timeoutMs, int delayMs);
+    void setKeyRepeatConfiguration(int timeoutMs, int delayMs, boolean keyRepeatEnabled);
 
     InputSensorInfo[] getSensorList(int deviceId);
+
+    @Nullable
+    TouchpadHardwareProperties getTouchpadHardwareProperties(int deviceId);
 
     boolean flushSensor(int deviceId, int sensorType);
 
@@ -273,6 +285,28 @@ interface NativeInputManagerService {
      */
     void setAccessibilityStickyKeysEnabled(boolean enabled);
 
+    void setInputMethodConnectionIsActive(boolean isActive);
+
+    /**
+     * Get the device ID of the InputDevice that used most recently.
+     *
+     * @return the last used input device ID, or
+     *     {@link android.os.IInputConstants#INVALID_INPUT_DEVICE_ID} if no device has been used
+     *     since boot.
+     */
+    int getLastUsedInputDeviceId();
+
+    /**
+     * Set whether the given input device can wake up the kernel from sleep
+     * when it generates input events. By default, usually only internal (built-in)
+     * input devices can wake the kernel from sleep. For an external input device
+     * that supports remote wakeup to be able to wake the kernel, this must be called
+     * after each time the device is connected/added.
+     *
+     * Returns true if setting power wakeup was successful.
+     */
+    boolean setKernelWakeEnabled(int deviceId, boolean enabled);
+
     /** The native implementation of InputManagerService methods. */
     class NativeImpl implements NativeInputManagerService {
         /** Pointer to native input manager service object, used by native code. */
@@ -292,6 +326,9 @@ interface NativeInputManagerService {
         public native void setDisplayViewports(DisplayViewport[] viewports);
 
         @Override
+        public native void setDisplayTopology(DisplayTopologyGraph topologyGraph);
+
+        @Override
         public native int getScanCodeState(int deviceId, int sourceMask, int scanCode);
 
         @Override
@@ -301,7 +338,7 @@ interface NativeInputManagerService {
         public native int getSwitchState(int deviceId, int sourceMask, int sw);
 
         @Override
-        public native void addKeyRemapping(int deviceId, int fromKeyCode, int toKeyCode);
+        public native void setKeyRemapping(int[] fromKeyCodes, int[] toKeyCodes);
 
         @Override
         public native boolean hasKeys(int deviceId, int sourceMask, int[] keyCodes,
@@ -343,6 +380,9 @@ interface NativeInputManagerService {
         public native void toggleCapsLock(int deviceId);
 
         @Override
+        public native void resetLockedModifierState();
+
+        @Override
         public native void displayRemoved(int displayId);
 
         @Override
@@ -378,6 +418,12 @@ interface NativeInputManagerService {
         public native void setMousePointerAccelerationEnabled(int displayId, boolean enabled);
 
         @Override
+        public native void setMouseReverseVerticalScrollingEnabled(boolean enabled);
+
+        @Override
+        public native void setMouseSwapPrimaryButtonEnabled(boolean enabled);
+
+        @Override
         public native void setTouchpadPointerSpeed(int speed);
 
         @Override
@@ -390,13 +436,22 @@ interface NativeInputManagerService {
         public native void setTouchpadTapDraggingEnabled(boolean enabled);
 
         @Override
+        public native void setShouldNotifyTouchpadHardwareState(boolean enabled);
+
+        @Override
         public native void setTouchpadRightClickZoneEnabled(boolean enabled);
+
+        @Override
+        public native void setTouchpadThreeFingerTapShortcutEnabled(boolean enabled);
+
+        @Override
+        public native void setTouchpadSystemGesturesEnabled(boolean enabled);
 
         @Override
         public native void setShowTouches(boolean enabled);
 
         @Override
-        public native void setInteractive(boolean interactive);
+        public native void setNonInteractiveDisplays(int[] displayIds);
 
         @Override
         public native void reloadCalibration();
@@ -456,22 +511,13 @@ interface NativeInputManagerService {
         public native void monitor();
 
         @Override
-        public native boolean isInputDeviceEnabled(int deviceId);
-
-        @Override
         public native void enableInputDevice(int deviceId);
 
         @Override
         public native void disableInputDevice(int deviceId);
 
         @Override
-        public native void setPointerIconType(int iconId);
-
-        @Override
         public native void reloadPointerIcons();
-
-        @Override
-        public native void setCustomPointerIcon(PointerIcon icon);
 
         @Override
         public native boolean setPointerIcon(PointerIcon icon, int displayId, int deviceId,
@@ -505,10 +551,14 @@ interface NativeInputManagerService {
         public native void setMotionClassifierEnabled(boolean enabled);
 
         @Override
-        public native void setKeyRepeatConfiguration(int timeoutMs, int delayMs);
+        public native void setKeyRepeatConfiguration(int timeoutMs, int delayMs,
+                boolean keyRepeatEnabled);
 
         @Override
         public native InputSensorInfo[] getSensorList(int deviceId);
+
+        @Override
+        public native TouchpadHardwareProperties getTouchpadHardwareProperties(int deviceId);
 
         @Override
         public native boolean flushSensor(int deviceId, int sensorType);
@@ -549,5 +599,14 @@ interface NativeInputManagerService {
 
         @Override
         public native void setAccessibilityStickyKeysEnabled(boolean enabled);
+
+        @Override
+        public native void setInputMethodConnectionIsActive(boolean isActive);
+
+        @Override
+        public native int getLastUsedInputDeviceId();
+
+        @Override
+        public native boolean setKernelWakeEnabled(int deviceId, boolean enabled);
     }
 }

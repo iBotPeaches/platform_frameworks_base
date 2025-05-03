@@ -23,6 +23,7 @@ import android.hardware.display.BrightnessConfiguration;
 import android.hardware.display.BrightnessInfo;
 import android.hardware.display.Curve;
 import android.hardware.graphics.common.DisplayDecorationSupport;
+import android.hardware.display.DisplayTopology;
 import android.hardware.display.HdrConversionMode;
 import android.hardware.display.IDisplayManagerCallback;
 import android.hardware.display.IVirtualDisplayCallback;
@@ -115,7 +116,7 @@ interface IDisplayManager {
     void releaseVirtualDisplay(in IVirtualDisplayCallback token);
 
     // No permissions required but must be same Uid as the creator.
-    void setVirtualDisplayState(in IVirtualDisplayCallback token, boolean isOn);
+    void setVirtualDisplayRotation(in IVirtualDisplayCallback token, int rotation);
 
     // Get a stable metric for the device's display size. No permissions required.
     Point getStableDisplaySize();
@@ -235,4 +236,32 @@ interface IDisplayManager {
     // Disable a connected display that is enabled.
     @EnforcePermission("MANAGE_DISPLAYS")
     void disableConnectedDisplay(int displayId);
+
+    // Request to power display OFF or reset it to a power state it supposed to have.
+    @EnforcePermission("MANAGE_DISPLAYS")
+    boolean requestDisplayPower(int displayId, int state);
+
+    // Restricts display modes to specified modeIds.
+    @EnforcePermission("RESTRICT_DISPLAY_MODES")
+    void requestDisplayModes(in IBinder token, int displayId, in @nullable int[] modeIds);
+
+    // Get the highest defined HDR/SDR ratio for a display.
+    float getHighestHdrSdrRatio(int displayId);
+
+    // Get the mapping between the doze brightness sensor values and brightness values
+    @EnforcePermission("CONTROL_DISPLAY_BRIGHTNESS")
+    float[] getDozeBrightnessSensorValueToBrightness(int displayId);
+
+    // Get the default doze brightness
+    @EnforcePermission("CONTROL_DISPLAY_BRIGHTNESS")
+    float getDefaultDozeBrightness(int displayId);
+
+    // Get the display topology
+    @EnforcePermission("MANAGE_DISPLAYS")
+    @nullable
+    DisplayTopology getDisplayTopology();
+
+    // Set the display topology
+    @EnforcePermission("MANAGE_DISPLAYS")
+    void setDisplayTopology(in DisplayTopology topology);
 }

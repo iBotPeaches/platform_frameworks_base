@@ -19,12 +19,12 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.view.View
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.logging.MetricsLogger
 import com.android.systemui.accessibility.fontscaling.FontScalingDialogDelegate
 import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
+import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.plugins.ActivityStarter
@@ -55,7 +55,7 @@ constructor(
     qsLogger: QSLogger,
     private val keyguardStateController: KeyguardStateController,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
-    private val fontScalingDialogDelegateProvider: Provider<FontScalingDialogDelegate>
+    private val fontScalingDialogDelegateProvider: Provider<FontScalingDialogDelegate>,
 ) :
     QSTileImpl<QSTile.State?>(
         host,
@@ -66,26 +66,31 @@ constructor(
         metricsLogger,
         statusBarStateController,
         activityStarter,
-        qsLogger
+        qsLogger,
     ) {
-    private val icon = ResourceIcon.get(R.drawable.ic_qs_font_scaling)
+    private var icon: QSTile.Icon? = null
 
     override fun newTileState(): QSTile.State {
         return QSTile.State()
     }
 
-    override fun handleClick(view: View?) {
+    override fun handleClick(expandable: Expandable?) {
         // We animate from the touched view only if we are not on the keyguard
-        val animateFromView: Boolean = view != null && !keyguardStateController.isShowing
+        val animateFromExpandable: Boolean =
+            expandable != null && !keyguardStateController.isShowing
 
         val runnable = Runnable {
             val dialog: SystemUIDialog = fontScalingDialogDelegateProvider.get().createDialog()
-            if (animateFromView) {
-                dialogTransitionAnimator.showFromView(
-                    dialog,
-                    view!!,
-                    DialogCuj(InteractionJankMonitor.CUJ_SHADE_DIALOG_OPEN, INTERACTION_JANK_TAG)
-                )
+            if (animateFromExpandable) {
+                val controller =
+                    expandable?.dialogTransitionController(
+                        DialogCuj(
+                            InteractionJankMonitor.CUJ_SHADE_DIALOG_OPEN,
+                            INTERACTION_JANK_TAG,
+                        )
+                    )
+                controller?.let { dialogTransitionAnimator.show(dialog, controller) }
+                    ?: dialog.show()
             } else {
                 dialog.show()
             }
@@ -97,14 +102,18 @@ constructor(
                 /* cancelAction= */ null,
                 /* dismissShade= */ true,
                 /* afterKeyguardGone= */ true,
-                /* deferred= */ false
+                /* deferred= */ false,
             )
         }
     }
 
     override fun handleUpdateState(state: QSTile.State?, arg: Any?) {
+        if (icon == null) {
+            icon = maybeLoadResourceIcon(R.drawable.ic_qs_font_scaling)
+        }
         state?.label = mContext.getString(R.string.quick_settings_font_scaling_label)
         state?.icon = icon
+        state?.contentDescription = state?.label
     }
 
     override fun getLongClickIntent(): Intent? {

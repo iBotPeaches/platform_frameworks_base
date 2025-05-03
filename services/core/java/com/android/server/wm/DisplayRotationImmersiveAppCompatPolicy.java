@@ -17,9 +17,12 @@
 package com.android.server.wm;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
 import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 import static android.content.res.Configuration.ORIENTATION_UNDEFINED;
+
+import static com.android.server.policy.WindowManagerPolicy.USER_ROTATION_FREE;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -40,29 +43,60 @@ final class DisplayRotationImmersiveAppCompatPolicy {
 
     @Nullable
     static DisplayRotationImmersiveAppCompatPolicy createIfNeeded(
-            @NonNull final LetterboxConfiguration letterboxConfiguration,
+            @NonNull final AppCompatConfiguration appCompatConfiguration,
             @NonNull final DisplayRotation displayRotation,
             @NonNull final DisplayContent displayContent) {
-        if (!letterboxConfiguration
+        if (!appCompatConfiguration
                 .isDisplayRotationImmersiveAppCompatPolicyEnabledAtBuildTime()) {
             return null;
         }
 
         return new DisplayRotationImmersiveAppCompatPolicy(
-                letterboxConfiguration, displayRotation, displayContent);
+                appCompatConfiguration, displayRotation, displayContent);
     }
 
     private final DisplayRotation mDisplayRotation;
-    private final LetterboxConfiguration mLetterboxConfiguration;
+    private final AppCompatConfiguration mAppCompatConfiguration;
     private final DisplayContent mDisplayContent;
 
     private DisplayRotationImmersiveAppCompatPolicy(
-            @NonNull final LetterboxConfiguration letterboxConfiguration,
+            @NonNull final AppCompatConfiguration appCompatConfiguration,
             @NonNull final DisplayRotation displayRotation,
             @NonNull final DisplayContent displayContent) {
         mDisplayRotation = displayRotation;
-        mLetterboxConfiguration = letterboxConfiguration;
+        mAppCompatConfiguration = appCompatConfiguration;
         mDisplayContent = displayContent;
+    }
+
+    /**
+     * Returns {@code true} if the orientation update should be skipped and it will update when
+     * transition is done. This is to keep the orientation which was preserved by
+     * {@link #isRotationLockEnforced} from being changed by a transient launch (i.e. recents).
+     */
+    boolean deferOrientationUpdate() {
+        if (mDisplayRotation.getUserRotation() != USER_ROTATION_FREE
+                || mDisplayRotation.getLastOrientation() != SCREEN_ORIENTATION_UNSPECIFIED) {
+            return false;
+        }
+        final WindowOrientationListener orientationListener =
+                mDisplayRotation.getOrientationListener();
+        if (orientationListener == null
+                || orientationListener.getProposedRotation() == mDisplayRotation.getRotation()) {
+            return false;
+        }
+        // The above conditions mean that isRotationLockEnforced might have taken effect:
+        // Auto-rotation is enabled and the proposed rotation is not applied.
+        // Then the update should defer until the transition idle to avoid disturbing animation.
+        if (!mDisplayContent.mTransitionController.hasTransientLaunch(mDisplayContent)) {
+            return false;
+        }
+        mDisplayContent.mTransitionController.mStateValidators.add(() -> {
+            if (!isRotationLockEnforcedLocked(orientationListener.getProposedRotation())) {
+                mDisplayContent.mWmService.updateRotation(false /* alwaysSendConfiguration */,
+                        false /* forceRelayout */);
+            }
+        });
+        return true;
     }
 
     /**
@@ -80,14 +114,14 @@ final class DisplayRotationImmersiveAppCompatPolicy {
      *   <li>Rotation will lead to letterboxing due to fixed orientation.
      *   <li>{@link DisplayContent#getIgnoreOrientationRequest} is {@code true}
      *   <li>This policy is enabled on the device, for details see
-     *   {@link LetterboxConfiguration#isDisplayRotationImmersiveAppCompatPolicyEnabled}
+     *   {@link AppCompatConfiguration#isDisplayRotationImmersiveAppCompatPolicyEnabled}
      * </ul>
      *
      * @param proposedRotation new proposed {@link Surface.Rotation} for the screen.
      * @return {@code true}, if there is a need to lock screen rotation, {@code false} otherwise.
      */
     boolean isRotationLockEnforced(@Surface.Rotation final int proposedRotation) {
-        if (!mLetterboxConfiguration.isDisplayRotationImmersiveAppCompatPolicyEnabled()) {
+        if (!mAppCompatConfiguration.isDisplayRotationImmersiveAppCompatPolicyEnabled()) {
             return false;
         }
         synchronized (mDisplayContent.mWmService.mGlobalLock) {

@@ -504,6 +504,27 @@ public final class AidlConversionUnitTests {
         assertEquals(AudioDeviceType.OUT_DEVICE, port.ext.getDevice().device.type.type);
     }
 
+    @Test
+    public void testAudioDeviceDescriptionConversion() {
+        for (int nativeDeviceType : AudioSystem.DEVICE_OUT_ALL_SET) {
+            assertEquals(
+                    /* Reference value obtained from the native converter. */
+                    AidlConversion.legacy2aidl_audio_devices_t_AudioDeviceDescriptionTestOnly(
+                            nativeDeviceType),
+                    AidlConversion.api2aidl_NativeType_AudioDeviceDescription(nativeDeviceType));
+        }
+        for (int nativeDeviceType : AudioSystem.DEVICE_IN_ALL_SET) {
+            if (nativeDeviceType == AudioSystem.DEVICE_IN_COMMUNICATION
+                    || nativeDeviceType == AudioSystem.DEVICE_IN_AMBIENT) {
+                continue;
+            }
+            assertEquals(
+                    AidlConversion.legacy2aidl_audio_devices_t_AudioDeviceDescriptionTestOnly(
+                            nativeDeviceType),
+                    AidlConversion.api2aidl_NativeType_AudioDeviceDescription(nativeDeviceType));
+        }
+    }
+
     private static AudioFormatDescription createPcm16FormatAidl() {
         final AudioFormatDescription aidl = new AudioFormatDescription();
         aidl.type = AudioFormatType.PCM;

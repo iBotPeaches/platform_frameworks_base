@@ -30,6 +30,7 @@ import android.testing.TestableLooper
 import android.view.SurfaceControlViewHost
 import androidx.test.filters.SmallTest
 import com.android.internal.widget.LockPatternUtils
+import com.android.keyguard.logging.KeyguardQuickAffordancesLogger
 import com.android.systemui.SystemUIAppComponentFactoryBase
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.animation.DialogTransitionAnimator
@@ -49,8 +50,12 @@ import com.android.systemui.keyguard.shared.quickaffordance.KeyguardQuickAfforda
 import com.android.systemui.keyguard.ui.preview.KeyguardPreviewRenderer
 import com.android.systemui.keyguard.ui.preview.KeyguardPreviewRendererFactory
 import com.android.systemui.keyguard.ui.preview.KeyguardRemotePreviewManager
+import com.android.systemui.kosmos.testDispatcher
+import com.android.systemui.kosmos.testScope
+import com.android.systemui.kosmos.useUnconfinedTestDispatcher
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.res.R
+import com.android.systemui.scene.domain.interactor.sceneInteractor
 import com.android.systemui.settings.UserFileManager
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.shade.domain.interactor.shadeInteractor
@@ -62,12 +67,11 @@ import com.android.systemui.util.FakeSharedPreferences
 import com.android.systemui.util.mockito.any
 import com.android.systemui.util.mockito.mock
 import com.android.systemui.util.mockito.whenever
-import com.android.systemui.util.settings.FakeSettings
+import com.android.systemui.util.settings.fakeSettings
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -85,6 +89,11 @@ import org.mockito.MockitoAnnotations
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 class CustomizationProviderTest : SysuiTestCase() {
 
+    private val kosmos = testKosmos().useUnconfinedTestDispatcher()
+    private val testDispatcher = kosmos.testDispatcher
+    private val testScope = kosmos.testScope
+    private val fakeSettings = kosmos.fakeSettings
+
     @Mock private lateinit var lockPatternUtils: LockPatternUtils
     @Mock private lateinit var keyguardStateController: KeyguardStateController
     @Mock private lateinit var userTracker: UserTracker
@@ -95,15 +104,13 @@ class CustomizationProviderTest : SysuiTestCase() {
     @Mock private lateinit var previewSurfacePackage: SurfaceControlViewHost.SurfacePackage
     @Mock private lateinit var launchAnimator: DialogTransitionAnimator
     @Mock private lateinit var devicePolicyManager: DevicePolicyManager
-    @Mock private lateinit var logger: KeyguardQuickAffordancesMetricsLogger
+    @Mock private lateinit var logger: KeyguardQuickAffordancesLogger
+    @Mock private lateinit var metricsLogger: KeyguardQuickAffordancesMetricsLogger
 
     private lateinit var dockManager: DockManagerFake
     private lateinit var biometricSettingsRepository: FakeBiometricSettingsRepository
 
     private lateinit var underTest: CustomizationProvider
-    private lateinit var testScope: TestScope
-
-    private val kosmos = testKosmos()
 
     @Before
     fun setUp() {
@@ -117,20 +124,12 @@ class CustomizationProviderTest : SysuiTestCase() {
         biometricSettingsRepository = FakeBiometricSettingsRepository()
 
         underTest = CustomizationProvider()
-        val testDispatcher = UnconfinedTestDispatcher()
-        testScope = TestScope(testDispatcher)
         val localUserSelectionManager =
             KeyguardQuickAffordanceLocalUserSelectionManager(
                 context = context,
                 userFileManager =
                     mock<UserFileManager>().apply {
-                        whenever(
-                                getSharedPreferences(
-                                    anyString(),
-                                    anyInt(),
-                                    anyInt(),
-                                )
-                            )
+                        whenever(getSharedPreferences(anyString(), anyInt(), anyInt()))
                             .thenReturn(FakeSharedPreferences())
                     },
                 userTracker = userTracker,
@@ -167,7 +166,7 @@ class CustomizationProviderTest : SysuiTestCase() {
                     KeyguardQuickAffordanceLegacySettingSyncer(
                         scope = testScope.backgroundScope,
                         backgroundDispatcher = testDispatcher,
-                        secureSettings = FakeSettings(),
+                        secureSettings = fakeSettings,
                         selectionsManager = localUserSelectionManager,
                     ),
                 dumpManager = mock(),
@@ -198,11 +197,13 @@ class CustomizationProviderTest : SysuiTestCase() {
                 repository = { quickAffordanceRepository },
                 launchAnimator = launchAnimator,
                 logger = logger,
+                metricsLogger = metricsLogger,
                 devicePolicyManager = devicePolicyManager,
                 dockManager = dockManager,
                 biometricSettingsRepository = biometricSettingsRepository,
                 backgroundDispatcher = testDispatcher,
                 appContext = mContext,
+                sceneInteractor = { kosmos.sceneInteractor },
             )
         underTest.previewManager =
             KeyguardRemotePreviewManager(
@@ -211,7 +212,7 @@ class CustomizationProviderTest : SysuiTestCase() {
                 mainDispatcher = testDispatcher,
                 backgroundHandler = backgroundHandler,
             )
-        underTest.mainDispatcher = UnconfinedTestDispatcher()
+        underTest.mainDispatcher = testDispatcher
 
         underTest.attachInfoForTesting(
             context,
@@ -272,6 +273,12 @@ class CustomizationProviderTest : SysuiTestCase() {
                     "${Contract.AUTHORITY}." +
                     Contract.FlagsTable.TABLE_NAME
             )
+        assertThat(underTest.getType(Contract.RuntimeValuesTable.URI))
+            .isEqualTo(
+                "vnd.android.cursor.dir/vnd." +
+                    "${Contract.AUTHORITY}." +
+                    Contract.RuntimeValuesTable.TABLE_NAME
+            )
     }
 
     @Test
@@ -281,10 +288,7 @@ class CustomizationProviderTest : SysuiTestCase() {
             val affordanceId = AFFORDANCE_2
             val affordanceName = AFFORDANCE_2_NAME
 
-            insertSelection(
-                slotId = slotId,
-                affordanceId = affordanceId,
-            )
+            insertSelection(slotId = slotId, affordanceId = affordanceId)
 
             assertThat(querySelections())
                 .isEqualTo(
@@ -304,16 +308,11 @@ class CustomizationProviderTest : SysuiTestCase() {
             assertThat(querySlots())
                 .isEqualTo(
                     listOf(
-                        Slot(
-                            id = KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_START,
-                            capacity = 1,
-                        ),
-                        Slot(
-                            id = KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_END,
-                            capacity = 1,
-                        ),
+                        Slot(id = KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_START, capacity = 1),
+                        Slot(id = KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_END, capacity = 1),
                     )
                 )
+            runCurrent()
         }
 
     @Test
@@ -322,16 +321,8 @@ class CustomizationProviderTest : SysuiTestCase() {
             assertThat(queryAffordances())
                 .isEqualTo(
                     listOf(
-                        Affordance(
-                            id = AFFORDANCE_1,
-                            name = AFFORDANCE_1_NAME,
-                            iconResourceId = 1,
-                        ),
-                        Affordance(
-                            id = AFFORDANCE_2,
-                            name = AFFORDANCE_2_NAME,
-                            iconResourceId = 2,
-                        ),
+                        Affordance(id = AFFORDANCE_1, name = AFFORDANCE_1_NAME, iconResourceId = 1),
+                        Affordance(id = AFFORDANCE_2, name = AFFORDANCE_2_NAME, iconResourceId = 2),
                     )
                 )
         }
@@ -353,10 +344,7 @@ class CustomizationProviderTest : SysuiTestCase() {
                 "${Contract.LockScreenQuickAffordances.SelectionTable.Columns.SLOT_ID} = ? AND" +
                     " ${Contract.LockScreenQuickAffordances.SelectionTable.Columns.AFFORDANCE_ID}" +
                     " = ?",
-                arrayOf(
-                    KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_END,
-                    AFFORDANCE_2,
-                ),
+                arrayOf(KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_END, AFFORDANCE_2),
             )
 
             assertThat(querySelections())
@@ -386,9 +374,7 @@ class CustomizationProviderTest : SysuiTestCase() {
             context.contentResolver.delete(
                 Contract.LockScreenQuickAffordances.SelectionTable.URI,
                 Contract.LockScreenQuickAffordances.SelectionTable.Columns.SLOT_ID,
-                arrayOf(
-                    KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_END,
-                ),
+                arrayOf(KeyguardQuickAffordanceSlots.SLOT_ID_BOTTOM_END),
             )
 
             assertThat(querySelections())
@@ -420,31 +406,22 @@ class CustomizationProviderTest : SysuiTestCase() {
             assertThat(result.containsKey(KeyguardRemotePreviewManager.KEY_PREVIEW_CALLBACK))
         }
 
-    private fun insertSelection(
-        slotId: String,
-        affordanceId: String,
-    ) {
+    private fun insertSelection(slotId: String, affordanceId: String) {
         context.contentResolver.insert(
             Contract.LockScreenQuickAffordances.SelectionTable.URI,
             ContentValues().apply {
                 put(Contract.LockScreenQuickAffordances.SelectionTable.Columns.SLOT_ID, slotId)
                 put(
                     Contract.LockScreenQuickAffordances.SelectionTable.Columns.AFFORDANCE_ID,
-                    affordanceId
+                    affordanceId,
                 )
-            }
+            },
         )
     }
 
     private fun querySelections(): List<Selection> {
         return context.contentResolver
-            .query(
-                Contract.LockScreenQuickAffordances.SelectionTable.URI,
-                null,
-                null,
-                null,
-                null,
-            )
+            .query(Contract.LockScreenQuickAffordances.SelectionTable.URI, null, null, null, null)
             ?.use { cursor ->
                 buildList {
                     val slotIdColumnIndex =
@@ -478,19 +455,12 @@ class CustomizationProviderTest : SysuiTestCase() {
                         )
                     }
                 }
-            }
-            ?: emptyList()
+            } ?: emptyList()
     }
 
     private fun querySlots(): List<Slot> {
         return context.contentResolver
-            .query(
-                Contract.LockScreenQuickAffordances.SlotTable.URI,
-                null,
-                null,
-                null,
-                null,
-            )
+            .query(Contract.LockScreenQuickAffordances.SlotTable.URI, null, null, null, null)
             ?.use { cursor ->
                 buildList {
                     val idColumnIndex =
@@ -514,19 +484,12 @@ class CustomizationProviderTest : SysuiTestCase() {
                         )
                     }
                 }
-            }
-            ?: emptyList()
+            } ?: emptyList()
     }
 
     private fun queryAffordances(): List<Affordance> {
         return context.contentResolver
-            .query(
-                Contract.LockScreenQuickAffordances.AffordanceTable.URI,
-                null,
-                null,
-                null,
-                null,
-            )
+            .query(Contract.LockScreenQuickAffordances.AffordanceTable.URI, null, null, null, null)
             ?.use { cursor ->
                 buildList {
                     val idColumnIndex =
@@ -555,26 +518,14 @@ class CustomizationProviderTest : SysuiTestCase() {
                         )
                     }
                 }
-            }
-            ?: emptyList()
+            } ?: emptyList()
     }
 
-    data class Slot(
-        val id: String,
-        val capacity: Int,
-    )
+    data class Slot(val id: String, val capacity: Int)
 
-    data class Affordance(
-        val id: String,
-        val name: String,
-        val iconResourceId: Int,
-    )
+    data class Affordance(val id: String, val name: String, val iconResourceId: Int)
 
-    data class Selection(
-        val slotId: String,
-        val affordanceId: String,
-        val affordanceName: String,
-    )
+    data class Selection(val slotId: String, val affordanceId: String, val affordanceName: String)
 
     companion object {
         private const val AFFORDANCE_1 = "affordance_1"

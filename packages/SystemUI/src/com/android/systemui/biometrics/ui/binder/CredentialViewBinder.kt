@@ -4,22 +4,26 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.animation.Interpolators
-import com.android.systemui.res.R
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.biometrics.AuthPanelController
+import com.android.systemui.biometrics.plugins.AuthContextPlugins
 import com.android.systemui.biometrics.ui.CredentialPasswordView
 import com.android.systemui.biometrics.ui.CredentialPatternView
 import com.android.systemui.biometrics.ui.CredentialView
 import com.android.systemui.biometrics.ui.viewmodel.CredentialViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
+import com.android.systemui.plugins.AuthContextPlugin
+import com.android.systemui.res.R
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 
 private const val ANIMATE_CREDENTIAL_INITIAL_DURATION_MS = 150
 
@@ -40,12 +44,16 @@ object CredentialViewBinder {
         viewModel: CredentialViewModel,
         panelViewController: AuthPanelController,
         animatePanel: Boolean,
+        legacyCallback: Spaghetti.Callback,
+        plugins: AuthContextPlugins?,
         maxErrorDuration: Long = 3_000L,
         requestFocusForInput: Boolean = true,
     ) {
         val titleView: TextView = view.requireViewById(R.id.title)
         val subtitleView: TextView = view.requireViewById(R.id.subtitle)
         val descriptionView: TextView = view.requireViewById(R.id.description)
+        val customizedViewContainer: LinearLayout =
+            view.requireViewById(R.id.customized_view_container)
         val iconView: ImageView? = view.findViewById(R.id.icon)
         val errorView: TextView = view.requireViewById(R.id.error)
         val cancelButton: Button? = view.findViewById(R.id.cancel_button)
@@ -62,12 +70,16 @@ object CredentialViewBinder {
                     updateForContentDimensions(
                         containerWidth,
                         containerHeight,
-                        0 // animateDurationMs
+                        0, // animateDurationMs
                     )
                 }
             }
 
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                if (plugins != null) {
+                    launch { plugins.notifyShowingBPCredential(view) }
+                }
+
                 // show prompt metadata
                 launch {
                     viewModel.header.collect { header ->
@@ -76,6 +88,11 @@ object CredentialViewBinder {
 
                         subtitleView.textOrHide = header.subtitle
                         descriptionView.textOrHide = header.description
+                        BiometricCustomizedViewBinder.bind(
+                            customizedViewContainer,
+                            header.contentView,
+                            legacyCallback,
+                        )
 
                         iconView?.setImageDrawable(header.icon)
 
@@ -127,6 +144,12 @@ object CredentialViewBinder {
                             host.onCredentialAttemptsRemaining(info.remaining!!, info.message)
                         }
                 }
+
+                try {
+                    awaitCancellation()
+                } catch (_: Throwable) {
+                    plugins?.notifyHidingBPCredential()
+                }
             }
         }
 
@@ -163,3 +186,15 @@ private var TextView.textOrHide: String?
         text = if (gone) "" else value
     }
     get() = text?.toString()
+
+private suspend fun AuthContextPlugins.notifyShowingBPCredential(view: View) = use { plugin ->
+    plugin.onShowingSensitiveSurface(
+        AuthContextPlugin.SensitiveSurface.BiometricPrompt(view = view, isCredential = true)
+    )
+}
+
+private fun AuthContextPlugins.notifyHidingBPCredential() = useInBackground { plugin ->
+    plugin.onHidingSensitiveSurface(
+        AuthContextPlugin.SensitiveSurface.BiometricPrompt(isCredential = true)
+    )
+}

@@ -16,17 +16,16 @@
 
 package com.android.wm.shell.flicker.appcompat
 
+import android.graphics.Rect
 import android.platform.test.annotations.Postsubmit
 import android.platform.test.annotations.RequiresDevice
 import android.tools.NavBar
-import android.tools.Rotation
-import android.tools.datatypes.Rect
 import android.tools.flicker.assertions.FlickerTest
-import android.tools.traces.component.ComponentNameMatcher
 import android.tools.flicker.junit.FlickerParametersRunnerFactory
 import android.tools.flicker.legacy.FlickerBuilder
 import android.tools.flicker.legacy.LegacyFlickerTest
 import android.tools.flicker.legacy.LegacyFlickerTestFactory
+import android.tools.traces.component.ComponentNameMatcher
 import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,7 +35,7 @@ import org.junit.runners.Parameterized
 /**
  * Test quick switching to letterboxed app from launcher
  *
- * To run this test: `atest WMShellFlickerTestsOther:QuickSwitchLauncherToLetterboxAppTest`
+ * To run this test: `atest WMShellFlickerTestsAppCompat:QuickSwitchLauncherToLetterboxAppTest`
  *
  * Actions:
  * ```
@@ -260,14 +259,13 @@ class QuickSwitchLauncherToLetterboxAppTest(flicker: LegacyFlickerTest) : BaseAp
 
     companion object {
         /** {@inheritDoc} */
-        private var startDisplayBounds = Rect.EMPTY
+        private var startDisplayBounds = Rect()
 
         @Parameterized.Parameters(name = "{0}")
         @JvmStatic
         fun getParams(): Collection<FlickerTest> {
             return LegacyFlickerTestFactory.nonRotationTests(
-                supportedNavigationModes = listOf(NavBar.MODE_GESTURAL),
-                supportedRotations = listOf(Rotation.ROTATION_90)
+                supportedNavigationModes = listOf(NavBar.MODE_GESTURAL)
             )
         }
     }

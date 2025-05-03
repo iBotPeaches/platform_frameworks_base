@@ -36,11 +36,11 @@ import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.KeyguardUpdateMonitorCallback;
 import com.android.keyguard.logging.KeyguardUpdateMonitorLogger;
-import com.android.systemui.Dumpable;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
+import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor;
 import com.android.systemui.res.R;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 
@@ -57,7 +57,7 @@ import javax.inject.Inject;
  *
  */
 @SysUISingleton
-public class KeyguardStateControllerImpl implements KeyguardStateController, Dumpable {
+public class KeyguardStateControllerImpl implements KeyguardStateController {
 
     private static final boolean DEBUG_AUTH_WITH_ADB = false;
     private static final String AUTH_BROADCAST_KEY = "debug_trigger_auth";
@@ -72,6 +72,7 @@ public class KeyguardStateControllerImpl implements KeyguardStateController, Dum
             new UpdateMonitorCallback();
     private final Lazy<KeyguardUnlockAnimationController> mUnlockAnimationControllerLazy;
     private final KeyguardUpdateMonitorLogger mLogger;
+    private final Lazy<KeyguardInteractor> mKeyguardInteractorLazy;
 
     private boolean mCanDismissLockScreen;
     private boolean mShowing;
@@ -124,6 +125,7 @@ public class KeyguardStateControllerImpl implements KeyguardStateController, Dum
             Lazy<KeyguardUnlockAnimationController> keyguardUnlockAnimationController,
             KeyguardUpdateMonitorLogger logger,
             DumpManager dumpManager,
+            Lazy<KeyguardInteractor> keyguardInteractor,
             FeatureFlags featureFlags,
             SelectedUserInteractor userInteractor) {
         mContext = context;
@@ -134,6 +136,7 @@ public class KeyguardStateControllerImpl implements KeyguardStateController, Dum
         mKeyguardUpdateMonitor.registerCallback(mKeyguardUpdateMonitorCallback);
         mUnlockAnimationControllerLazy = keyguardUnlockAnimationController;
         mFeatureFlags = featureFlags;
+        mKeyguardInteractorLazy = keyguardInteractor;
 
         dumpManager.registerDumpable(getClass().getSimpleName(), this);
 
@@ -284,8 +287,9 @@ public class KeyguardStateControllerImpl implements KeyguardStateController, Dum
 
     @Override
     public boolean isKeyguardScreenRotationAllowed() {
-        return SystemProperties.getBoolean("lockscreen.rot_override", false)
-                || mContext.getResources().getBoolean(R.bool.config_enableLockScreenRotation)
+        final boolean configEnabled =
+                mContext.getResources().getBoolean(R.bool.config_enableLockScreenRotation);
+        return SystemProperties.getBoolean("lockscreen.rot_override", configEnabled)
                 || mFeatureFlags.isEnabled(LOCKSCREEN_ENABLE_LANDSCAPE);
     }
 
@@ -355,6 +359,7 @@ public class KeyguardStateControllerImpl implements KeyguardStateController, Dum
             Trace.traceCounter(Trace.TRACE_TAG_APP, "keyguardGoingAway",
                     keyguardGoingAway ? 1 : 0);
             mKeyguardGoingAway = keyguardGoingAway;
+            mKeyguardInteractorLazy.get().setIsKeyguardGoingAway(keyguardGoingAway);
             invokeForEachCallback(Callback::onKeyguardGoingAwayChanged);
         }
     }

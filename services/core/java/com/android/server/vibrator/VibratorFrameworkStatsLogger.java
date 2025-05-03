@@ -16,8 +16,12 @@
 
 package com.android.server.vibrator;
 
+import android.annotation.Nullable;
+import android.os.CombinedVibration;
 import android.os.Handler;
+import android.os.Parcel;
 import android.os.SystemClock;
+import android.os.VibrationEffect;
 import android.util.Slog;
 import android.view.HapticFeedbackConstants;
 
@@ -25,6 +29,7 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.modules.expresslog.Counter;
+import com.android.modules.expresslog.Histogram;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -39,6 +44,33 @@ public class VibratorFrameworkStatsLogger {
     private static final int VIBRATION_REPORTED_MAX_QUEUE_SIZE = 300;
     // Warning about dropping entries after this amount of atoms were dropped by the throttle.
     private static final int VIBRATION_REPORTED_WARNING_QUEUE_SIZE = 200;
+
+    // Latency between 0ms and 99ms, with 100 representing overflow latencies >= 100ms.
+    // Underflow not expected.
+    private static final Histogram sVibrationParamRequestLatencyHistogram = new Histogram(
+            "vibrator.value_vibration_param_request_latency",
+            new Histogram.UniformOptions(20, 0, 100));
+
+    // Scales in [0, 2), with 2 representing overflow scales >= 2.
+    // Underflow expected to represent how many times scales were cleared (set to -1).
+    private static final Histogram sVibrationParamScaleHistogram = new Histogram(
+            "vibrator.value_vibration_param_scale", new Histogram.UniformOptions(20, 0, 2));
+
+    // Scales in [0, 2), with 2 representing overflow scales >= 2.
+    // Underflow not expected.
+    private static final Histogram sAdaptiveHapticScaleHistogram = new Histogram(
+            "vibrator.value_vibration_adaptive_haptic_scale",
+            new Histogram.UniformOptions(20, 0, 2));
+
+    // Sizes in [1KB, ~4.5MB) defined by scaled buckets.
+    private static final Histogram sVibrationVendorEffectSizeHistogram = new Histogram(
+            "vibrator.value_vibration_vendor_effect_size",
+            new Histogram.ScaledRangeOptions(25, 0, 1, 1.4f));
+
+    // Session vibration count in [0, ~840) defined by scaled buckets.
+    private static final Histogram sVibrationVendorSessionVibrationsHistogram = new Histogram(
+            "vibrator.value_vibration_vendor_session_vibrations",
+            new Histogram.ScaledRangeOptions(20, 0, 1, 1.4f));
 
     private final Object mLock = new Object();
     private final Handler mHandler;
@@ -140,6 +172,33 @@ public class VibratorFrameworkStatsLogger {
         }
     }
 
+    /** Logs adaptive haptic scale value applied to a vibration, only if it's not 1.0. */
+    public void logVibrationAdaptiveHapticScale(int uid, float scale) {
+        if (Float.compare(scale, 1f) != 0) {
+            sAdaptiveHapticScaleHistogram.logSampleWithUid(uid, scale);
+        }
+    }
+
+    /** Logs a vibration param scale value received by the vibrator control service. */
+    public void logVibrationParamScale(float scale) {
+        sVibrationParamScaleHistogram.logSample(scale);
+    }
+
+    /** Logs the latency of a successful vibration params request completed before a vibration. */
+    public void logVibrationParamRequestLatency(int uid, long latencyMs) {
+        sVibrationParamRequestLatencyHistogram.logSampleWithUid(uid, (float) latencyMs);
+    }
+
+    /** Logs a vibration params request timed out before a vibration. */
+    public void logVibrationParamRequestTimeout(int uid) {
+        Counter.logIncrementWithUid("vibrator.value_vibration_param_request_timeout", uid);
+    }
+
+    /** Logs when a response received for a vibration params request is ignored by the service. */
+    public void logVibrationParamResponseIgnored() {
+        Counter.logIncrement("vibrator.value_vibration_param_response_ignored");
+    }
+
     /** Logs only if the haptics feedback effect is one of the KEYBOARD_ constants. */
     public static void logPerformHapticsFeedbackIfKeyboard(int uid, int hapticsFeedbackEffect) {
         boolean isKeyboard;
@@ -155,5 +214,89 @@ public class VibratorFrameworkStatsLogger {
         if (isKeyboard) {
             Counter.logIncrementWithUid("vibrator.value_perform_haptic_feedback_keyboard", uid);
         }
+    }
+
+    /** Logs when a vendor vibration session successfully started. */
+    public void logVibrationVendorSessionStarted(int uid) {
+        Counter.logIncrementWithUid("vibrator.value_vibration_vendor_session_started", uid);
+    }
+
+    /**
+     * Logs when a vendor vibration session is interrupted by the platform.
+     *
+     * <p>A vendor session is interrupted if it has successfully started and its end was not
+     * requested by the vendor. This could be the vibrator service interrupting an ongoing session,
+     * the vibrator HAL triggering the session completed callback early.
+     */
+    public void logVibrationVendorSessionInterrupted(int uid) {
+        Counter.logIncrementWithUid("vibrator.value_vibration_vendor_session_interrupted", uid);
+    }
+
+    /** Logs the number of vibrations requested for a single vendor vibration session. */
+    public void logVibrationVendorSessionVibrations(int uid, int vibrationCount) {
+        sVibrationVendorSessionVibrationsHistogram.logSampleWithUid(uid, vibrationCount);
+    }
+
+    /**
+     * Logs if given vibration contains at least one {@link VibrationEffect.VendorEffect}.
+     *
+     * <p>Each {@link VibrationEffect.VendorEffect} will also log the parcel data size for the
+     * {@link VibrationEffect.VendorEffect#getVendorData()} it holds.
+     */
+    public void logVibrationCountAndSizeIfVendorEffect(int uid,
+            @Nullable CombinedVibration vibration) {
+        if (vibration == null) {
+            return;
+        }
+        boolean hasVendorEffects = logVibrationSizeOfVendorEffects(uid, vibration);
+        if (hasVendorEffects) {
+            // Increment CombinedVibration with one or more vendor effects only once.
+            Counter.logIncrementWithUid("vibrator.value_vibration_vendor_effect_requests", uid);
+        }
+    }
+
+    private static boolean logVibrationSizeOfVendorEffects(int uid, CombinedVibration vibration) {
+        if (vibration instanceof CombinedVibration.Mono mono) {
+            if (mono.getEffect() instanceof VibrationEffect.VendorEffect effect) {
+                logVibrationVendorEffectSize(uid, effect);
+                return true;
+            }
+            return false;
+        }
+        if (vibration instanceof CombinedVibration.Stereo stereo) {
+            boolean hasVendorEffects = false;
+            for (int i = 0; i < stereo.getEffects().size(); i++) {
+                if (stereo.getEffects().valueAt(i) instanceof VibrationEffect.VendorEffect effect) {
+                    logVibrationVendorEffectSize(uid, effect);
+                    hasVendorEffects = true;
+                }
+            }
+            return hasVendorEffects;
+        }
+        if (vibration instanceof CombinedVibration.Sequential sequential) {
+            boolean hasVendorEffects = false;
+            for (int i = 0; i < sequential.getEffects().size(); i++) {
+                hasVendorEffects |= logVibrationSizeOfVendorEffects(uid,
+                        sequential.getEffects().get(i));
+            }
+            return hasVendorEffects;
+        }
+        // Unknown combined vibration, skip metrics.
+        return false;
+    }
+
+    private static void logVibrationVendorEffectSize(int uid, VibrationEffect.VendorEffect effect) {
+        int dataSize;
+        Parcel vendorData = Parcel.obtain();
+        try {
+            // Measure data size as it'll be sent to the HAL via binder, not the serialization size.
+            // PersistableBundle creates an XML representation for the data in writeToStream, so it
+            // might be larger than the actual data that is transferred between processes.
+            effect.getVendorData().writeToParcel(vendorData, /* flags= */ 0);
+            dataSize = vendorData.dataSize();
+        } finally {
+            vendorData.recycle();
+        }
+        sVibrationVendorEffectSizeHistogram.logSampleWithUid(uid, dataSize);
     }
 }

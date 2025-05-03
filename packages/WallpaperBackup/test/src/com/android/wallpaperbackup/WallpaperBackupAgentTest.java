@@ -59,7 +59,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
@@ -828,37 +827,18 @@ public class WallpaperBackupAgentTest {
 
     @Test
     public void testOnRestore_singleCropHint() throws Exception {
-        Map<Integer, Rect> testMap = Map.of(WallpaperManager.PORTRAIT, new Rect(1, 2, 3, 4));
+        Map<Integer, Rect> testMap = Map.of(
+                WallpaperManager.ORIENTATION_PORTRAIT, new Rect(1, 2, 3, 4));
         testParseCropHints(testMap);
     }
 
     @Test
     public void testOnRestore_multipleCropHints() throws Exception {
         Map<Integer, Rect> testMap = Map.of(
-                WallpaperManager.PORTRAIT, new Rect(1, 2, 3, 4),
-                WallpaperManager.SQUARE_PORTRAIT, new Rect(5, 6, 7, 8),
-                WallpaperManager.SQUARE_LANDSCAPE, new Rect(9, 10, 11, 12));
+                WallpaperManager.ORIENTATION_PORTRAIT, new Rect(1, 2, 3, 4),
+                WallpaperManager.ORIENTATION_SQUARE_PORTRAIT, new Rect(5, 6, 7, 8),
+                WallpaperManager.ORIENTATION_SQUARE_LANDSCAPE, new Rect(9, 10, 11, 12));
         testParseCropHints(testMap);
-    }
-
-    @Test
-    public void test_sourceDimensionsAreLargerThanTarget() {
-        // source device is larger than target, expecting to get false
-        Point sourceDimensions = new Point(2208, 1840);
-        Point targetDimensions = new Point(1080, 2092);
-        boolean isSourceSmaller = mWallpaperBackupAgent
-                .isSourceDeviceSignificantlySmallerThanTarget(sourceDimensions, targetDimensions);
-        assertThat(isSourceSmaller).isEqualTo(false);
-    }
-
-    @Test
-    public void test_sourceDimensionsMuchSmallerThanTarget() {
-        // source device is smaller than target, expecting to get true
-        Point sourceDimensions = new Point(1080, 2092);
-        Point targetDimensions = new Point(2208, 1840);
-        boolean isSourceSmaller = mWallpaperBackupAgent
-                .isSourceDeviceSignificantlySmallerThanTarget(sourceDimensions, targetDimensions);
-        assertThat(isSourceSmaller).isEqualTo(true);
     }
 
     private void testParseCropHints(Map<Integer, Rect> testMap) throws Exception {
@@ -957,10 +937,10 @@ public class WallpaperBackupAgentTest {
         out.startTag(null, "wp");
         for (Map.Entry<Integer, Rect> entry: crops.entrySet()) {
             String orientation = switch (entry.getKey()) {
-                case WallpaperManager.PORTRAIT -> "Portrait";
-                case WallpaperManager.LANDSCAPE -> "Landscape";
-                case WallpaperManager.SQUARE_PORTRAIT -> "SquarePortrait";
-                case WallpaperManager.SQUARE_LANDSCAPE -> "SquareLandscape";
+                case WallpaperManager.ORIENTATION_PORTRAIT -> "Portrait";
+                case WallpaperManager.ORIENTATION_LANDSCAPE -> "Landscape";
+                case WallpaperManager.ORIENTATION_SQUARE_PORTRAIT -> "SquarePortrait";
+                case WallpaperManager.ORIENTATION_SQUARE_LANDSCAPE -> "SquareLandscape";
                 default -> throw new IllegalArgumentException("Invalid orientation");
             };
             Rect rect = entry.getValue();

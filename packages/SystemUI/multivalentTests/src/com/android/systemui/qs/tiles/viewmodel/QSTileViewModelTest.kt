@@ -60,7 +60,9 @@ class QSTileViewModelTest : SysuiTestCase() {
     @Mock private lateinit var qsTileAnalytics: QSTileAnalytics
 
     private val tileConfig =
-        QSTileConfigTestBuilder.build { policy = QSTilePolicy.Restricted("test_restriction") }
+        QSTileConfigTestBuilder.build {
+            policy = QSTilePolicy.Restricted(listOf("test_restriction"))
+        }
 
     private val userRepository = FakeUserRepository()
     private val tileDataInteractor = FakeQSTileDataInteractor<String>()
@@ -90,7 +92,8 @@ class QSTileViewModelTest : SysuiTestCase() {
             runCurrent()
 
             assertThat(states()).isNotEmpty()
-            assertThat(states().first().label).isEqualTo(testTileData)
+            assertThat(states().last()).isNotNull()
+            assertThat(states().last()!!.label).isEqualTo(testTileData)
             verify(qsTileLogger).logInitialRequest(eq(tileConfig.tileSpec))
         }
 
@@ -170,6 +173,21 @@ class QSTileViewModelTest : SysuiTestCase() {
                 .isEqualTo(FakeQSTileDataInteractor.AvailabilityRequest(USER))
         }
 
+    @Test
+    fun tileDetails() =
+        testScope.runTest {
+            assertThat(tileUserActionInteractor.detailsViewModel).isNotNull()
+            assertThat(tileUserActionInteractor.detailsViewModel?.getTitle())
+                .isEqualTo("FakeQSTileUserActionInteractor")
+            assertThat(underTest.detailsViewModel).isNotNull()
+            assertThat(underTest.detailsViewModel?.getTitle())
+                .isEqualTo("FakeQSTileUserActionInteractor")
+
+            tileUserActionInteractor.detailsViewModel = null
+            assertThat(tileUserActionInteractor.detailsViewModel).isNull()
+            assertThat(underTest.detailsViewModel).isNull()
+        }
+
     private fun createViewModel(
         scope: TestScope,
         config: QSTileConfig = tileConfig,
@@ -181,10 +199,7 @@ class QSTileViewModelTest : SysuiTestCase() {
             {
                 object : QSTileDataToStateMapper<String> {
                     override fun map(config: QSTileConfig, data: String): QSTileState =
-                        QSTileState.build(
-                            { Icon.Resource(0, ContentDescription.Resource(0)) },
-                            data
-                        ) {}
+                        QSTileState.build(Icon.Resource(0, ContentDescription.Resource(0)), data) {}
                 }
             },
             disabledByPolicyInteractor,
@@ -193,6 +208,7 @@ class QSTileViewModelTest : SysuiTestCase() {
             qsTileAnalytics,
             qsTileLogger,
             FakeSystemClock(),
+            testCoroutineDispatcher,
             testCoroutineDispatcher,
             scope.backgroundScope,
         )

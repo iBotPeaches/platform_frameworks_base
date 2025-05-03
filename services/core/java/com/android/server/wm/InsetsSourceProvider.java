@@ -16,7 +16,7 @@
 
 package com.android.server.wm;
 
-import static com.android.internal.protolog.ProtoLogGroup.WM_DEBUG_WINDOW_INSETS;
+import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_WINDOW_INSETS;
 import static com.android.server.wm.InsetsSourceProviderProto.CAPTURED_LEASH;
 import static com.android.server.wm.InsetsSourceProviderProto.CLIENT_VISIBLE;
 import static com.android.server.wm.InsetsSourceProviderProto.CONTROL;
@@ -46,9 +46,10 @@ import android.view.InsetsSourceControl;
 import android.view.SurfaceControl;
 import android.view.SurfaceControl.Transaction;
 import android.view.WindowInsets;
+import android.view.inputmethod.ImeTracker;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.protolog.common.ProtoLog;
+import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.function.TriFunction;
 import com.android.server.wm.SurfaceAnimator.AnimationType;
 import com.android.server.wm.SurfaceAnimator.OnAnimationFinishedCallback;
@@ -64,16 +65,18 @@ class InsetsSourceProvider {
 
     private static final Rect EMPTY_RECT = new Rect();
 
-    protected final DisplayContent mDisplayContent;
     protected final @NonNull InsetsSource mSource;
-    protected WindowContainer mWindowContainer;
+    protected final @NonNull DisplayContent mDisplayContent;
+    protected final @NonNull InsetsStateController mStateController;
+    protected @Nullable WindowContainer mWindowContainer;
+    protected @Nullable InsetsSourceControl mControl;
+    protected @Nullable InsetsControlTarget mControlTarget;
+    protected boolean mIsLeashInitialized;
 
     private final Rect mTmpRect = new Rect();
-    private final InsetsStateController mStateController;
     private final InsetsSourceControl mFakeControl;
-    private final Consumer<Transaction> mSetLeashPositionConsumer;
-    private @Nullable InsetsSourceControl mControl;
-    private @Nullable InsetsControlTarget mControlTarget;
+    private final Point mPosition = new Point();
+    private final Consumer<Transaction> mSetControlPositionConsumer;
     private @Nullable InsetsControlTarget mPendingControlTarget;
     private @Nullable InsetsControlTarget mFakeControlTarget;
 
@@ -82,7 +85,6 @@ class InsetsSourceProvider {
     private SparseArray<TriFunction<DisplayFrames, WindowContainer, Rect, Integer>>
             mOverrideFrameProviders;
     private final SparseArray<Rect> mOverrideFrames = new SparseArray<Rect>();
-    private boolean mIsLeashReadyForDispatching;
     private final Rect mSourceFrame = new Rect();
     private final Rect mLastSourceFrame = new Rect();
     private @NonNull Insets mInsetsHint = Insets.NONE;
@@ -114,8 +116,9 @@ class InsetsSourceProvider {
      */
     private boolean mCropToProvidingInsets = false;
 
-    InsetsSourceProvider(InsetsSource source, InsetsStateController stateController,
-            DisplayContent displayContent) {
+    InsetsSourceProvider(@NonNull InsetsSource source,
+            @NonNull InsetsStateController stateController,
+            @NonNull DisplayContent displayContent) {
         mClientVisible = (WindowInsets.Type.defaultVisible() & source.getType()) != 0;
         mSource = source;
         mDisplayContent = displayContent;
@@ -124,13 +127,14 @@ class InsetsSourceProvider {
                 source.getId(), source.getType(), null /* leash */, false /* initialVisible */,
                 new Point(), Insets.NONE);
         mControllable = (InsetsPolicy.CONTROLLABLE_TYPES & source.getType()) != 0;
-        mSetLeashPositionConsumer = t -> {
-            if (mControl != null) {
-                final SurfaceControl leash = mControl.getLeash();
-                if (leash != null) {
-                    final Point position = mControl.getSurfacePosition();
-                    t.setPosition(leash, position.x, position.y);
-                }
+        mSetControlPositionConsumer = t -> {
+            if (mControl == null || mControlTarget == null) {
+                return;
+            }
+            boolean changed = mControl.setSurfacePosition(mPosition.x, mPosition.y);
+            final SurfaceControl leash = mControl.getLeash();
+            if (changed && leash != null) {
+                t.setPosition(leash, mPosition.x, mPosition.y);
             }
             if (mHasPendingPosition) {
                 mHasPendingPosition = false;
@@ -138,11 +142,30 @@ class InsetsSourceProvider {
                     mStateController.notifyControlTargetChanged(mPendingControlTarget, this);
                 }
             }
+            changed |= updateInsetsHint();
+            if (changed) {
+                mStateController.notifyControlChanged(mControlTarget, this);
+            }
         };
+    }
+
+    private boolean updateInsetsHint() {
+        final Insets insetsHint = getInsetsHint();
+        if (!mControl.getInsetsHint().equals(insetsHint)) {
+            mControl.setInsetsHint(insetsHint);
+            return true;
+        }
+        return false;
     }
 
     InsetsSource getSource() {
         return mSource;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    Rect getSourceFrame() {
+        return mSourceFrame;
     }
 
     /**
@@ -197,7 +220,7 @@ class InsetsSourceProvider {
             if (mControllable) {
                 mWindowContainer.setControllableInsetProvider(this);
                 if (mPendingControlTarget != mControlTarget) {
-                    updateControlForTarget(mPendingControlTarget, true /* force */);
+                    mStateController.notifyControlTargetChanged(mPendingControlTarget, this);
                 }
             }
         }
@@ -311,7 +334,7 @@ class InsetsSourceProvider {
             return mInsetsHint;
         }
         final WindowState win = mWindowContainer.asWindowState();
-        if (win != null && win.mGivenInsetsPending && win.mAttrs.providedInsets == null) {
+        if (win != null && win.mGivenInsetsPending) {
             return mInsetsHint;
         }
         if (mInsetsHintStale) {
@@ -349,44 +372,69 @@ class InsetsSourceProvider {
         boolean isServerVisible = windowState != null
                 ? windowState.wouldBeVisibleIfPolicyIgnored() && windowState.isVisibleByPolicy()
                 : mWindowContainer.isVisibleRequested();
-        setServerVisible(isServerVisible);
-        if (mControl != null) {
-            boolean changed = false;
-            final Point position = getWindowFrameSurfacePosition();
-            if (mControl.setSurfacePosition(position.x, position.y) && mControlTarget != null) {
-                changed = true;
-                if (windowState != null && windowState.getWindowFrames().didFrameSizeChange()
-                        && windowState.mWinAnimator.getShown() && mWindowContainer.okToDisplay()) {
-                    mHasPendingPosition = true;
-                    windowState.applyWithNextDraw(mSetLeashPositionConsumer);
-                } else {
-                    Transaction t = mWindowContainer.getSyncTransaction();
-                    if (windowState != null) {
-                        // Make the buffer, token transformation, and leash position to be updated
-                        // together when the window is drawn for new rotation. Otherwise the window
-                        // may be outside the screen by the inconsistent orientations.
-                        final AsyncRotationController rotationController =
-                                mDisplayContent.getAsyncRotationController();
-                        if (rotationController != null) {
-                            final Transaction drawT =
-                                    rotationController.getDrawTransaction(windowState.mToken);
-                            if (drawT != null) {
-                                t = drawT;
-                            }
-                        }
-                    }
-                    mSetLeashPositionConsumer.accept(t);
-                }
-            }
-            final Insets insetsHint = getInsetsHint();
-            if (!mControl.getInsetsHint().equals(insetsHint)) {
-                mControl.setInsetsHint(insetsHint);
-                changed = true;
-            }
-            if (changed) {
-                mStateController.notifyControlChanged(mControlTarget);
+
+        if (android.view.inputmethod.Flags.refactorInsetsController()) {
+            if (mControl != null && mControl.getType() == WindowInsets.Type.ime() && !mServerVisible
+                    && isServerVisible && windowState != null) {
+                // in case the IME becomes visible, we need to check if it is already drawn and
+                // does not have given insets pending. If it's not yet drawn, we do not set
+                // server visibility
+                isServerVisible = windowState.isDrawn() && !windowState.mGivenInsetsPending;
             }
         }
+        final boolean serverVisibleChanged = mServerVisible != isServerVisible;
+        setServerVisible(isServerVisible);
+        if (mControl != null && mControlTarget != null) {
+            final boolean positionChanged = updateInsetsControlPosition(windowState);
+            if (!(positionChanged || mHasPendingPosition)
+                    // The insets hint would be updated while changing the position. Here updates it
+                    // for the possible change of the bounds or the server visibility.
+                    && (updateInsetsHint()
+                            || (android.view.inputmethod.Flags.refactorInsetsController()))
+                                    && serverVisibleChanged) {
+                // Only call notifyControlChanged here when the position hasn't been or won't be
+                // changed. Otherwise, it has been called or scheduled to be called during
+                // updateInsetsControlPosition.
+                mStateController.notifyControlChanged(mControlTarget, this);
+            }
+        }
+    }
+
+    /**
+     * @return {#code true} if the surface position of the control is changed.
+     */
+    boolean updateInsetsControlPosition(WindowState windowState) {
+        if (mControl == null) {
+            return false;
+        }
+        final Point position = getWindowFrameSurfacePosition();
+        if (!mPosition.equals(position)) {
+            mPosition.set(position);
+            if (windowState != null && windowState.getWindowFrames().didFrameSizeChange()
+                    && windowState.mWinAnimator.getShown() && mWindowContainer.okToDisplay()) {
+                mHasPendingPosition = true;
+                windowState.applyWithNextDraw(mSetControlPositionConsumer);
+            } else {
+                Transaction t = mWindowContainer.getSyncTransaction();
+                if (windowState != null) {
+                    // Make the buffer, token transformation, and leash position to be updated
+                    // together when the window is drawn for new rotation. Otherwise the window
+                    // may be outside the screen by the inconsistent orientations.
+                    final AsyncRotationController rotationController =
+                            mDisplayContent.getAsyncRotationController();
+                    if (rotationController != null) {
+                        final Transaction drawT =
+                                rotationController.getDrawTransaction(windowState.mToken);
+                        if (drawT != null) {
+                            t = drawT;
+                        }
+                    }
+                }
+                mSetControlPositionConsumer.accept(t);
+            }
+            return true;
+        }
+        return false;
     }
 
     private Point getWindowFrameSurfacePosition() {
@@ -473,7 +521,8 @@ class InsetsSourceProvider {
         );
     }
 
-    void updateControlForTarget(@Nullable InsetsControlTarget target, boolean force) {
+    void updateControlForTarget(@Nullable InsetsControlTarget target, boolean force,
+            @Nullable ImeTracker.Token statsToken) {
         if (mSeamlessRotating) {
             // We are un-rotating the window against the display rotation. We don't want the target
             // to control the window for now.
@@ -502,27 +551,79 @@ class InsetsSourceProvider {
             setClientVisible((WindowInsets.Type.defaultVisible() & mSource.getType()) != 0);
             return;
         }
+        boolean initiallyVisible = mClientVisible;
         final Point surfacePosition = getWindowFrameSurfacePosition();
+        mPosition.set(surfacePosition);
         mAdapter = new ControlAdapter(surfacePosition);
         if (mSource.getType() == WindowInsets.Type.ime()) {
+            if (android.view.inputmethod.Flags.refactorInsetsController()) {
+                if (mClientVisible && mServerVisible) {
+                    WindowContainer imeParentWindow = mDisplayContent.getImeParentWindow();
+                    // If the IME is attached to an app window, only consider it initially visible
+                    // if the parent is visible and wasn't part of a transition.
+                    initiallyVisible =
+                            imeParentWindow != null && !imeParentWindow.inTransitionSelfOrParent()
+                                    && imeParentWindow.isVisible()
+                                    && imeParentWindow.isVisibleRequested();
+                } else {
+                    initiallyVisible = false;
+                }
+            }
             setClientVisible(target.isRequestedVisible(WindowInsets.Type.ime()));
         }
         final Transaction t = mWindowContainer.getSyncTransaction();
-        mWindowContainer.startAnimation(t, mAdapter, !mClientVisible /* hidden */,
+        mWindowContainer.startAnimation(t, mAdapter, !initiallyVisible /* hidden */,
                 ANIMATION_TYPE_INSETS_CONTROL);
 
         // The leash was just created. We cannot dispatch it until its surface transaction is
-        // applied. Otherwise, the client's operation to the leash might be overwritten by us.
-        mIsLeashReadyForDispatching = false;
+        // committed. Otherwise, the client's operation to the leash might be overwritten by us.
+        mIsLeashInitialized = false;
 
         final SurfaceControl leash = mAdapter.mCapturedLeash;
         mControlTarget = target;
         updateVisibility();
+        if (mSource.getType() == WindowInsets.Type.ime()) {
+            if (!android.view.inputmethod.Flags.refactorInsetsController()) {
+                // The IME cannot be initially visible, see ControlAdapter#startAnimation below.
+                // Also, the ImeInsetsSourceConsumer clears the client visibility upon losing
+                // control,  but this won't have reached here yet by the time the new control is
+                // created.
+                // Note: The DisplayImeController needs the correct previous client's visibility,
+                // so we only override the initiallyVisible here.
+                initiallyVisible = false;
+            }
+        }
         mControl = new InsetsSourceControl(mSource.getId(), mSource.getType(), leash,
-                mClientVisible, surfacePosition, getInsetsHint());
+                initiallyVisible, surfacePosition, getInsetsHint());
+        mStateController.notifySurfaceTransactionReady(this, getSurfaceTransactionId(leash), true);
 
         ProtoLog.d(WM_DEBUG_WINDOW_INSETS,
                 "InsetsSource Control %s for target %s", mControl, mControlTarget);
+    }
+
+    private long getSurfaceTransactionId(SurfaceControl leash) {
+        // Here returns mNativeObject (long) as the ID instead of the leash itself so that
+        // InsetsStateController won't keep referencing the leash unexpectedly.
+        return leash != null ? leash.mNativeObject : 0;
+    }
+
+    /**
+     * This is called when the surface transaction of the leash initialization has been committed.
+     *
+     * @param id Indicates which transaction is committed so that stale callbacks can be dropped.
+     */
+    void onSurfaceTransactionCommitted(long id) {
+        if (mIsLeashInitialized) {
+            return;
+        }
+        if (mControl == null) {
+            return;
+        }
+        if (id != getSurfaceTransactionId(mControl.getLeash())) {
+            return;
+        }
+        mIsLeashInitialized = true;
+        mStateController.notifySurfaceTransactionReady(this, 0, false);
     }
 
     void startSeamlessRotation() {
@@ -536,17 +637,14 @@ class InsetsSourceProvider {
         mSeamlessRotating = false;
     }
 
-    boolean updateClientVisibility(InsetsControlTarget caller) {
+    boolean updateClientVisibility(InsetsTarget caller,
+            @Nullable ImeTracker.Token statsToken) {
         final boolean requestedVisible = caller.isRequestedVisible(mSource.getType());
         if (caller != mControlTarget || requestedVisible == mClientVisible) {
             return false;
         }
         setClientVisible(requestedVisible);
         return true;
-    }
-
-    void onSurfaceTransactionApplied() {
-        mIsLeashReadyForDispatching = true;
     }
 
     void setClientVisible(boolean clientVisible) {
@@ -560,7 +658,7 @@ class InsetsSourceProvider {
         mDisplayContent.mWmService.mWindowPlacerLocked.requestTraversal();
     }
 
-    @VisibleForTesting
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PROTECTED)
     void setServerVisible(boolean serverVisible) {
         mServerVisible = serverVisible;
         updateSourceFrameForServerVisibility();
@@ -575,9 +673,25 @@ class InsetsSourceProvider {
                 mServerVisible, mClientVisible);
     }
 
+    protected boolean isLeashReadyForDispatching() {
+        return isLeashInitialized();
+    }
+
+    boolean isLeashInitialized() {
+        return mIsLeashInitialized;
+    }
+
+    /**
+     * Gets the source control for the given control target. If this is the provider's control
+     * target, but the leash is not ready for dispatching, a new source control object with the
+     * leash set to {@code null} is returned.
+     *
+     * @param target the control target to get the source control for.
+     */
+    @Nullable
     InsetsSourceControl getControl(InsetsControlTarget target) {
         if (target == mControlTarget) {
-            if (!mIsLeashReadyForDispatching && mControl != null) {
+            if (!isLeashReadyForDispatching() && mControl != null) {
                 // The surface transaction of preparing leash is not applied yet. We don't send it
                 // to the client in case that the client applies its transaction sooner than ours
                 // that we could unexpectedly overwrite the surface state.
@@ -593,12 +707,31 @@ class InsetsSourceProvider {
         return null;
     }
 
+    /**
+     * Gets the leash of the source control for the given control target. If this is not the
+     * provider's control target, or the leash is not ready for dispatching, this will
+     * return {@code null}.
+     *
+     * @param target the control target to get the source control leash for.
+     */
+    @Nullable
+    protected SurfaceControl getLeash(@NonNull InsetsControlTarget target) {
+        return target == mControlTarget && mIsLeashInitialized && mControl != null
+                ? mControl.getLeash() : null;
+    }
+
+    @Nullable
     InsetsControlTarget getControlTarget() {
         return mControlTarget;
     }
 
+    @Nullable
     InsetsControlTarget getFakeControlTarget() {
         return mFakeControlTarget;
+    }
+
+    boolean isServerVisible() {
+        return mServerVisible;
     }
 
     boolean isClientVisible() {
@@ -636,7 +769,7 @@ class InsetsSourceProvider {
             pw.println();
         }
         pw.print(prefix);
-        pw.print("mIsLeashReadyForDispatching="); pw.print(mIsLeashReadyForDispatching);
+        pw.print("mIsLeashInitialized="); pw.print(mIsLeashInitialized);
         pw.print(" mHasPendingPosition="); pw.print(mHasPendingPosition);
         pw.println();
         if (mWindowContainer != null) {
@@ -661,7 +794,7 @@ class InsetsSourceProvider {
         }
     }
 
-    void dumpDebug(ProtoOutputStream proto, long fieldId, @WindowTraceLogLevel int logLevel) {
+    void dumpDebug(ProtoOutputStream proto, long fieldId, @WindowTracingLogLevel int logLevel) {
         final long token = proto.start(fieldId);
         mSource.dumpDebug(proto, SOURCE);
         mTmpRect.dumpDebug(proto, FRAME);
@@ -682,7 +815,7 @@ class InsetsSourceProvider {
         if (mAdapter != null && mAdapter.mCapturedLeash != null) {
             mAdapter.mCapturedLeash.dumpDebug(proto, CAPTURED_LEASH);
         }
-        proto.write(IS_LEASH_READY_FOR_DISPATCHING, mIsLeashReadyForDispatching);
+        proto.write(IS_LEASH_READY_FOR_DISPATCHING, isLeashReadyForDispatching());
         proto.write(CLIENT_VISIBLE, mClientVisible);
         proto.write(SERVER_VISIBLE, mServerVisible);
         proto.write(SEAMLESS_ROTATING, mSeamlessRotating);
@@ -712,9 +845,11 @@ class InsetsSourceProvider {
                 @AnimationType int type, @NonNull OnAnimationFinishedCallback finishCallback) {
             // TODO(b/166736352): Check if we still need to control the IME visibility here.
             if (mSource.getType() == WindowInsets.Type.ime()) {
-                // TODO: use 0 alpha and remove t.hide() once b/138459974 is fixed.
-                t.setAlpha(animationLeash, 1 /* alpha */);
-                t.hide(animationLeash);
+                if (!android.view.inputmethod.Flags.refactorInsetsController()) {
+                    // TODO: use 0 alpha and remove t.hide() once b/138459974 is fixed.
+                    t.setAlpha(animationLeash, 1 /* alpha */);
+                    t.hide(animationLeash);
+                }
             }
             ProtoLog.i(WM_DEBUG_WINDOW_INSETS,
                     "ControlAdapter startAnimation mSource: %s controlTarget: %s", mSource,
@@ -733,6 +868,7 @@ class InsetsSourceProvider {
         public void onAnimationCancelled(SurfaceControl animationLeash) {
             if (mAdapter == this) {
                 mStateController.notifyControlRevoked(mControlTarget, InsetsSourceProvider.this);
+                mStateController.notifySurfaceTransactionReady(InsetsSourceProvider.this, 0, false);
                 mControl = null;
                 mControlTarget = null;
                 mAdapter = null;

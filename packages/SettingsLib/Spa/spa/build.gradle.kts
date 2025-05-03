@@ -16,6 +16,7 @@
 
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.android)
     jacoco
 }
@@ -41,9 +42,6 @@ android {
             manifest.srcFile("../tests/AndroidManifest.xml")
         }
     }
-    buildFeatures {
-        compose = true
-    }
     buildTypes {
         getByName("debug") {
             enableAndroidTestCoverage = true
@@ -53,21 +51,19 @@ android {
 
 dependencies {
     api(project(":SettingsLibColor"))
-    api("androidx.appcompat:appcompat:1.7.0-alpha03")
-    api("androidx.slice:slice-builders:1.1.0-alpha02")
-    api("androidx.slice:slice-core:1.1.0-alpha02")
-    api("androidx.slice:slice-view:1.1.0-alpha02")
-    api("androidx.compose.material3:material3:1.3.0-alpha01")
-    api("androidx.compose.material:material-icons-extended:$jetpackComposeVersion")
+    api("androidx.appcompat:appcompat:1.7.0")
+    api("androidx.compose.material3:material3:1.4.0-alpha04")
+    api("androidx.compose.material:material-icons-extended")
     api("androidx.compose.runtime:runtime-livedata:$jetpackComposeVersion")
     api("androidx.compose.ui:ui-tooling-preview:$jetpackComposeVersion")
+    api("androidx.graphics:graphics-shapes-android:1.0.1")
     api("androidx.lifecycle:lifecycle-livedata-ktx")
     api("androidx.lifecycle:lifecycle-runtime-compose")
-    api("androidx.navigation:navigation-compose:2.8.0-alpha02")
+    api("androidx.navigation:navigation-compose:2.9.0-alpha03")
     api("com.github.PhilJay:MPAndroidChart:v3.1.0-alpha")
-    api("com.google.android.material:material:1.7.0-alpha03")
+    api("com.google.android.material:material:1.13.0-alpha08")
     debugApi("androidx.compose.ui:ui-tooling:$jetpackComposeVersion")
-    implementation("com.airbnb.android:lottie-compose:5.2.0")
+    implementation("com.airbnb.android:lottie-compose:6.4.0")
 
     androidTestImplementation(project(":testutils"))
     androidTestImplementation(libs.dexmaker.mockito)
@@ -86,7 +82,6 @@ tasks.register<JacocoReport>("coverageReport") {
 
                     // Excludes files forked from AndroidX.
                     "com/android/settingslib/spa/widget/scaffold/CustomizedAppBar*",
-                    "com/android/settingslib/spa/widget/scaffold/TopAppBarColors*",
 
                     // Excludes files forked from Accompanist.
                     "com/android/settingslib/spa/framework/compose/DrawablePainter*",
@@ -97,10 +92,6 @@ tasks.register<JacocoReport>("coverageReport") {
 
                     // Excludes debug functions
                     "com/android/settingslib/spa/framework/compose/TimeMeasurer*",
-
-                    // Excludes slice demo presenter & provider
-                    "com/android/settingslib/spa/slice/presenter/Demo*",
-                    "com/android/settingslib/spa/slice/provider/Demo*",
                 )
             )
         }

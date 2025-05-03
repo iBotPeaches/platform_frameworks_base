@@ -32,7 +32,7 @@ import android.util.Property;
 import android.view.View;
 
 import com.android.wm.shell.R;
-import com.android.wm.shell.animation.Interpolators;
+import com.android.wm.shell.shared.animation.Interpolators;
 
 /**
  * View for the handle in the docked stack divider.
@@ -103,7 +103,8 @@ public class DividerHandleView extends View {
         mHoveringHeight = mHeight > mWidth ? ((int) (mHeight * 1.5f)) : mHeight;
     }
 
-    void setIsLeftRightSplit(boolean isLeftRightSplit) {
+    /** sets whether it's a left/right or top/bottom split */
+    public void setIsLeftRightSplit(boolean isLeftRightSplit) {
         mIsLeftRightSplit = isLeftRightSplit;
         updateDimens();
     }

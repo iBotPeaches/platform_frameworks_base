@@ -1,0 +1,36 @@
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_base_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_base_license"],
+}
+
+filegroup {
+    name: "services.appfunctions-sources",
+    srcs: ["java/**/*.java"],
+    path: "java",
+    visibility: ["//frameworks/base/services"],
+}
+
+java_library_static {
+    name: "services.appfunctions",
+    defaults: ["platform_service_defaults"],
+    srcs: [
+        ":services.appfunctions-sources",
+        ":statslog-appfunctions-java-gen",
+        "java/**/*.logtags",
+    ],
+    libs: ["services.core"],
+    lint: {
+        baseline_filename: "lint-baseline.xml",
+    },
+}
+
+genrule {
+    name: "statslog-appfunctions-java-gen",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --java $(out) --module appfunctions --javaPackage com.android.server.appfunctions --javaClass AppFunctionsStatsLog --minApiLevel 35",
+    out: ["java/com/android/server/appfunctions/AppFunctionsStatsLog.java"],
+}

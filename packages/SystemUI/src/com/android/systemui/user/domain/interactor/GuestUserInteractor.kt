@@ -41,7 +41,7 @@ import com.android.systemui.user.domain.model.ShowDialogRequestModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
@@ -70,8 +70,10 @@ constructor(
     val isGuestUserResetting: Boolean = repository.isGuestUserResetting
 
     init {
-        resumeSessionReceiver.register()
-        resetOrExitSessionReceiver.register()
+        if (applicationContext.userId == UserHandle.USER_SYSTEM) {
+            resumeSessionReceiver.register()
+            resetOrExitSessionReceiver.register()
+        }
     }
 
     /** Notifies that the device has finished booting. */

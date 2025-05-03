@@ -50,7 +50,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertThrows;
 
-import android.Manifest;
 import android.app.WindowConfiguration;
 import android.app.admin.DevicePolicyManager;
 import android.companion.AssociationInfo;
@@ -62,10 +61,10 @@ import android.companion.virtual.VirtualDeviceManager;
 import android.companion.virtual.VirtualDeviceParams;
 import android.companion.virtual.audio.IAudioConfigChangedCallback;
 import android.companion.virtual.audio.IAudioRoutingCallback;
-import android.companion.virtual.flags.Flags;
 import android.companion.virtual.sensor.VirtualSensor;
 import android.companion.virtual.sensor.VirtualSensorCallback;
 import android.companion.virtual.sensor.VirtualSensorConfig;
+import android.companion.virtualdevice.flags.Flags;
 import android.content.AttributionSource;
 import android.content.ComponentName;
 import android.content.Context;
@@ -105,6 +104,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.WorkSource;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.testing.AndroidTestingRunner;
@@ -114,10 +114,10 @@ import android.view.Display;
 import android.view.DisplayInfo;
 import android.view.KeyEvent;
 import android.view.WindowManager;
+import android.virtualdevice.cts.common.VirtualDeviceRule;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.compatibility.common.util.AdoptShellPermissionsRule;
 import com.android.internal.app.BlockedAppStreamingActivity;
 import com.android.internal.os.BackgroundThread;
 import com.android.server.LocalServices;
@@ -151,6 +151,7 @@ public class VirtualDeviceManagerServiceTest {
     private static final String NONBLOCKED_APP_PACKAGE_NAME = "com.someapp";
     private static final String PERMISSION_CONTROLLER_PACKAGE_NAME =
             "com.android.permissioncontroller";
+    private static final String VIRTUAL_DEVICE_OWNER_PACKAGE = "com.android.virtualdevice.test";
     private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
     private static final String VENDING_PACKAGE_NAME = "com.android.vending";
     private static final String GOOGLE_DIALER_PACKAGE_NAME = "com.google.android.dialer";
@@ -161,8 +162,8 @@ public class VirtualDeviceManagerServiceTest {
     private static final int DISPLAY_ID_1 = 2;
     private static final int DISPLAY_ID_2 = 3;
     private static final int NON_EXISTENT_DISPLAY_ID = 42;
-    private static final int DEVICE_OWNER_UID_1 = 50;
-    private static final int DEVICE_OWNER_UID_2 = 51;
+    private static final int DEVICE_OWNER_UID_1 = Process.myUid();
+    private static final int DEVICE_OWNER_UID_2 = DEVICE_OWNER_UID_1 + 1;
     private static final int UID_1 = 0;
     private static final int UID_2 = 10;
     private static final int UID_3 = 10000;
@@ -224,9 +225,7 @@ public class VirtualDeviceManagerServiceTest {
     public SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Rule
-    public AdoptShellPermissionsRule mAdoptShellPermissionsRule = new AdoptShellPermissionsRule(
-            InstrumentationRegistry.getInstrumentation().getUiAutomation(),
-            Manifest.permission.CREATE_VIRTUAL_DEVICE);
+    public VirtualDeviceRule mVirtualDeviceRule = VirtualDeviceRule.createDefault();
 
     private Context mContext;
     private InputManagerMockHelper mInputManagerMockHelper;
@@ -246,6 +245,8 @@ public class VirtualDeviceManagerServiceTest {
     private DisplayManagerInternal mDisplayManagerInternalMock;
     @Mock
     private IDisplayManager mIDisplayManager;
+    @Mock
+    private WindowManager mWindowManager;
     @Mock
     private VirtualDeviceImpl.PendingTrampolineCallback mPendingTrampolineCallback;
     @Mock
@@ -297,11 +298,10 @@ public class VirtualDeviceManagerServiceTest {
     private Intent createRestrictedActivityBlockedIntent(Set<String> displayCategories,
             String targetDisplayCategory) {
         when(mDisplayManagerInternalMock.createVirtualDisplay(any(), any(), any(), any(),
-                eq(NONBLOCKED_APP_PACKAGE_NAME))).thenReturn(DISPLAY_ID_1);
+                eq(VIRTUAL_DEVICE_OWNER_PACKAGE))).thenReturn(DISPLAY_ID_1);
         VirtualDisplayConfig config = new VirtualDisplayConfig.Builder("display", 640, 480,
                 420).setDisplayCategories(displayCategories).build();
-        mDeviceImpl.createVirtualDisplay(config, mVirtualDisplayCallback,
-                NONBLOCKED_APP_PACKAGE_NAME);
+        mDeviceImpl.createVirtualDisplay(config, mVirtualDisplayCallback);
         GenericWindowPolicyController gwpc = mDeviceImpl.getDisplayWindowPolicyControllerForTest(
                 DISPLAY_ID_1);
         doNothing().when(mContext).startActivityAsUser(any(), any(), any());
@@ -314,7 +314,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
         return blockedAppIntent;
     }
 
@@ -338,8 +339,6 @@ public class VirtualDeviceManagerServiceTest {
 
         LocalServices.removeServiceForTest(DisplayManagerInternal.class);
         LocalServices.addService(DisplayManagerInternal.class, mDisplayManagerInternalMock);
-
-        mSetFlagsRule.enableFlags(com.android.input.flags.Flags.FLAG_ENABLE_POINTER_CHOREOGRAPHER);
 
         doNothing().when(mInputManagerInternalMock)
                 .setMousePointerAccelerationEnabled(anyBoolean(), anyInt());
@@ -387,8 +386,7 @@ public class VirtualDeviceManagerServiceTest {
         // Allow virtual devices to be created on the looper thread for testing.
         final InputController.DeviceCreationThreadVerifier threadVerifier = () -> true;
         mInputController = new InputController(mNativeWrapperMock,
-                new Handler(TestableLooper.get(this).getLooper()),
-                mContext.getSystemService(WindowManager.class),
+                new Handler(TestableLooper.get(this).getLooper()), mWindowManager,
                 AttributionSource.myAttributionSource(), threadVerifier);
         mCameraAccessController =
                 new CameraAccessController(mContext, mLocalService, mCameraAccessBlockedCallback);
@@ -539,11 +537,88 @@ public class VirtualDeviceManagerServiceTest {
                 .build();
         mDeviceImpl.close();
         mDeviceImpl = createVirtualDevice(VIRTUAL_DEVICE_ID_1, DEVICE_OWNER_UID_1, params);
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
 
         GenericWindowPolicyController gwpc =
                 mDeviceImpl.getDisplayWindowPolicyControllerForTest(DISPLAY_ID_1);
         assertThat(gwpc.canShowTasksInHostDeviceRecents()).isFalse();
+    }
+
+    @Test
+    public void getDevicePolicy_customRecentsPolicy_untrustedDisplaygwpcShowsRecentsOnHostDevice() {
+        VirtualDeviceParams params = new VirtualDeviceParams
+                .Builder()
+                .setDevicePolicy(POLICY_TYPE_RECENTS, DEVICE_POLICY_CUSTOM)
+                .build();
+        mDeviceImpl.close();
+        mDeviceImpl = createVirtualDevice(VIRTUAL_DEVICE_ID_1, DEVICE_OWNER_UID_1, params);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+
+        GenericWindowPolicyController gwpc =
+                mDeviceImpl.getDisplayWindowPolicyControllerForTest(DISPLAY_ID_1);
+        assertThat(gwpc.canShowTasksInHostDeviceRecents()).isTrue();
+    }
+
+    @Test
+    public void deviceOwner_cannotMessWithAnotherDeviceTheyDoNotOwn() {
+        VirtualDeviceImpl unownedDevice =
+                createVirtualDevice(VIRTUAL_DEVICE_ID_2, DEVICE_OWNER_UID_2);
+
+        // The arguments don't matter, the owner uid check is always the first statement.
+        assertThrows(SecurityException.class, () -> unownedDevice.goToSleep());
+        assertThrows(SecurityException.class, () -> unownedDevice.wakeUp());
+
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.launchPendingIntent(0, null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.registerIntentInterceptor(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.unregisterIntentInterceptor(null));
+
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.addActivityPolicyExemption(null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.removeActivityPolicyExemption(null));
+        assertThrows(SecurityException.class, () -> unownedDevice.setDevicePolicy(0, 0));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.setDevicePolicyForDisplay(0, 0, 0));
+        assertThrows(SecurityException.class, () -> unownedDevice.setDisplayImePolicy(0, 0));
+
+        assertThrows(SecurityException.class, () -> unownedDevice.registerVirtualCamera(null));
+        assertThrows(SecurityException.class, () -> unownedDevice.unregisterVirtualCamera(null));
+
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.onAudioSessionStarting(0, null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.onAudioSessionEnded());
+
+        assertThrows(SecurityException.class, () -> unownedDevice.createVirtualDisplay(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.createVirtualDpad(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.createVirtualMouse(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.createVirtualTouchscreen(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.createVirtualNavigationTouchpad(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.createVirtualStylus(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.createVirtualRotaryEncoder(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.unregisterInputDevice(null));
+
+        assertThrows(SecurityException.class, () -> unownedDevice.sendDpadKeyEvent(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.sendKeyEvent(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.sendButtonEvent(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.sendTouchEvent(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.sendRelativeEvent(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.sendScrollEvent(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.sendStylusMotionEvent(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.sendStylusButtonEvent(null, null));
+        assertThrows(SecurityException.class,
+                () -> unownedDevice.sendRotaryEncoderScrollEvent(null, null));
+        assertThrows(SecurityException.class, () -> unownedDevice.setShowPointerIcon(true));
+
+        assertThrows(SecurityException.class, () -> unownedDevice.getVirtualSensorList());
+        assertThrows(SecurityException.class, () -> unownedDevice.sendSensorEvent(null, null));
     }
 
     @Test
@@ -664,7 +739,7 @@ public class VirtualDeviceManagerServiceTest {
     @Test
     public void getDeviceIdsForUid_twoDevicesUidOnOne_returnsCorrectId() {
         VirtualDeviceImpl secondDevice = createVirtualDevice(VIRTUAL_DEVICE_ID_2,
-                DEVICE_OWNER_UID_2);
+                DEVICE_OWNER_UID_1);
         addVirtualDisplay(secondDevice, DISPLAY_ID_2);
 
         secondDevice.getDisplayWindowPolicyControllerForTest(DISPLAY_ID_2).onRunningAppsChanged(
@@ -679,7 +754,7 @@ public class VirtualDeviceManagerServiceTest {
     public void getDeviceIdsForUid_twoDevicesUidOnBoth_returnsCorrectId() {
         addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
         VirtualDeviceImpl secondDevice = createVirtualDevice(VIRTUAL_DEVICE_ID_2,
-                DEVICE_OWNER_UID_2);
+                DEVICE_OWNER_UID_1);
         addVirtualDisplay(secondDevice, DISPLAY_ID_2);
 
 
@@ -696,7 +771,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void getPreferredLocaleListForApp_keyboardAttached_returnLocaleHints() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualKeyboard(KEYBOARD_CONFIG, BINDER);
 
         mVdms.notifyRunningAppsChanged(mDeviceImpl.getDeviceId(), Sets.newArraySet(UID_1));
@@ -717,7 +792,7 @@ public class VirtualDeviceManagerServiceTest {
     @Test
     public void getPreferredLocaleListForApp_appOnMultipleVD_localeOnFirstVDReturned() {
         VirtualDeviceImpl secondDevice = createVirtualDevice(VIRTUAL_DEVICE_ID_2,
-                DEVICE_OWNER_UID_2);
+                DEVICE_OWNER_UID_1);
         Binder secondBinder = new Binder("secondBinder");
         VirtualKeyboardConfig firstKeyboardConfig =
                 new VirtualKeyboardConfig.Builder()
@@ -736,8 +811,8 @@ public class VirtualDeviceManagerServiceTest {
                         .setLanguageTag("fr-FR")
                         .build();
 
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        addVirtualDisplay(secondDevice, DISPLAY_ID_2);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
+        addVirtualDisplay(secondDevice, DISPLAY_ID_2, Display.FLAG_TRUSTED);
 
         mDeviceImpl.createVirtualKeyboard(firstKeyboardConfig, BINDER);
         secondDevice.createVirtualKeyboard(secondKeyboardConfig, secondBinder);
@@ -755,7 +830,7 @@ public class VirtualDeviceManagerServiceTest {
         assertThat(mCameraAccessController.getObserverCount()).isEqualTo(1);
 
         VirtualDeviceImpl secondDevice =
-                createVirtualDevice(VIRTUAL_DEVICE_ID_2, DEVICE_OWNER_UID_2);
+                createVirtualDevice(VIRTUAL_DEVICE_ID_2, DEVICE_OWNER_UID_1);
         assertThat(mCameraAccessController.getObserverCount()).isEqualTo(2);
 
         mDeviceImpl.close();
@@ -914,20 +989,35 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
-    public void onVirtualDisplayCreatedLocked_wakeLockIsAcquired() throws RemoteException {
+    public void onVirtualDisplayCreatedLocked_notTrustedDisplay_noWakeLockIsAcquired()
+            throws RemoteException {
         verify(mIPowerManagerMock, never()).acquireWakeLock(any(Binder.class), anyInt(),
                 nullable(String.class), nullable(String.class), nullable(WorkSource.class),
                 nullable(String.class), anyInt(), eq(null));
         addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        TestableLooper.get(this).processAllMessages();
+        verify(mIPowerManagerMock, never()).acquireWakeLock(any(Binder.class), anyInt(),
+                nullable(String.class), nullable(String.class), nullable(WorkSource.class),
+                nullable(String.class), anyInt(), eq(null));
+    }
+
+    @DisableFlags(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
+    @Test
+    public void onVirtualDisplayCreatedLocked_wakeLockIsAcquired() throws RemoteException {
+        verify(mIPowerManagerMock, never()).acquireWakeLock(any(Binder.class), anyInt(),
+                nullable(String.class), nullable(String.class), nullable(WorkSource.class),
+                nullable(String.class), anyInt(), eq(null));
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         verify(mIPowerManagerMock).acquireWakeLock(any(Binder.class), anyInt(),
                 nullable(String.class), nullable(String.class), nullable(WorkSource.class),
                 nullable(String.class), eq(DISPLAY_ID_1), eq(null));
     }
 
+    @DisableFlags(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
     @Test
     public void onVirtualDisplayCreatedLocked_duplicateCalls_onlyOneWakeLockIsAcquired()
             throws RemoteException {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         assertThrows(IllegalStateException.class,
                 () -> addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1));
         TestableLooper.get(this).processAllMessages();
@@ -936,9 +1026,10 @@ public class VirtualDeviceManagerServiceTest {
                 nullable(String.class), eq(DISPLAY_ID_1), eq(null));
     }
 
+    @DisableFlags(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
     @Test
     public void onVirtualDisplayRemovedLocked_wakeLockIsReleased() throws RemoteException {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         ArgumentCaptor<IBinder> wakeLockCaptor = ArgumentCaptor.forClass(IBinder.class);
         TestableLooper.get(this).processAllMessages();
         verify(mIPowerManagerMock).acquireWakeLock(wakeLockCaptor.capture(),
@@ -951,9 +1042,10 @@ public class VirtualDeviceManagerServiceTest {
         verify(mIPowerManagerMock).releaseWakeLock(eq(wakeLock), anyInt());
     }
 
+    @DisableFlags(Flags.FLAG_DEVICE_AWARE_DISPLAY_POWER)
     @Test
     public void addVirtualDisplay_displayNotReleased_wakeLockIsReleased() throws RemoteException {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         ArgumentCaptor<IBinder> wakeLockCaptor = ArgumentCaptor.forClass(IBinder.class);
         TestableLooper.get(this).processAllMessages();
         verify(mIPowerManagerMock).acquireWakeLock(wakeLockCaptor.capture(),
@@ -974,7 +1066,21 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
+    public void createVirtualDpad_untrustedDisplay_failsSecurityException() {
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        assertThrows(SecurityException.class,
+                () -> mDeviceImpl.createVirtualDpad(DPAD_CONFIG, BINDER));
+    }
+
+    @Test
     public void createVirtualKeyboard_noDisplay_failsSecurityException() {
+        assertThrows(SecurityException.class,
+                () -> mDeviceImpl.createVirtualKeyboard(KEYBOARD_CONFIG, BINDER));
+    }
+
+    @Test
+    public void createVirtualKeyboard_untrustedDisplay_failsSecurityException() {
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
         assertThrows(SecurityException.class,
                 () -> mDeviceImpl.createVirtualKeyboard(KEYBOARD_CONFIG, BINDER));
     }
@@ -986,7 +1092,21 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
+    public void createVirtualMouse_untrustedDisplay_failsSecurityException() {
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        assertThrows(SecurityException.class,
+                () -> mDeviceImpl.createVirtualMouse(MOUSE_CONFIG, BINDER));
+    }
+
+    @Test
     public void createVirtualTouchscreen_noDisplay_failsSecurityException() {
+        assertThrows(SecurityException.class,
+                () -> mDeviceImpl.createVirtualTouchscreen(TOUCHSCREEN_CONFIG, BINDER));
+    }
+
+    @Test
+    public void createVirtualTouchscreen_untrustedDisplay_failsSecurityException() {
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
         assertThrows(SecurityException.class,
                 () -> mDeviceImpl.createVirtualTouchscreen(TOUCHSCREEN_CONFIG, BINDER));
     }
@@ -1007,7 +1127,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualTouchscreen_positiveDisplayDimension_successful() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         VirtualTouchscreenConfig positiveConfig =
                 new VirtualTouchscreenConfig.Builder(
                         /* touchscrenWidth= */ 600, /* touchscreenHeight= */ 800)
@@ -1030,6 +1150,14 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
+    public void createVirtualNavigationTouchpad_untrustedDisplay_failsSecurityException() {
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        assertThrows(SecurityException.class,
+                () -> mDeviceImpl.createVirtualNavigationTouchpad(NAVIGATION_TOUCHPAD_CONFIG,
+                        BINDER));
+    }
+
+    @Test
     public void createVirtualNavigationTouchpad_zeroDisplayDimension_failsWithException() {
         assertThrows(IllegalArgumentException.class,
                 () -> new VirtualNavigationTouchpadConfig.Builder(
@@ -1045,7 +1173,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualNavigationTouchpad_positiveDisplayDimension_successful() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         VirtualNavigationTouchpadConfig positiveConfig =
                 new VirtualNavigationTouchpadConfig.Builder(
                         /* touchpadHeight= */ 50, /* touchpadWidth= */ 50)
@@ -1069,71 +1197,8 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
-    public void createVirtualDpad_noPermission_failsSecurityException() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class,
-                    () -> mDeviceImpl.createVirtualDpad(DPAD_CONFIG, BINDER));
-        }
-    }
-
-    @Test
-    public void createVirtualKeyboard_noPermission_failsSecurityException() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class,
-                    () -> mDeviceImpl.createVirtualKeyboard(KEYBOARD_CONFIG, BINDER));
-        }
-    }
-
-    @Test
-    public void createVirtualMouse_noPermission_failsSecurityException() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class,
-                    () -> mDeviceImpl.createVirtualMouse(MOUSE_CONFIG, BINDER));
-        }
-    }
-
-    @Test
-    public void createVirtualTouchscreen_noPermission_failsSecurityException() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class,
-                    () -> mDeviceImpl.createVirtualTouchscreen(TOUCHSCREEN_CONFIG, BINDER));
-        }
-    }
-
-    @Test
-    public void createVirtualNavigationTouchpad_noPermission_failsSecurityException() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class,
-                    () -> mDeviceImpl.createVirtualNavigationTouchpad(NAVIGATION_TOUCHPAD_CONFIG,
-                            BINDER));
-        }
-    }
-
-    @Test
-    public void onAudioSessionStarting_noPermission_failsSecurityException() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class,
-                    () -> mDeviceImpl.onAudioSessionStarting(
-                            DISPLAY_ID_1, mRoutingCallback, mConfigChangedCallback));
-        }
-    }
-
-    @Test
-    public void onAudioSessionEnded_noPermission_failsSecurityException() {
-        try (DropShellPermissionsTemporarily drop = new DropShellPermissionsTemporarily()) {
-            assertThrows(SecurityException.class, () -> mDeviceImpl.onAudioSessionEnded());
-        }
-    }
-
-    @Test
     public void createVirtualDpad_hasDisplay_obtainFileDescriptor() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualDpad(DPAD_CONFIG, BINDER);
         assertWithMessage("Virtual dpad should register fd when the display matches").that(
                 mInputController.getInputDeviceDescriptors()).isNotEmpty();
@@ -1143,7 +1208,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualKeyboard_hasDisplay_obtainFileDescriptor() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualKeyboard(KEYBOARD_CONFIG, BINDER);
         assertWithMessage("Virtual keyboard should register fd when the display matches").that(
                 mInputController.getInputDeviceDescriptors()).isNotEmpty();
@@ -1153,7 +1218,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualKeyboard_keyboardCreated_localeUpdated() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualKeyboard(KEYBOARD_CONFIG, BINDER);
         assertWithMessage("Virtual keyboard should register fd when the display matches")
                 .that(mInputController.getInputDeviceDescriptors())
@@ -1174,7 +1239,7 @@ public class VirtualDeviceManagerServiceTest {
                         .setAssociatedDisplayId(DISPLAY_ID_1)
                         .build();
 
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualKeyboard(configWithoutExplicitLayoutInfo, BINDER);
         assertWithMessage("Virtual keyboard should register fd when the display matches")
                 .that(mInputController.getInputDeviceDescriptors())
@@ -1195,7 +1260,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualMouse_hasDisplay_obtainFileDescriptor() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualMouse(MOUSE_CONFIG, BINDER);
         assertWithMessage("Virtual mouse should register fd when the display matches").that(
                 mInputController.getInputDeviceDescriptors()).isNotEmpty();
@@ -1205,7 +1270,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualTouchscreen_hasDisplay_obtainFileDescriptor() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualTouchscreen(TOUCHSCREEN_CONFIG, BINDER);
         assertWithMessage("Virtual touchscreen should register fd when the display matches").that(
                 mInputController.getInputDeviceDescriptors()).isNotEmpty();
@@ -1215,7 +1280,7 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void createVirtualNavigationTouchpad_hasDisplay_obtainFileDescriptor() {
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1, Display.FLAG_TRUSTED);
         mDeviceImpl.createVirtualNavigationTouchpad(NAVIGATION_TOUCHPAD_CONFIG, BINDER);
         assertWithMessage("Virtual navigation touchpad should register fd when the display matches")
                 .that(
@@ -1475,9 +1540,9 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void setShowPointerIcon_setsValueForAllDisplays() {
-        addVirtualDisplay(mDeviceImpl, 1);
-        addVirtualDisplay(mDeviceImpl, 2);
-        addVirtualDisplay(mDeviceImpl, 3);
+        addVirtualDisplay(mDeviceImpl, 1, Display.FLAG_TRUSTED);
+        addVirtualDisplay(mDeviceImpl, 2, Display.FLAG_TRUSTED);
+        addVirtualDisplay(mDeviceImpl, 3, Display.FLAG_TRUSTED);
         VirtualMouseConfig config1 = new VirtualMouseConfig.Builder()
                 .setAssociatedDisplayId(1)
                 .setInputDeviceName(DEVICE_NAME_1)
@@ -1510,6 +1575,14 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
+    public void setShowPointerIcon_untrustedDisplay_pointerIconIsAlwaysShown() {
+        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
+        clearInvocations(mInputManagerInternalMock);
+        mDeviceImpl.setShowPointerIcon(false);
+        verify(mInputManagerInternalMock, times(0)).setPointerIconVisible(eq(false), anyInt());
+    }
+
+    @Test
     public void openNonBlockedAppOnVirtualDisplay_doesNotStartBlockedAlertActivity() {
         addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
         GenericWindowPolicyController gwpc = mDeviceImpl.getDisplayWindowPolicyControllerForTest(
@@ -1524,7 +1597,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext, never()).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
@@ -1545,15 +1619,15 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
     }
 
     @Test
-    public void openPermissionControllerOnVirtualDisplay_displayOnRemoteDevices_startsWhenFlagIsEnabled() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_STREAM_PERMISSIONS);
+    public void openPermissionControllerOnVirtualDisplay_displayOnRemoteDevices_starts() {
         addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
         GenericWindowPolicyController gwpc = mDeviceImpl.getDisplayWindowPolicyControllerForTest(
                 DISPLAY_ID_1);
@@ -1567,15 +1641,15 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext, never()).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
     }
 
     @Test
-    public void openPermissionControllerOnVirtualDisplay_dontDisplayOnRemoteDevices_startsWhenFlagIsEnabled() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_STREAM_PERMISSIONS);
+    public void openPermissionControllerOnVirtualDisplay_dontDisplayOnRemoteDevices_starts() {
         addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
         GenericWindowPolicyController gwpc = mDeviceImpl.getDisplayWindowPolicyControllerForTest(
                 DISPLAY_ID_1);
@@ -1589,7 +1663,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
@@ -1610,7 +1685,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
@@ -1631,7 +1707,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
@@ -1652,7 +1729,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
@@ -1673,7 +1751,8 @@ public class VirtualDeviceManagerServiceTest {
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         gwpc.canActivityBeLaunched(activityInfo, blockedAppIntent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false);
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null);
 
         verify(mContext).startActivityAsUser(argThat(intent ->
                 intent.filterEquals(blockedAppIntent)), any(), any());
@@ -1681,7 +1760,6 @@ public class VirtualDeviceManagerServiceTest {
 
     @Test
     public void openNonBlockedAppOnMirrorDisplay_flagEnabled_cannotBeLaunched() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_INTERACTIVE_SCREEN_MIRROR);
         when(mDisplayManagerInternalMock.getDisplayIdToMirror(anyInt()))
                 .thenReturn(Display.DEFAULT_DISPLAY);
         addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
@@ -1695,33 +1773,10 @@ public class VirtualDeviceManagerServiceTest {
                 /* displayOnRemoteDevices */ true,
                 /* targetDisplayCategory */ null);
         assertThat(gwpc.canActivityBeLaunched(activityInfo, null,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/ false))
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null))
                 .isFalse();
         // Verify that BlockedAppStreamingActivity also doesn't launch for mirror displays.
-        Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
-                activityInfo, mAssociationInfo.getDisplayName());
-        verify(mContext, never()).startActivityAsUser(argThat(intent ->
-                intent.filterEquals(blockedAppIntent)), any(), any());
-    }
-
-    @Test
-    public void openNonBlockedAppOnMirrorDisplay_flagDisabled_launchesActivity() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_INTERACTIVE_SCREEN_MIRROR);
-        when(mDisplayManagerInternalMock.getDisplayIdToMirror(anyInt()))
-                .thenReturn(Display.DEFAULT_DISPLAY);
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        GenericWindowPolicyController gwpc = mDeviceImpl.getDisplayWindowPolicyControllerForTest(
-                DISPLAY_ID_1);
-        doNothing().when(mContext).startActivityAsUser(any(), any(), any());
-
-        ActivityInfo activityInfo = getActivityInfo(
-                NONBLOCKED_APP_PACKAGE_NAME,
-                NONBLOCKED_APP_PACKAGE_NAME,
-                /* displayOnRemoteDevices */ true,
-                /* targetDisplayCategory */ null);
-        assertThat(gwpc.canActivityBeLaunched(activityInfo, null,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/ false))
-                .isTrue();
         Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
                 activityInfo, mAssociationInfo.getDisplayName());
         verify(mContext, never()).startActivityAsUser(argThat(intent ->
@@ -1757,35 +1812,7 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     @Test
-    public void canActivityBeLaunched_permissionDialog_flagDisabled_isBlocked() {
-        mSetFlagsRule.disableFlags(Flags.FLAG_STREAM_PERMISSIONS);
-        VirtualDeviceParams params = new VirtualDeviceParams.Builder().build();
-        mDeviceImpl.close();
-        mDeviceImpl = createVirtualDevice(VIRTUAL_DEVICE_ID_1, DEVICE_OWNER_UID_1, params);
-        doNothing().when(mContext).startActivityAsUser(any(), any(), any());
-
-        addVirtualDisplay(mDeviceImpl, DISPLAY_ID_1);
-        GenericWindowPolicyController gwpc = mDeviceImpl.getDisplayWindowPolicyControllerForTest(
-                DISPLAY_ID_1);
-        ComponentName permissionComponent = getPermissionDialogComponent();
-        ActivityInfo activityInfo = getActivityInfo(
-                permissionComponent.getPackageName(),
-                permissionComponent.getClassName(),
-                /* displayOnRemoteDevices */ true,
-                /* targetDisplayCategory */ null);
-        assertThat(gwpc.canActivityBeLaunched(activityInfo, null,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false))
-                .isFalse();
-
-        Intent blockedAppIntent = BlockedAppStreamingActivity.createIntent(
-                activityInfo, mAssociationInfo.getDisplayName());
-        verify(mContext).startActivityAsUser(argThat(intent ->
-                intent.filterEquals(blockedAppIntent)), any(), any());
-    }
-
-    @Test
-    public void canActivityBeLaunched_permissionDialog_flagEnabled_isStreamed() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_STREAM_PERMISSIONS);
+    public void canActivityBeLaunched_permissionDialog_isStreamed() {
         VirtualDeviceParams params = new VirtualDeviceParams.Builder().build();
         mDeviceImpl.close();
         mDeviceImpl = createVirtualDevice(VIRTUAL_DEVICE_ID_1, DEVICE_OWNER_UID_1, params);
@@ -1800,7 +1827,8 @@ public class VirtualDeviceManagerServiceTest {
                 /* displayOnRemoteDevices */ true,
                 /* targetDisplayCategory */ null);
         assertThat(gwpc.canActivityBeLaunched(activityInfo, null,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false))
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null))
                 .isTrue();
     }
 
@@ -1816,7 +1844,8 @@ public class VirtualDeviceManagerServiceTest {
                 /* displayOnRemoteDevices */ true,
                 /* targetDisplayCategory */ null);
         assertThat(gwpc.canActivityBeLaunched(activityInfo, intent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false))
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null))
                 .isTrue();
     }
 
@@ -1847,7 +1876,8 @@ public class VirtualDeviceManagerServiceTest {
         // register interceptor and intercept intent
         mDeviceImpl.registerIntentInterceptor(interceptor, intentFilter);
         assertThat(gwpc.canActivityBeLaunched(activityInfo, intent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false))
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null))
                 .isFalse();
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(interceptor).onIntentIntercepted(intentCaptor.capture());
@@ -1859,7 +1889,8 @@ public class VirtualDeviceManagerServiceTest {
         // unregister interceptor and launch activity
         mDeviceImpl.unregisterIntentInterceptor(interceptor);
         assertThat(gwpc.canActivityBeLaunched(activityInfo, intent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false))
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null))
                 .isTrue();
     }
 
@@ -1890,7 +1921,8 @@ public class VirtualDeviceManagerServiceTest {
         mDeviceImpl.registerIntentInterceptor(interceptor, intentFilter);
 
         assertThat(gwpc.canActivityBeLaunched(activityInfo, intent,
-                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /*isNewTask=*/false))
+                WindowConfiguration.WINDOWING_MODE_FULLSCREEN, DISPLAY_ID_1, /* isNewTask= */ false,
+                /* isResultExpected = */ false, /* intentSender= */ null))
                 .isTrue();
     }
 
@@ -1993,7 +2025,7 @@ public class VirtualDeviceManagerServiceTest {
                         mVirtualDeviceLog,
                         new Binder(),
                         new AttributionSource(
-                                ownerUid, "com.android.virtualdevice.test", "virtualdevice"),
+                                ownerUid, VIRTUAL_DEVICE_OWNER_PACKAGE, "virtualdevice"),
                         virtualDeviceId,
                         mInputController,
                         mCameraAccessController,
@@ -2003,7 +2035,7 @@ public class VirtualDeviceManagerServiceTest {
                         mRunningAppsChangedCallback,
                         params,
                         new DisplayManagerGlobal(mIDisplayManager),
-                        new VirtualCameraController(DEVICE_POLICY_DEFAULT));
+                        new VirtualCameraController(DEVICE_POLICY_DEFAULT, virtualDeviceId));
         mVdms.addVirtualDevice(virtualDeviceImpl);
         assertThat(virtualDeviceImpl.getAssociationId()).isEqualTo(mAssociationInfo.getId());
         assertThat(virtualDeviceImpl.getPersistentDeviceId())
@@ -2012,16 +2044,20 @@ public class VirtualDeviceManagerServiceTest {
     }
 
     private void addVirtualDisplay(VirtualDeviceImpl virtualDevice, int displayId) {
+        addVirtualDisplay(virtualDevice, displayId, /* flags= */ 0);
+    }
+
+    private void addVirtualDisplay(VirtualDeviceImpl virtualDevice, int displayId, int flags) {
         when(mDisplayManagerInternalMock.createVirtualDisplay(any(), eq(mVirtualDisplayCallback),
                 eq(virtualDevice), any(), any())).thenReturn(displayId);
-        virtualDevice.createVirtualDisplay(VIRTUAL_DISPLAY_CONFIG, mVirtualDisplayCallback,
-                NONBLOCKED_APP_PACKAGE_NAME);
         final String uniqueId = UNIQUE_ID + displayId;
         doAnswer(inv -> {
             final DisplayInfo displayInfo = new DisplayInfo();
             displayInfo.uniqueId = uniqueId;
+            displayInfo.flags = flags;
             return displayInfo;
         }).when(mDisplayManagerInternalMock).getDisplayInfo(eq(displayId));
+        virtualDevice.createVirtualDisplay(VIRTUAL_DISPLAY_CONFIG, mVirtualDisplayCallback);
         mInputManagerMockHelper.addDisplayIdMapping(uniqueId, displayId);
     }
 
@@ -2040,23 +2076,10 @@ public class VirtualDeviceManagerServiceTest {
     private AssociationInfo createAssociationInfo(int associationId, String deviceProfile,
             CharSequence displayName) {
         return new AssociationInfo(associationId, /* userId= */ 0, /* packageName=*/ null,
-                /* tag= */ null, MacAddress.BROADCAST_ADDRESS, displayName, deviceProfile,
+                MacAddress.BROADCAST_ADDRESS, displayName, deviceProfile,
                 /* associatedDevice= */ null, /* selfManaged= */ true,
                 /* notifyOnDeviceNearby= */ false, /* revoked= */ false, /* pending= */ false,
-                /* timeApprovedMs= */0, /* lastTimeConnectedMs= */0, /* systemDataSyncFlags= */ -1);
-    }
-
-    /** Helper class to drop permissions temporarily and restore them at the end of a test. */
-    static final class DropShellPermissionsTemporarily implements AutoCloseable {
-        DropShellPermissionsTemporarily() {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
-        }
-
-        @Override
-        public void close() {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .adoptShellPermissionIdentity();
-        }
+                /* timeApprovedMs= */0, /* lastTimeConnectedMs= */0,
+                /* systemDataSyncFlags= */ -1, /* deviceIcon= */ null, /* deviceId= */ null);
     }
 }

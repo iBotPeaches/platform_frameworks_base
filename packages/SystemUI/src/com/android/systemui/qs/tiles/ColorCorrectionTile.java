@@ -22,12 +22,12 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
 import android.service.quicksettings.Tile;
-import android.view.View;
 import android.widget.Switch;
 
 import androidx.annotation.Nullable;
 
 import com.android.internal.logging.MetricsLogger;
+import com.android.systemui.animation.Expandable;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.plugins.ActivityStarter;
@@ -50,7 +50,8 @@ public class ColorCorrectionTile extends QSTileImpl<BooleanState> {
 
     public static final String TILE_SPEC = "color_correction";
 
-    private final Icon mIcon = ResourceIcon.get(R.drawable.ic_qs_color_correction);
+    @Nullable
+    private Icon mIcon = null;
     private final UserSettingObserver mSetting;
 
     @Inject
@@ -109,7 +110,7 @@ public class ColorCorrectionTile extends QSTileImpl<BooleanState> {
     }
 
     @Override
-    protected void handleClick(@Nullable View view) {
+    protected void handleClick(@Nullable Expandable expandable) {
         mSetting.setValue(mState.value ? 0 : 1);
     }
 
@@ -122,6 +123,9 @@ public class ColorCorrectionTile extends QSTileImpl<BooleanState> {
     protected void handleUpdateState(BooleanState state, Object arg) {
         final int value = arg instanceof Integer ? (Integer) arg : mSetting.getValue();
         final boolean enabled = value != 0;
+        if (mIcon == null) {
+            mIcon = maybeLoadResourceIcon(R.drawable.ic_qs_color_correction);
+        }
         state.value = enabled;
         state.state = state.value ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE;
         state.label = mContext.getString(R.string.quick_settings_color_correction_label);

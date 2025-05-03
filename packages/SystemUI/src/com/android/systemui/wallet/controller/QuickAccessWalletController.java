@@ -32,6 +32,7 @@ import android.provider.Settings;
 import android.service.quickaccesswallet.GetWalletCardsRequest;
 import android.service.quickaccesswallet.QuickAccessWalletClient;
 import android.service.quickaccesswallet.QuickAccessWalletClientImpl;
+import android.service.quickaccesswallet.WalletCard;
 import android.util.Log;
 
 import com.android.systemui.animation.ActivityTransitionAnimator;
@@ -91,15 +92,20 @@ public class QuickAccessWalletController {
             @Background Executor bgExecutor,
             SecureSettings secureSettings,
             QuickAccessWalletClient quickAccessWalletClient,
-            SystemClock clock) {
+            SystemClock clock,
+            RoleManager roleManager) {
         mContext = context;
         mExecutor = executor;
         mBgExecutor = bgExecutor;
         mSecureSettings = secureSettings;
-        mRoleManager = mContext.getSystemService(RoleManager.class);
+        mRoleManager = roleManager;
         mQuickAccessWalletClient = quickAccessWalletClient;
         mClock = clock;
         mQawClientCreatedTimeMillis = mClock.elapsedRealtime();
+    }
+
+    public boolean isWalletRoleAvailable() {
+        return mRoleManager.isRoleAvailable(RoleManager.ROLE_WALLET);
     }
 
     /**
@@ -144,12 +150,12 @@ public class QuickAccessWalletController {
             if (event == WALLET_PREFERENCE_CHANGE && mWalletPreferenceObserver != null) {
                 mWalletPreferenceChangeEvents--;
                 if (mWalletPreferenceChangeEvents == 0) {
-                    mSecureSettings.unregisterContentObserver(mWalletPreferenceObserver);
+                    mSecureSettings.unregisterContentObserverSync(mWalletPreferenceObserver);
                 }
             } else if (event == DEFAULT_PAYMENT_APP_CHANGE && mDefaultPaymentAppObserver != null) {
                 mDefaultPaymentAppChangeEvents--;
                 if (mDefaultPaymentAppChangeEvents == 0) {
-                    mSecureSettings.unregisterContentObserver(mDefaultPaymentAppObserver);
+                    mSecureSettings.unregisterContentObserverSync(mDefaultPaymentAppObserver);
                 }
             } else if (event == DEFAULT_WALLET_APP_CHANGE && mDefaultWalletAppObserver != null) {
                 mDefaultWalletAppChangeEvents--;
@@ -263,6 +269,23 @@ public class QuickAccessWalletController {
                 });
     }
 
+    /**
+     * Starts the {@link android.app.PendingIntent} for a {@link WalletCard}.
+     *
+     * This should be used to open a selected card from the QuickAccessWallet UI or
+     * the settings tile.
+     *
+     * @param activityStarter an {@link ActivityStarter} to launch the Intent or PendingIntent.
+     * @param animationController an {@link ActivityTransitionAnimator.Controller} to provide a
+     *                            smooth animation for the activity launch.
+     */
+    public void startWalletCardPendingIntent(WalletCard card,
+            ActivityStarter activityStarter,
+            ActivityTransitionAnimator.Controller animationController) {
+        activityStarter.postStartActivityDismissingKeyguard(
+                card.getPendingIntent(), animationController);
+    }
+
     private Intent getSysUiWalletIntent() {
         return new Intent(mContext, WalletActivity.class)
                 .setAction(Intent.ACTION_VIEW);
@@ -307,7 +330,7 @@ public class QuickAccessWalletController {
                 }
             };
 
-            mSecureSettings.registerContentObserverForUser(
+            mSecureSettings.registerContentObserverForUserSync(
                     Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT,
                     false /* notifyForDescendants */,
                     mDefaultPaymentAppObserver,
@@ -346,7 +369,7 @@ public class QuickAccessWalletController {
                 }
             };
 
-            mSecureSettings.registerContentObserverForUser(
+            mSecureSettings.registerContentObserverForUserSync(
                     QuickAccessWalletClientImpl.SETTING_KEY,
                     false /* notifyForDescendants */,
                     mWalletPreferenceObserver,

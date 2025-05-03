@@ -29,11 +29,17 @@ import android.hardware.camera2.utils.SurfaceUtils;
 import android.media.Image;
 import android.media.ImageWriter;
 import android.os.Handler;
+import android.util.IntArray;
 import android.util.Log;
 import android.util.Size;
+import android.util.SparseIntArray;
 import android.view.Surface;
 
+import com.android.internal.camera.flags.Flags;
+
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -45,11 +51,16 @@ public final class CameraExtensionUtils {
     public final static int JPEG_DEFAULT_QUALITY = 100;
     public final static int JPEG_DEFAULT_ROTATION = 0;
 
-    public static final int[] SUPPORTED_CAPTURE_OUTPUT_FORMATS = {
-            CameraExtensionCharacteristics.PROCESSING_INPUT_FORMAT,
-            ImageFormat.JPEG,
-            ImageFormat.JPEG_R
-    };
+    public static HashSet<Integer> SUPPORTED_CAPTURE_OUTPUT_FORMATS = new HashSet<>();
+
+    static {
+        SUPPORTED_CAPTURE_OUTPUT_FORMATS.addAll(Arrays.asList(
+                CameraExtensionCharacteristics.PROCESSING_INPUT_FORMAT, ImageFormat.JPEG,
+                ImageFormat.YCBCR_P010, ImageFormat.JPEG_R ));
+        if (Flags.depthJpegExtensions()) {
+            SUPPORTED_CAPTURE_OUTPUT_FORMATS.add(ImageFormat.DEPTH_JPEG);
+        }
+    }
 
     public static class SurfaceInfo {
         public int mWidth = 0;
@@ -98,6 +109,13 @@ public final class CameraExtensionUtils {
             surfaceInfo.mFormat = ImageFormat.JPEG_R;
             return surfaceInfo;
         }
+        if (Flags.depthJpegExtensions()) {
+            if ((nativeFormat == StreamConfigurationMap.HAL_PIXEL_FORMAT_BLOB)
+                    && (dataspace == StreamConfigurationMap.HAL_DATASPACE_DYNAMIC_DEPTH)) {
+                surfaceInfo.mFormat = ImageFormat.DEPTH_JPEG;
+                return surfaceInfo;
+            }
+        }
 
         return surfaceInfo;
     }
@@ -109,30 +127,27 @@ public final class CameraExtensionUtils {
         if (outputConfig == null) return null;
 
         SurfaceInfo surfaceInfo = querySurface(outputConfig.getSurface());
-        if (surfaceInfo.mFormat == captureFormat) {
-            if (supportedPostviewSizes.containsKey(captureFormat)) {
-                Size postviewSize = new Size(surfaceInfo.mWidth, surfaceInfo.mHeight);
-                if (supportedPostviewSizes.get(surfaceInfo.mFormat)
-                        .contains(postviewSize)) {
-                    return outputConfig.getSurface();
-                } else {
-                    throw new IllegalArgumentException("Postview size not supported!");
-                }
-            }
-        } else {
-            throw new IllegalArgumentException("Postview format should be equivalent to " +
-                    " the capture format!");
-        }
 
-        return null;
+        Size postviewSize = new Size(surfaceInfo.mWidth, surfaceInfo.mHeight);
+        if (supportedPostviewSizes.get(surfaceInfo.mFormat)
+                .contains(postviewSize)) {
+            return outputConfig.getSurface();
+        } else {
+            throw new IllegalArgumentException("Postview size not supported!");
+        }
     }
 
     public static Surface getBurstCaptureSurface(
             @NonNull List<OutputConfiguration> outputConfigs,
             @NonNull HashMap<Integer, List<Size>> supportedCaptureSizes) {
+        Integer[] supportedCaptureOutputFormats =
+                new Integer[CameraExtensionUtils.SUPPORTED_CAPTURE_OUTPUT_FORMATS.size()];
+        supportedCaptureOutputFormats =
+                CameraExtensionUtils.SUPPORTED_CAPTURE_OUTPUT_FORMATS.toArray(
+                        supportedCaptureOutputFormats);
         for (OutputConfiguration config : outputConfigs) {
             SurfaceInfo surfaceInfo = querySurface(config.getSurface());
-            for (int supportedFormat : SUPPORTED_CAPTURE_OUTPUT_FORMATS) {
+            for (int supportedFormat : supportedCaptureOutputFormats) {
                 if (surfaceInfo.mFormat == supportedFormat) {
                     Size captureSize = new Size(surfaceInfo.mWidth, surfaceInfo.mHeight);
                     if (supportedCaptureSizes.containsKey(supportedFormat)) {

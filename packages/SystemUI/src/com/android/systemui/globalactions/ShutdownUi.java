@@ -22,7 +22,10 @@ import android.annotation.Nullable;
 import android.annotation.StringRes;
 import android.app.Dialog;
 import android.content.Context;
+import android.nearby.NearbyManager;
+import android.net.platform.flags.Flags;
 import android.os.PowerManager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -33,10 +36,9 @@ import android.widget.TextView;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.R;
-import com.android.settingslib.Utils;
 import com.android.systemui.scrim.ScrimDrawable;
-import com.android.systemui.statusbar.BlurUtils;
-import com.android.systemui.statusbar.phone.ScrimController;
+
+import javax.inject.Inject;
 
 /**
  * Provides the UI shown during system shutdown.
@@ -44,35 +46,29 @@ import com.android.systemui.statusbar.phone.ScrimController;
 public class ShutdownUi {
 
     private Context mContext;
-    private BlurUtils mBlurUtils;
-    public ShutdownUi(Context context, BlurUtils blurUtils) {
+    private NearbyManager mNearbyManager;
+
+    @Inject
+    public ShutdownUi(Context context, NearbyManager nearbyManager) {
         mContext = context;
-        mBlurUtils = blurUtils;
+        mNearbyManager = nearbyManager;
     }
 
     /**
      * Display the shutdown UI.
      * @param isReboot Whether the device will be rebooting after this shutdown.
      * @param reason Cause for the shutdown.
+     * @return Shutdown dialog.
      */
-    public void showShutdownUi(boolean isReboot, String reason) {
+    public Dialog showShutdownUi(boolean isReboot, String reason) {
         ScrimDrawable background = new ScrimDrawable();
 
         final Dialog d = new Dialog(mContext,
                 com.android.systemui.res.R.style.Theme_SystemUI_Dialog_GlobalActions);
 
-        d.setOnShowListener(dialog -> {
-            if (mBlurUtils.supportsBlursOnWindows()) {
-                int backgroundAlpha = (int) (ScrimController.BUSY_SCRIM_ALPHA * 255);
-                background.setAlpha(backgroundAlpha);
-                mBlurUtils.applyBlur(d.getWindow().getDecorView().getViewRootImpl(),
-                        (int) mBlurUtils.blurRadiusOfRatio(1), backgroundAlpha == 255);
-            } else {
-                float backgroundAlpha = mContext.getResources().getFloat(
-                        com.android.systemui.res.R.dimen.shutdown_scrim_behind_alpha);
-                background.setAlpha((int) (backgroundAlpha * 255));
-            }
-        });
+        float backgroundAlpha = mContext.getResources().getFloat(
+                com.android.systemui.res.R.dimen.shutdown_scrim_behind_alpha);
+        background.setAlpha((int) (backgroundAlpha * 255));
 
         // Window initialization
         Window window = d.getWindow();
@@ -101,14 +97,9 @@ public class ShutdownUi {
         d.setContentView(getShutdownDialogContent(isReboot));
         d.setCancelable(false);
 
-        int color;
-        if (mBlurUtils.supportsBlursOnWindows()) {
-            color = Utils.getColorAttrDefaultColor(mContext,
-                    com.android.systemui.res.R.attr.wallpaperTextColor);
-        } else {
-            color = mContext.getResources().getColor(
-                    com.android.systemui.res.R.color.global_actions_shutdown_ui_text);
-        }
+        int color = mContext.getResources().getColor(
+                com.android.systemui.res.R.color.global_actions_shutdown_ui_text,
+                mContext.getTheme());
 
         ProgressBar bar = d.findViewById(R.id.progress);
         bar.getIndeterminateDrawable().setTint(color);
@@ -127,15 +118,32 @@ public class ShutdownUi {
         }
 
         d.show();
+
+        return d;
     }
 
     /**
      * Returns the layout resource to use for UI while shutting down.
      * @param isReboot Whether this is a reboot or a shutdown.
-     * @return
      */
-    public int getShutdownDialogContent(boolean isReboot) {
-        return R.layout.shutdown_dialog;
+    @VisibleForTesting int getShutdownDialogContent(boolean isReboot) {
+        if (!Flags.poweredOffFindingPlatform()) {
+            return R.layout.shutdown_dialog;
+        }
+        int finderActive = mNearbyManager.getPoweredOffFindingMode();
+        if (finderActive == NearbyManager.POWERED_OFF_FINDING_MODE_DISABLED
+                || finderActive == NearbyManager.POWERED_OFF_FINDING_MODE_UNSUPPORTED) {
+            // inactive or unsupported, use regular shutdown dialog
+            return R.layout.shutdown_dialog;
+        } else if (finderActive == NearbyManager.POWERED_OFF_FINDING_MODE_ENABLED) {
+            // active, use dialog with finder info if shutting down
+            return isReboot ? R.layout.shutdown_dialog :
+                    com.android.systemui.res.R.layout.shutdown_dialog_finder_active;
+        } else {
+            // that's weird? default to regular dialog
+            Log.w("ShutdownUi", "Unexpected value for finder active: " + finderActive);
+            return R.layout.shutdown_dialog;
+        }
     }
 
     @StringRes

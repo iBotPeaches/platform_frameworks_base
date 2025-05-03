@@ -24,7 +24,6 @@ import android.os.UserHandle
 import android.service.quicksettings.Tile
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
-import com.android.systemui.Flags.FLAG_QS_NEW_PIPELINE
 import com.android.systemui.Flags.FLAG_QS_NEW_TILES
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.coroutines.collectLastValue
@@ -32,6 +31,7 @@ import com.android.systemui.dump.nano.SystemUIProtoDump
 import com.android.systemui.plugins.qs.QSTile
 import com.android.systemui.plugins.qs.QSTile.BooleanState
 import com.android.systemui.qs.FakeQSFactory
+import com.android.systemui.qs.FakeQSTile
 import com.android.systemui.qs.external.CustomTile
 import com.android.systemui.qs.external.CustomTileStatePersister
 import com.android.systemui.qs.external.TileLifecycleManager
@@ -48,6 +48,7 @@ import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.pipeline.shared.logging.QSPipelineLogger
 import com.android.systemui.qs.tiles.di.NewQSTileFactory
 import com.android.systemui.qs.toProto
+import com.android.systemui.retail.data.repository.FakeRetailModeRepository
 import com.android.systemui.settings.UserTracker
 import com.android.systemui.user.data.repository.FakeUserRepository
 import com.android.systemui.util.mockito.any
@@ -84,6 +85,7 @@ class CurrentTilesInteractorImplTest : SysuiTestCase() {
     private val pipelineFlags = QSPipelineFlagsRepository()
     private val tileLifecycleManagerFactory = TLMFactory()
     private val minimumTilesRepository = MinimumTilesFixedRepository()
+    private val retailModeRepository = FakeRetailModeRepository()
 
     @Mock private lateinit var customTileStatePersister: CustomTileStatePersister
 
@@ -104,7 +106,6 @@ class CurrentTilesInteractorImplTest : SysuiTestCase() {
     fun setup() {
         MockitoAnnotations.initMocks(this)
 
-        mSetFlagsRule.enableFlags(FLAG_QS_NEW_PIPELINE)
         mSetFlagsRule.enableFlags(FLAG_QS_NEW_TILES)
 
         userRepository.setUserInfos(listOf(USER_INFO_0, USER_INFO_1))
@@ -117,6 +118,7 @@ class CurrentTilesInteractorImplTest : SysuiTestCase() {
                 installedTilesComponentRepository = installedTilesPackageRepository,
                 userRepository = userRepository,
                 minimumTilesRepository = minimumTilesRepository,
+                retailModeRepository = retailModeRepository,
                 customTileStatePersister = customTileStatePersister,
                 tileFactory = tileFactory,
                 newQSTileFactory = { newQSTileFactory },
@@ -671,6 +673,50 @@ class CurrentTilesInteractorImplTest : SysuiTestCase() {
             assertThat(tiles!!.size).isEqualTo(3)
         }
 
+    @Test
+    fun changeInPackagesTiles_doesntTriggerUserChange_logged() =
+        testScope.runTest(USER_INFO_0) {
+            val specs =
+                listOf(
+                    TileSpec.create("a"),
+                )
+            tileSpecRepository.setTiles(USER_INFO_0.id, specs)
+            runCurrent()
+            // Settled on the same list of tiles.
+            assertThat(underTest.currentTilesSpecs).isEqualTo(specs)
+
+            installedTilesPackageRepository.setInstalledPackagesForUser(USER_INFO_0.id, emptySet())
+            runCurrent()
+
+            verify(logger, never()).logTileUserChanged(TileSpec.create("a"), 0)
+        }
+
+
+    @Test
+    fun getTileDetails() =
+        testScope.runTest(USER_INFO_0) {
+            val tiles by collectLastValue(underTest.currentTiles)
+            val tileA = TileSpec.create("a")
+            val tileB = TileSpec.create("b")
+            val tileNoDetails = TileSpec.create("NoDetails")
+
+            val specs = listOf(tileA, tileB, tileNoDetails)
+
+            assertThat(tiles!!.isEmpty()).isTrue()
+
+            tileSpecRepository.setTiles(USER_INFO_0.id, specs)
+            assertThat(tiles!!.size).isEqualTo(3)
+
+            // The third tile doesn't have a details view.
+            assertThat(tiles!![2].spec).isEqualTo(tileNoDetails)
+            (tiles!![2].tile as FakeQSTile).hasDetailsViewModel = false
+
+            assertThat(tiles!![0].tile.detailsViewModel.getTitle()).isEqualTo("a")
+            assertThat(tiles!![1].tile.detailsViewModel.getTitle()).isEqualTo("b")
+            assertThat(tiles!![2].tile.detailsViewModel).isNull()
+        }
+
+
     private fun QSTile.State.fillIn(state: Int, label: CharSequence, secondaryLabel: CharSequence) {
         this.state = state
         this.label = label
@@ -750,7 +796,7 @@ class CurrentTilesInteractorImplTest : SysuiTestCase() {
         private val USER_INFO_0 = UserInfo().apply { id = 0 }
         private val USER_INFO_1 = UserInfo().apply { id = 1 }
 
-        private val VALID_TILES = setOf("a", "b", "c", "d", "e")
+        private val VALID_TILES = setOf("a", "b", "c", "d", "e", "NoDetails")
         private val TEST_COMPONENT = ComponentName("pkg", "cls")
         private val CUSTOM_TILE_SPEC = TileSpec.Companion.create(TEST_COMPONENT)
     }

@@ -20,17 +20,19 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
+import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
 import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 import static android.content.res.Configuration.ORIENTATION_UNDEFINED;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.spy;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.verify;
 
 import android.platform.test.annotations.Presubmit;
 import android.view.Surface;
@@ -55,7 +57,8 @@ public class DisplayRotationImmersiveAppCompatPolicyTests extends WindowTestsBas
 
     private DisplayRotationImmersiveAppCompatPolicy mPolicy;
 
-    private LetterboxConfiguration mMockLetterboxConfiguration;
+    private DisplayRotation mMockDisplayRotation;
+    private AppCompatConfiguration mMockAppCompatConfiguration;
     private ActivityRecord mMockActivityRecord;
     private Task mMockTask;
     private WindowState mMockWindowState;
@@ -73,19 +76,18 @@ public class DisplayRotationImmersiveAppCompatPolicyTests extends WindowTestsBas
         when(mMockWindowState.getRequestedVisibleTypes()).thenReturn(0);
         when(mMockActivityRecord.findMainWindow()).thenReturn(mMockWindowState);
 
-        spy(mDisplayContent);
         doReturn(mMockActivityRecord).when(mDisplayContent).topRunningActivity();
         when(mDisplayContent.getIgnoreOrientationRequest()).thenReturn(true);
 
-        mMockLetterboxConfiguration = mock(LetterboxConfiguration.class);
-        when(mMockLetterboxConfiguration.isDisplayRotationImmersiveAppCompatPolicyEnabled())
+        mMockAppCompatConfiguration = mock(AppCompatConfiguration.class);
+        when(mMockAppCompatConfiguration.isDisplayRotationImmersiveAppCompatPolicyEnabled())
                 .thenReturn(true);
-        when(mMockLetterboxConfiguration
+        when(mMockAppCompatConfiguration
                 .isDisplayRotationImmersiveAppCompatPolicyEnabledAtBuildTime())
                     .thenReturn(true);
 
         mPolicy = DisplayRotationImmersiveAppCompatPolicy.createIfNeeded(
-                mMockLetterboxConfiguration, createDisplayRotationMock(),
+                mMockAppCompatConfiguration, createDisplayRotationMock(),
                 mDisplayContent);
     }
 
@@ -100,6 +102,7 @@ public class DisplayRotationImmersiveAppCompatPolicyTests extends WindowTestsBas
         when(mockDisplayRotation.isLandscapeOrSeascape(Surface.ROTATION_90)).thenReturn(true);
         when(mockDisplayRotation.isLandscapeOrSeascape(Surface.ROTATION_180)).thenReturn(false);
         when(mockDisplayRotation.isLandscapeOrSeascape(Surface.ROTATION_270)).thenReturn(true);
+        mMockDisplayRotation = mockDisplayRotation;
 
         return mockDisplayRotation;
     }
@@ -198,6 +201,24 @@ public class DisplayRotationImmersiveAppCompatPolicyTests extends WindowTestsBas
     }
 
     @Test
+    public void testDeferOrientationUpdate() {
+        assertFalse(mPolicy.deferOrientationUpdate());
+
+        doReturn(SCREEN_ORIENTATION_UNSPECIFIED).when(mMockDisplayRotation).getLastOrientation();
+        final WindowOrientationListener orientationListener = mock(WindowOrientationListener.class);
+        doReturn(Surface.ROTATION_90).when(orientationListener).getProposedRotation();
+        doReturn(orientationListener).when(mMockDisplayRotation).getOrientationListener();
+        spyOn(mDisplayContent.mTransitionController);
+        doReturn(true).when(mDisplayContent.mTransitionController)
+                .hasTransientLaunch(mDisplayContent);
+
+        assertTrue(mPolicy.deferOrientationUpdate());
+        mDisplayContent.mTransitionController.mStateValidators.getFirst().run();
+
+        verify(mWm).updateRotation(false, false);
+    }
+
+    @Test
     public void testRotationChoiceEnforcedOnly_nullTopRunningActivity_lockNotEnforced() {
         when(mDisplayContent.topRunningActivity()).thenReturn(null);
 
@@ -206,7 +227,7 @@ public class DisplayRotationImmersiveAppCompatPolicyTests extends WindowTestsBas
 
     @Test
     public void testRotationChoiceEnforcedOnly_featureFlagDisabled_lockNotEnforced() {
-        when(mMockLetterboxConfiguration.isDisplayRotationImmersiveAppCompatPolicyEnabled())
+        when(mMockAppCompatConfiguration.isDisplayRotationImmersiveAppCompatPolicyEnabled())
                 .thenReturn(false);
 
         assertIsRotationLockEnforcedReturnsFalseForAllRotations();

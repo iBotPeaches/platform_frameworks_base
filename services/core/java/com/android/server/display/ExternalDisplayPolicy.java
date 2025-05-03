@@ -136,6 +136,9 @@ class ExternalDisplayPolicy {
                     handleExternalDisplayConnectedLocked(logicalDisplay);
                 }
             }
+            if (!mDisplayIdsWaitingForBootCompletion.isEmpty()) {
+                mLogicalDisplayMapper.updateLogicalDisplaysLocked();
+            }
             mDisplayIdsWaitingForBootCompletion.clear();
         }
 
@@ -222,13 +225,13 @@ class ExternalDisplayPolicy {
         } else {
             // As external display is enabled by default, need to disable it now.
             // TODO(b/292196201) Remove when the display can be disabled before DPC is created.
-            logicalDisplay.setEnabledLocked(false);
+            mLogicalDisplayMapper.setEnabledLocked(logicalDisplay, false);
         }
 
         if (!isExternalDisplayAllowed()) {
             Slog.w(TAG, "handleExternalDisplayConnectedLocked: External display can not be used"
                                 + " because it is currently not allowed.");
-            mDisplayNotificationManager.onHighTemperatureExternalDisplayNotAllowed();
+            mHandler.post(mDisplayNotificationManager::onHighTemperatureExternalDisplayNotAllowed);
             return;
         }
 
@@ -326,7 +329,7 @@ class ExternalDisplayPolicy {
 
         if (!isExternalDisplayAllowed()) {
             Slog.w(TAG, "External display is currently not allowed and is getting disabled.");
-            mDisplayNotificationManager.onHighTemperatureExternalDisplayNotAllowed();
+            mHandler.post(mDisplayNotificationManager::onHighTemperatureExternalDisplayNotAllowed);
         }
 
         mLogicalDisplayMapper.setDisplayEnabledLocked(logicalDisplay, /*enabled=*/ false);
@@ -370,6 +373,54 @@ class ExternalDisplayPolicy {
         synchronized (mSyncRoot) {
             mLogicalDisplayMapper.forEachLocked(this::disableExternalDisplayLocked);
         }
+    }
+
+    boolean isDisplayReadyForMirroring(int displayId) {
+        if (!mFlags.isWaitingConfirmationBeforeMirroringEnabled()) {
+            if (DEBUG) {
+                Slog.d(TAG, "isDisplayReadyForMirroring: mirroring CONFIRMED - "
+                        + " flag 'waiting for confirmation before mirroring' is disabled");
+            }
+            return true;
+        }
+
+        synchronized (mSyncRoot) {
+            if (!mIsBootCompleted) {
+                if (DEBUG) {
+                    Slog.d(TAG, "isDisplayReadyForMirroring: mirroring is not confirmed - "
+                            + "boot is in progress");
+                }
+                return false;
+            }
+
+            var logicalDisplay = mLogicalDisplayMapper.getDisplayLocked(displayId);
+            if (logicalDisplay == null) {
+                if (DEBUG) {
+                    Slog.d(TAG, "isDisplayReadyForMirroring: mirroring is not confirmed - "
+                            + "logicalDisplay is null");
+                }
+                return false;
+            }
+
+            if (!isExternalDisplayLocked(logicalDisplay)) {
+                if (DEBUG) {
+                    Slog.d(TAG, "isDisplayReadyForMirroring: mirroring is not confirmed - "
+                            + "logicalDisplay" + logicalDisplay.getDisplayIdLocked()
+                            + " type is " + logicalDisplay.getDisplayInfoLocked().type);
+                }
+                return false;
+            }
+
+            if (!logicalDisplay.isEnabledLocked()) {
+                if (DEBUG) {
+                    Slog.d(TAG, "isDisplayReadyForMirroring: mirroring is not confirmed - "
+                            + "logicalDisplay is disabled");
+                }
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private final class SkinThermalStatusObserver extends IThermalEventListener.Stub {

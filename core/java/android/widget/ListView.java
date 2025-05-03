@@ -72,7 +72,7 @@ import java.util.function.Predicate;
 
 /**
  * <p>Displays a vertically-scrollable collection of views, where each view is positioned
- * immediatelybelow the previous view in the list.  For a more modern, flexible, and performant
+ * immediately below the previous view in the list.  For a more modern, flexible, and performant
  * approach to displaying lists, use {@link androidx.recyclerview.widget.RecyclerView}.</p>
  *
  * <p>To display a list, you can include a list view in your layout XML file:</p>
@@ -3636,7 +3636,7 @@ public class ListView extends AbsListView {
      * Returns the drawable that will be drawn between each item in the list.
      *
      * @return the current drawable drawn between list elements
-     * @attr ref R.styleable#ListView_divider
+     * @attr ref android.R.styleable#ListView_divider
      */
     @InspectableProperty
     @Nullable
@@ -3651,7 +3651,7 @@ public class ListView extends AbsListView {
      * height, you should also call {@link #setDividerHeight(int)}.
      *
      * @param divider the drawable to use
-     * @attr ref R.styleable#ListView_divider
+     * @attr ref android.R.styleable#ListView_divider
      */
     public void setDivider(@Nullable Drawable divider) {
         if (divider != null) {

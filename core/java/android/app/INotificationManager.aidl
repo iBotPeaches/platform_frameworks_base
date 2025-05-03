@@ -42,6 +42,7 @@ import android.service.notification.StatusBarNotification;
 import android.service.notification.ZenPolicy;
 import android.app.AutomaticZenRule;
 import android.service.notification.ZenModeConfig;
+import android.service.notification.ZenDeviceEffects;
 
 /** {@hide} */
 interface INotificationManager
@@ -50,8 +51,8 @@ interface INotificationManager
     void cancelAllNotifications(String pkg, int userId);
 
     void clearData(String pkg, int uid, boolean fromApp);
-    void enqueueTextToast(String pkg, IBinder token, CharSequence text, int duration, boolean isUiContext, int displayId, @nullable ITransientNotificationCallback callback);
-    void enqueueToast(String pkg, IBinder token, ITransientNotification callback, int duration, boolean isUiContext, int displayId);
+    boolean enqueueTextToast(String pkg, IBinder token, CharSequence text, int duration, boolean isUiContext, int displayId, @nullable ITransientNotificationCallback callback);
+    boolean enqueueToast(String pkg, IBinder token, ITransientNotification callback, int duration, boolean isUiContext, int displayId);
     void cancelToast(String pkg, IBinder token);
     void finishToken(String pkg, IBinder token);
 
@@ -83,6 +84,8 @@ interface INotificationManager
     boolean isImportanceLocked(String pkg, int uid);
 
     List<String> getAllowedAssistantAdjustments(String pkg);
+    void allowAssistantAdjustment(String adjustmentType);
+    void disallowAssistantAdjustment(String adjustmentType);
 
     boolean shouldHideSilentStatusIcons(String callingPkg);
     void setHideSilentStatusIcons(boolean hide);
@@ -121,6 +124,7 @@ interface INotificationManager
     boolean onlyHasDefaultChannel(String pkg, int uid);
     boolean areChannelsBypassingDnd();
     ParceledListSlice getNotificationChannelsBypassingDnd(String pkg, int uid);
+    ParceledListSlice getPackagesBypassingDnd(int userId);
     boolean isPackagePaused(String pkg);
     void deleteNotificationHistoryItem(String pkg, int uid, long postedTime);
     boolean isPermissionFixed(String pkg, int userId);
@@ -158,8 +162,8 @@ interface INotificationManager
     void requestBindProvider(in ComponentName component);
     void requestUnbindProvider(in IConditionProvider token);
 
-    void setNotificationsShownFromListener(in INotificationListener token, in String[] keys);
 
+    void setNotificationsShownFromListener(in INotificationListener token, in String[] keys);
     ParceledListSlice getActiveNotificationsFromListener(in INotificationListener token, in String[] keys, int trim);
     ParceledListSlice getSnoozedNotificationsFromListener(in INotificationListener token, int trim);
     void clearRequestedListenerHints(in INotificationListener token);
@@ -171,6 +175,7 @@ interface INotificationManager
     void setOnNotificationPostedTrimFromListener(in INotificationListener token, int trim);
     void setInterruptionFilter(String pkg, int interruptionFilter, boolean fromUser);
 
+    NotificationChannel createConversationNotificationChannelForPackageFromPrivilegedListener(in INotificationListener token, String pkg, in UserHandle user, String parentChannelId, String conversationId);
     void updateNotificationChannelGroupFromPrivilegedListener(in INotificationListener token, String pkg, in UserHandle user, in NotificationChannelGroup group);
     void updateNotificationChannelFromPrivilegedListener(in INotificationListener token, String pkg, in UserHandle user, in NotificationChannel channel);
     ParceledListSlice getNotificationChannelsFromPrivilegedListener(in INotificationListener token, String pkg, in UserHandle user);
@@ -227,6 +232,7 @@ interface INotificationManager
     int getRuleInstanceCount(in ComponentName owner);
     int getAutomaticZenRuleState(String id);
     void setAutomaticZenRuleState(String id, in Condition condition);
+    void setManualZenRuleDeviceEffects(in ZenDeviceEffects effects);
 
     byte[] getBackupPayload(int user);
     void applyRestore(in byte[] payload, int user);
@@ -255,4 +261,15 @@ interface INotificationManager
     @EnforcePermission(allOf={"INTERACT_ACROSS_USERS", "ACCESS_NOTIFICATIONS"})
     void unregisterCallNotificationEventListener(String packageName, in UserHandle userHandle, in ICallNotificationEventCallback listener);
 
+    void setCanBePromoted(String pkg, int uid, boolean promote, boolean fromUser);
+    boolean appCanBePromoted(String pkg, int uid);
+    boolean canBePromoted(String pkg);
+
+    void setAdjustmentTypeSupportedState(in INotificationListener token, String key, boolean supported);
+    List<String> getUnsupportedAdjustmentTypes();
+
+    int[] getAllowedAdjustmentKeyTypes();
+    void setAssistantAdjustmentKeyTypeState(int type, boolean enabled);
+    String[] getTypeAdjustmentDeniedPackages();
+    void setTypeAdjustmentForPackageState(String pkg, boolean enabled);
 }

@@ -16,22 +16,20 @@
 
 #include "Color.h"
 
+#include <Properties.h>
+#include <android/hardware_buffer.h>
+#include <android/native_window.h>
 #include <ui/ColorSpace.h>
 #include <utils/Log.h>
 
-#ifdef __ANDROID__ // Layoutlib does not support hardware buffers or native windows
-#include <android/hardware_buffer.h>
-#include <android/native_window.h>
-#endif
-
 #include <algorithm>
 #include <cmath>
-#include <Properties.h>
+
+#include "SkColorSpace.h"
 
 namespace android {
 namespace uirenderer {
 
-#ifdef __ANDROID__ // Layoutlib does not support hardware buffers or native windows
 static inline SkImageInfo createImageInfo(int32_t width, int32_t height, int32_t format,
                                           sk_sp<SkColorSpace> colorSpace) {
     SkColorType colorType = kUnknown_SkColorType;
@@ -51,6 +49,10 @@ static inline SkImageInfo createImageInfo(int32_t width, int32_t height, int32_t
             break;
         case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
             colorType = kRGBA_1010102_SkColorType;
+            alphaType = kPremul_SkAlphaType;
+            break;
+        case AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM:
+            colorType = kRGBA_10x6_SkColorType;
             alphaType = kPremul_SkAlphaType;
             break;
         case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
@@ -90,6 +92,8 @@ uint32_t ColorTypeToBufferFormat(SkColorType colorType) {
             return AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
         case kRGBA_1010102_SkColorType:
             return AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM;
+        case kRGBA_10x6_SkColorType:
+            return AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM;
         case kARGB_4444_SkColorType:
             // Hardcoding the value from android::PixelFormat
             static constexpr uint64_t kRGBA4444 = 7;
@@ -112,6 +116,8 @@ SkColorType BufferFormatToColorType(uint32_t format) {
             return kRGB_565_SkColorType;
         case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
             return kRGBA_1010102_SkColorType;
+        case AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM:
+            return kRGBA_10x6_SkColorType;
         case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
             return kRGBA_F16_SkColorType;
         case AHARDWAREBUFFER_FORMAT_R8_UNORM:
@@ -121,7 +127,6 @@ SkColorType BufferFormatToColorType(uint32_t format) {
             return kUnknown_SkColorType;
     }
 }
-#endif
 
 namespace {
 static constexpr skcms_TransferFunction k2Dot6 = {2.6f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
@@ -212,9 +217,12 @@ android_dataspace ColorSpaceToADataSpace(SkColorSpace* colorSpace, SkColorType c
         return HAL_DATASPACE_ADOBE_RGB;
     }
 
-    if (nearlyEqual(fn, SkNamedTransferFn::kRec2020) &&
-        nearlyEqual(gamut, SkNamedGamut::kRec2020)) {
-        return HAL_DATASPACE_BT2020;
+    if (nearlyEqual(gamut, SkNamedGamut::kRec2020)) {
+        if (nearlyEqual(fn, SkNamedTransferFn::kRec2020)) {
+            return HAL_DATASPACE_BT2020;
+        } else if (nearlyEqual(fn, SkNamedTransferFn::kSRGB)) {
+            return static_cast<android_dataspace>(HAL_DATASPACE_DISPLAY_BT2020);
+        }
     }
 
     if (nearlyEqual(fn, k2Dot6) && nearlyEqual(gamut, kDCIP3)) {
@@ -408,7 +416,7 @@ skcms_TransferFunction GetPQSkTransferFunction(float sdr_white_level) {
 }
 
 static skcms_TransferFunction trfn_apply_gain(const skcms_TransferFunction trfn, float gain) {
-    float pow_gain_ginv = sk_float_pow(gain, 1 / trfn.g);
+    float pow_gain_ginv = std::pow(gain, 1 / trfn.g);
     skcms_TransferFunction result;
     result.g = trfn.g;
     result.a = trfn.a * pow_gain_ginv;

@@ -18,5 +18,15 @@ package com.android.systemui.util.settings
 
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.Kosmos.Fixture
+import com.android.systemui.kosmos.testDispatcher
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineScope
 
-val Kosmos.fakeGlobalSettings: FakeGlobalSettings by Fixture { FakeGlobalSettings() }
+val Kosmos.fakeGlobalSettings: FakeGlobalSettings by Fixture { FakeGlobalSettings(testDispatcher) }
+
+object JavaAdapter {
+    @JvmStatic
+    fun newCoroutineScope(context: CoroutineContext): CoroutineScope {
+        return CoroutineScope(context)
+    }
+}

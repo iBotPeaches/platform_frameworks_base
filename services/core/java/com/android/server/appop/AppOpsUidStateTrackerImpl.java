@@ -31,10 +31,12 @@ import static android.app.AppOpsManager.OP_CAMERA;
 import static android.app.AppOpsManager.OP_NONE;
 import static android.app.AppOpsManager.OP_RECEIVE_EXPLICIT_USER_INTERACTION_AUDIO;
 import static android.app.AppOpsManager.OP_RECORD_AUDIO;
-import static android.app.AppOpsManager.OP_TAKE_AUDIO_FOCUS;
 import static android.app.AppOpsManager.UID_STATE_FOREGROUND_SERVICE;
 import static android.app.AppOpsManager.UID_STATE_MAX_LAST_NON_RESTRICTED;
+import static android.app.AppOpsManager.UID_STATE_NONEXISTENT;
 import static android.app.AppOpsManager.UID_STATE_TOP;
+import static android.permission.flags.Flags.delayUidStateChangesFromCapabilityUpdates;
+import static android.permission.flags.Flags.finishRunningOpsForKilledPackages;
 
 import static com.android.server.appop.AppOpsUidStateTracker.processStateToUidState;
 
@@ -174,8 +176,6 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
             case OP_RECORD_AUDIO:
             case OP_RECEIVE_EXPLICIT_USER_INTERACTION_AUDIO:
                 return PROCESS_CAPABILITY_FOREGROUND_MICROPHONE;
-            case OP_TAKE_AUDIO_FOCUS:
-                return PROCESS_CAPABILITY_FOREGROUND_AUDIO_CONTROL;
             default:
                 return PROCESS_CAPABILITY_NONE;
         }
@@ -234,20 +234,26 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
             mPendingUidStates.put(uid, uidState);
             mPendingCapability.put(uid, capability);
 
+            boolean hasLostCapability = (prevCapability & ~capability) != 0;
+
             if (procState == PROCESS_STATE_NONEXISTENT) {
                 mPendingGone.put(uid, true);
                 commitUidPendingState(uid);
-            } else if (uidState < prevUidState
-                    || (uidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
-                    && prevUidState > UID_STATE_MAX_LAST_NON_RESTRICTED)) {
+            } else if (uidState < prevUidState) {
                 // We are moving to a more important state, or the new state may be in the
                 // foreground and the old state is in the background, then always do it
                 // immediately.
                 commitUidPendingState(uid);
-            } else if (uidState == prevUidState && capability != prevCapability) {
+            } else if (delayUidStateChangesFromCapabilityUpdates()
+                    && uidState == prevUidState && !hasLostCapability) {
+                // No change on process state, but process capability hasn't decreased.
+                commitUidPendingState(uid);
+            } else if (!delayUidStateChangesFromCapabilityUpdates()
+                    && uidState == prevUidState && capability != prevCapability) {
                 // No change on process state, but process capability has changed.
                 commitUidPendingState(uid);
-            } else if (uidState <= UID_STATE_MAX_LAST_NON_RESTRICTED) {
+            } else if (uidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
+                    && (!delayUidStateChangesFromCapabilityUpdates() || !hasLostCapability)) {
                 // We are moving to a less important state, but it doesn't cross the restriction
                 // threshold.
                 commitUidPendingState(uid);
@@ -332,24 +338,23 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
     }
 
     private void commitUidPendingState(int uid) {
-        int pendingUidState = mPendingUidStates.get(uid,
-                mUidStates.get(uid, MIN_PRIORITY_UID_STATE));
-        int pendingCapability = mPendingCapability.get(uid,
-                mCapability.get(uid, PROCESS_CAPABILITY_NONE));
-        boolean pendingAppWidgetVisible = mPendingAppWidgetVisible.get(uid,
-                mAppWidgetVisible.get(uid, false));
 
         int uidState = mUidStates.get(uid, MIN_PRIORITY_UID_STATE);
         int capability = mCapability.get(uid, PROCESS_CAPABILITY_NONE);
         boolean appWidgetVisible = mAppWidgetVisible.get(uid, false);
 
+        int pendingUidState = mPendingUidStates.get(uid, uidState);
+        int pendingCapability = mPendingCapability.get(uid, capability);
+        boolean pendingAppWidgetVisible = mPendingAppWidgetVisible.get(uid, appWidgetVisible);
+
+        boolean foregroundChange = uidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
+                != pendingUidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
+                || capability != pendingCapability
+                || appWidgetVisible != pendingAppWidgetVisible;
+
         if (uidState != pendingUidState
                 || capability != pendingCapability
                 || appWidgetVisible != pendingAppWidgetVisible) {
-            boolean foregroundChange = uidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
-                    != pendingUidState <= UID_STATE_MAX_LAST_NON_RESTRICTED
-                    || capability != pendingCapability
-                    || appWidgetVisible != pendingAppWidgetVisible;
 
             if (foregroundChange) {
                 // To save on memory usage, log only interesting changes.
@@ -372,6 +377,16 @@ class AppOpsUidStateTrackerImpl implements AppOpsUidStateTracker {
             mCapability.delete(uid);
             mAppWidgetVisible.delete(uid);
             mPendingGone.delete(uid);
+            if (finishRunningOpsForKilledPackages()) {
+                for (int i = 0; i < mUidStateChangedCallbacks.size(); i++) {
+                    UidStateChangedCallback cb = mUidStateChangedCallbacks.keyAt(i);
+                    Executor executor = mUidStateChangedCallbacks.valueAt(i);
+
+                    executor.execute(PooledLambda.obtainRunnable(
+                            UidStateChangedCallback::onUidStateChanged, cb, uid,
+                            UID_STATE_NONEXISTENT, foregroundChange));
+                }
+            }
         } else {
             mUidStates.put(uid, pendingUidState);
             mCapability.put(uid, pendingCapability);

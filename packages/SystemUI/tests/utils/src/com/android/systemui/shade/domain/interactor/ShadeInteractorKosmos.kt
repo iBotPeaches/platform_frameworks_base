@@ -23,11 +23,9 @@ import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.applicationCoroutineScope
 import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.scene.domain.interactor.sceneInteractor
-import com.android.systemui.scene.shared.flag.sceneContainerFlags
 import com.android.systemui.shade.ShadeModule
 import com.android.systemui.shade.data.repository.shadeRepository
-import com.android.systemui.statusbar.disableflags.data.repository.disableFlagsRepository
-import com.android.systemui.statusbar.notification.stack.domain.interactor.sharedNotificationContainerInteractor
+import com.android.systemui.statusbar.disableflags.domain.interactor.disableFlagsInteractor
 import com.android.systemui.statusbar.phone.dozeParameters
 import com.android.systemui.statusbar.policy.data.repository.userSetupRepository
 import com.android.systemui.statusbar.policy.domain.interactor.deviceProvisioningInteractor
@@ -36,7 +34,6 @@ import com.android.systemui.user.domain.interactor.userSwitcherInteractor
 var Kosmos.baseShadeInteractor: BaseShadeInteractor by
     Kosmos.Fixture {
         ShadeModule.provideBaseShadeInteractor(
-            sceneContainerFlags = sceneContainerFlags,
             sceneContainerOn = { shadeInteractorSceneContainerImpl },
             sceneContainerOff = { shadeInteractorLegacyImpl },
         )
@@ -46,7 +43,7 @@ val Kosmos.shadeInteractorSceneContainerImpl by
         ShadeInteractorSceneContainerImpl(
             scope = applicationCoroutineScope,
             sceneInteractor = sceneInteractor,
-            sharedNotificationContainerInteractor = sharedNotificationContainerInteractor,
+            shadeModeInteractor = shadeModeInteractor,
         )
     }
 val Kosmos.shadeInteractorLegacyImpl by
@@ -54,8 +51,7 @@ val Kosmos.shadeInteractorLegacyImpl by
         ShadeInteractorLegacyImpl(
             scope = applicationCoroutineScope,
             keyguardRepository = keyguardRepository,
-            sharedNotificationContainerInteractor = sharedNotificationContainerInteractor,
-            repository = shadeRepository
+            repository = shadeRepository,
         )
     }
 var Kosmos.shadeInteractor: ShadeInteractor by Kosmos.Fixture { shadeInteractorImpl }
@@ -64,7 +60,7 @@ val Kosmos.shadeInteractorImpl by
         ShadeInteractorImpl(
             scope = applicationCoroutineScope,
             deviceProvisioningInteractor = deviceProvisioningInteractor,
-            disableFlagsRepository = disableFlagsRepository,
+            disableFlagsInteractor = disableFlagsInteractor,
             dozeParams = dozeParameters,
             keyguardRepository = fakeKeyguardRepository,
             keyguardTransitionInteractor = keyguardTransitionInteractor,
@@ -72,5 +68,6 @@ val Kosmos.shadeInteractorImpl by
             userSetupRepository = userSetupRepository,
             userSwitcherInteractor = userSwitcherInteractor,
             baseShadeInteractor = baseShadeInteractor,
+            shadeModeInteractor = shadeModeInteractor,
         )
     }

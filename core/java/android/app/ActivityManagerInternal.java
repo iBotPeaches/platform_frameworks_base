@@ -44,6 +44,8 @@ import android.os.PowerExemptionManager.ReasonCode;
 import android.os.PowerExemptionManager.TempAllowListType;
 import android.os.TransactionTooLargeException;
 import android.os.WorkSource;
+import android.os.instrumentation.IOffsetCallback;
+import android.os.instrumentation.MethodDescriptor;
 import android.util.ArraySet;
 import android.util.Pair;
 
@@ -55,6 +57,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
@@ -148,6 +151,13 @@ public abstract class ActivityManagerInternal {
     public abstract void onUserRemoved(@UserIdInt int userId);
 
     /**
+     * Start user, if it is not already running, but don't bring it to foreground.
+     * @param userId ID of the user to start
+     * @return true if the user has been successfully started
+     */
+    public abstract boolean startUserInBackground(int userId);
+
+    /**
      * Kill foreground apps from the specified user.
      */
     public abstract void killForegroundAppsForUser(@UserIdInt int userId);
@@ -224,12 +234,6 @@ public abstract class ActivityManagerInternal {
      * @return {@code true} if system is ready, {@code false} otherwise.
      */
     public abstract boolean isSystemReady();
-
-    /**
-     * @return {@code true} if system is using the "modern" broadcast queue,
-     *         {@code false} otherwise.
-     */
-    public abstract boolean isModernQueueEnabled();
 
     /**
      * Enforce capability restrictions on use of the given BroadcastOptions
@@ -476,6 +480,11 @@ public abstract class ActivityManagerInternal {
      */
     public static final int OOM_ADJ_REASON_COMPONENT_DISABLED = 22;
 
+    /**
+     * Oom Adj Reason: Follow up update for time sensitive state evaluations.
+     */
+    public static final int OOM_ADJ_REASON_FOLLOW_UP = 23;
+
     @IntDef(prefix = {"OOM_ADJ_REASON_"}, value = {
         OOM_ADJ_REASON_NONE,
         OOM_ADJ_REASON_ACTIVITY,
@@ -500,6 +509,7 @@ public abstract class ActivityManagerInternal {
         OOM_ADJ_REASON_EXECUTING_SERVICE,
         OOM_ADJ_REASON_RESTRICTION_CHANGE,
         OOM_ADJ_REASON_COMPONENT_DISABLED,
+        OOM_ADJ_REASON_FOLLOW_UP,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface OomAdjReason {}
@@ -953,6 +963,17 @@ public abstract class ActivityManagerInternal {
             @Nullable VoiceInteractionManagerProvider provider);
 
     /**
+     * Get whether or not the previous user's packages will be killed before the user is
+     * stopped during a user switch.
+     *
+     * <p> The primary use case of this method is for {@link com.android.server.SystemService}
+     * classes to call this API in their
+     * {@link com.android.server.SystemService#onUserSwitching} method implementation to prevent
+     * restarting any of the previous user's processes that will be killed during the user switch.
+     */
+    public abstract boolean isEarlyPackageKillEnabledForUserSwitch(int fromUserId, int toUserId);
+
+    /**
      * Sets whether the current foreground user (and its profiles) should be stopped after switched
      * out.
      */
@@ -1100,19 +1121,9 @@ public abstract class ActivityManagerInternal {
     public abstract ArraySet<String> getClientPackages(String servicePackageName);
 
     /**
-     * Retrieve an IUnsafeIntentStrictModeCallback matching the given callingUid.
-     * Returns null no match is found.
-     * @param callingPid The PID mapped with the callback.
-     * @return The callback, if it exists.
+     * Trigger an unsafe intent usage strict mode violation.
      */
-    public abstract IUnsafeIntentStrictModeCallback getRegisteredStrictModeCallback(
-            int callingPid);
-
-    /**
-     * Unregisters an IUnsafeIntentStrictModeCallback matching the given callingUid.
-     * @param callingPid The PID mapped with the callback.
-     */
-    public abstract void unregisterStrictModeCallback(int callingPid);
+    public abstract void triggerUnsafeIntentStrictMode(int callingPid, int type, Intent intent);
 
     /**
      * Start a foreground service delegate.
@@ -1139,6 +1150,33 @@ public abstract class ActivityManagerInternal {
      * @hide
      */
     public abstract void stopForegroundServiceDelegate(@NonNull ServiceConnection connection);
+
+    /**
+     * Notifies that a media foreground service associated with a media session has
+     * transitioned to a "user-disengaged" state.
+     * Upon receiving this notification, service may be removed from the foreground state. It
+     * should only be called by {@link com.android.server.media.MediaSessionService}
+     *
+     * @param packageName The package name of the app running the media foreground service.
+     * @param userId The user ID associated with the foreground service.
+     * @param notificationId The ID of the media notification associated with the foreground
+     *                      service.
+     */
+    public abstract void notifyInactiveMediaForegroundService(@NonNull String packageName,
+            @UserIdInt int userId, int notificationId);
+
+    /**
+     * Notifies that a media service associated with a media session has transitioned to a
+     * "user-engaged" state. Upon receiving this notification, service will transition to the
+     * foreground state. It should only be called by
+     * {@link com.android.server.media.MediaSessionService}
+     *
+     * @param packageName The package name of the app running the media service.
+     * @param userId The user ID associated with the service.
+     * @param notificationId The ID of the media notification associated with the service.
+     */
+    public abstract void notifyActiveMediaForegroundService(@NonNull String packageName,
+            @UserIdInt int userId, int notificationId);
 
     /**
      * Same as {@link android.app.IActivityManager#startProfile(int userId)}, but it would succeed
@@ -1259,10 +1297,76 @@ public abstract class ActivityManagerInternal {
     public abstract boolean clearApplicationUserData(String packageName, boolean keepState,
             boolean isRestore, IPackageDataObserver observer, int userId);
 
+
     /**
-     * Returns current state of {@link com.android.systemui.theme.ThemeOverlayController} color
-     * palette readiness.
+     * Method that checks if system is Headless (don't delay launch) case in which it
+     * should also check if ThemeOverlayController is ready (don't delay) or not (delay).
+     *
+     * @param userId
+     * @return Boolean indicating if Home launch should wait for ThemeOverlayController signal
      * @hide
      */
-    public abstract boolean isThemeOverlayReady(int userId);
+    public abstract boolean shouldDelayHomeLaunch(int userId);
+
+    /**
+     * Used to track when a process is frozen or unfrozen.
+     */
+    public interface FrozenProcessListener {
+        /**
+         * Called when a process is frozen.
+         */
+        void onProcessFrozen(int pid);
+
+        /**
+         * Called when a process is unfrozen.
+         */
+        void onProcessUnfrozen(int pid);
+    }
+
+    /**
+     * Register the frozen process event listener callback. The same listener may be reused for
+     * multiple pids. Listeners are dropped when the process dies.
+     */
+    public abstract void addFrozenProcessListener(int pid, @NonNull Executor executor,
+            @NonNull FrozenProcessListener listener);
+
+    /**
+     * Add a startup timestamp to the most recent start of the specified process.
+     *
+     * @param key The {@link ApplicationStartInfo} start timestamp key of the timestamp to add.
+     * @param timestampNs The clock monotonic timestamp to add in nanoseconds.
+     * @param uid The UID of the process to add this timestamp to.
+     * @param pid The process id of the process to add this timestamp to.
+     * @param userId The userId in the multi-user environment.
+     */
+    public abstract void addStartInfoTimestamp(int key, long timestampNs, int uid, int pid,
+            int userId);
+
+    /**
+     * It is similar {@link IActivityManager#killApplication(String, int, int, String, int)} but
+     * it immediately stop the package.
+     *
+     * <p>Note: Do not call this method from inside PMS's lock, otherwise it'll run into
+     * watchdog reset.
+     * @hide
+     */
+    public abstract void killApplicationSync(String pkgName, int appId, int userId,
+            String reason, int exitInfoReason);
+
+    /**
+     * Queries the offset data for a given method on a process.
+     * @hide
+     */
+    public abstract void getExecutableMethodFileOffsets(@NonNull String processName,
+            int pid, int uid, @NonNull MethodDescriptor methodDescriptor,
+            @NonNull IOffsetCallback callback);
+
+    /**
+     * Add a creator token for all embedded intents (stored as extra) of the given intent.
+     *
+     * @param intent The given intent
+     * @param creatorPackage the package name of the creator app.
+     * @hide
+     */
+    public abstract void addCreatorToken(Intent intent, String creatorPackage);
 }

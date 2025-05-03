@@ -145,6 +145,11 @@ oneway interface ITaskStackListener {
     void onTaskSnapshotChanged(int taskId, in TaskSnapshot snapshot);
 
     /**
+     * Called when a task snapshot become invalidated.
+     */
+    void onTaskSnapshotInvalidated(int taskId);
+
+    /**
      * Reports that an Activity received a back key press when there were no additional activities
      * on the back stack.
      *
@@ -171,6 +176,11 @@ oneway interface ITaskStackListener {
      * @param frozen if true, Recents Tasks list is currently frozen, false otherwise
      */
     void onRecentTaskListFrozenChanged(boolean frozen);
+
+    /**
+     *  Called when a task is removed from the recent tasks list as a result of adding a new task.
+     */
+    void onRecentTaskRemovedForAddTask(int taskId);
 
     /**
      * Called when a task gets or loses focus.

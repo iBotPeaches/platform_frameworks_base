@@ -61,6 +61,9 @@ class TaskChangeNotificationController {
     private static final int NOTIFY_ACTIVITY_ROTATED_MSG = 26;
     private static final int NOTIFY_TASK_MOVED_TO_BACK_LISTENERS_MSG = 27;
     private static final int NOTIFY_LOCK_TASK_MODE_CHANGED_MSG = 28;
+    private static final int NOTIFY_TASK_SNAPSHOT_INVALIDATED_LISTENERS_MSG = 29;
+    private static final int NOTIFY_RECENT_TASK_REMOVED_FOR_ADD_TASK_LISTENERS_MSG = 30;
+
 
     // Delay in notifying task stack change listeners (in millis)
     private static final int NOTIFY_TASK_STACK_CHANGE_LISTENERS_DELAY = 100;
@@ -69,7 +72,6 @@ class TaskChangeNotificationController {
     private final Handler mHandler;
 
     // Task stack change listeners in a remote process.
-    @GuardedBy("mRemoteTaskStackListeners")
     private final RemoteCallbackList<ITaskStackListener> mRemoteTaskStackListeners =
             new RemoteCallbackList<>();
 
@@ -150,6 +152,9 @@ class TaskChangeNotificationController {
     private final TaskStackConsumer mNotifyTaskSnapshotChanged = (l, m) -> {
         l.onTaskSnapshotChanged(m.arg1, (TaskSnapshot) m.obj);
     };
+    private final TaskStackConsumer mNotifyTaskSnapshotInvalidated = (l, m) -> {
+        l.onTaskSnapshotInvalidated(m.arg1);
+    };
 
     private final TaskStackConsumer mNotifyTaskDisplayChanged = (l, m) -> {
         l.onTaskDisplayChanged(m.arg1, m.arg2);
@@ -161,6 +166,10 @@ class TaskChangeNotificationController {
 
     private final TaskStackConsumer mNotifyTaskListFrozen = (l, m) -> {
         l.onRecentTaskListFrozenChanged(m.arg1 != 0);
+    };
+
+    private final TaskStackConsumer mNotifyRecentTaskRemovedForAddTask = (l, m) -> {
+        l.onRecentTaskRemovedForAddTask(m.arg1);
     };
 
     private final TaskStackConsumer mNotifyTaskFocusChanged = (l, m) -> {
@@ -243,6 +252,7 @@ class TaskChangeNotificationController {
                     break;
                 case NOTIFY_TASK_SNAPSHOT_CHANGED_LISTENERS_MSG:
                     forAllRemoteListeners(mNotifyTaskSnapshotChanged, msg);
+                    ((TaskSnapshot) msg.obj).removeReference(TaskSnapshot.REFERENCE_BROADCAST);
                     break;
                 case NOTIFY_BACK_PRESSED_ON_TASK_ROOT:
                     forAllRemoteListeners(mNotifyBackPressedOnTaskRoot, msg);
@@ -255,6 +265,9 @@ class TaskChangeNotificationController {
                     break;
                 case NOTIFY_TASK_LIST_FROZEN_UNFROZEN_MSG:
                     forAllRemoteListeners(mNotifyTaskListFrozen, msg);
+                    break;
+                case NOTIFY_RECENT_TASK_REMOVED_FOR_ADD_TASK_LISTENERS_MSG:
+                    forAllRemoteListeners(mNotifyRecentTaskRemovedForAddTask, msg);
                     break;
                 case NOTIFY_TASK_FOCUS_CHANGED_MSG:
                     forAllRemoteListeners(mNotifyTaskFocusChanged, msg);
@@ -270,6 +283,9 @@ class TaskChangeNotificationController {
                     break;
                 case NOTIFY_LOCK_TASK_MODE_CHANGED_MSG:
                     forAllRemoteListeners(mNotifyLockTaskModeChanged, msg);
+                    break;
+                case NOTIFY_TASK_SNAPSHOT_INVALIDATED_LISTENERS_MSG:
+                    forAllRemoteListeners(mNotifyTaskSnapshotInvalidated, msg);
                     break;
             }
             if (msg.obj instanceof SomeArgs) {
@@ -294,9 +310,7 @@ class TaskChangeNotificationController {
                 }
             }
         } else if (listener != null) {
-            synchronized (mRemoteTaskStackListeners) {
-                mRemoteTaskStackListeners.register(listener);
-            }
+            mRemoteTaskStackListeners.register(listener);
         }
     }
 
@@ -306,24 +320,20 @@ class TaskChangeNotificationController {
                 mLocalTaskStackListeners.remove(listener);
             }
         } else if (listener != null) {
-            synchronized (mRemoteTaskStackListeners) {
-                mRemoteTaskStackListeners.unregister(listener);
-            }
+            mRemoteTaskStackListeners.unregister(listener);
         }
     }
 
     private void forAllRemoteListeners(TaskStackConsumer callback, Message message) {
-        synchronized (mRemoteTaskStackListeners) {
-            for (int i = mRemoteTaskStackListeners.beginBroadcast() - 1; i >= 0; i--) {
-                try {
-                    // Make a one-way callback to the listener
-                    callback.accept(mRemoteTaskStackListeners.getBroadcastItem(i), message);
-                } catch (RemoteException e) {
-                    // Handled by the RemoteCallbackList.
-                }
+        for (int i = mRemoteTaskStackListeners.beginBroadcast() - 1; i >= 0; i--) {
+            try {
+                // Make a one-way callback to the listener
+                callback.accept(mRemoteTaskStackListeners.getBroadcastItem(i), message);
+            } catch (RemoteException e) {
+                // Handled by the RemoteCallbackList.
             }
-            mRemoteTaskStackListeners.finishBroadcast();
         }
+        mRemoteTaskStackListeners.finishBroadcast();
     }
 
     private void forAllLocalListeners(TaskStackConsumer callback, Message message) {
@@ -478,9 +488,20 @@ class TaskChangeNotificationController {
      * Notify listeners that the snapshot of a task has changed.
      */
     void notifyTaskSnapshotChanged(int taskId, TaskSnapshot snapshot) {
+        snapshot.addReference(TaskSnapshot.REFERENCE_BROADCAST);
         final Message msg = mHandler.obtainMessage(NOTIFY_TASK_SNAPSHOT_CHANGED_LISTENERS_MSG,
                 taskId, 0, snapshot);
         forAllLocalListeners(mNotifyTaskSnapshotChanged, msg);
+        msg.sendToTarget();
+    }
+
+    /**
+     * Notify listeners that the snapshot of a task is invalidated.
+     */
+    void notifyTaskSnapshotInvalidated(int taskId) {
+        final Message msg = mHandler.obtainMessage(NOTIFY_TASK_SNAPSHOT_INVALIDATED_LISTENERS_MSG,
+                taskId, 0 /* unused */);
+        forAllLocalListeners(mNotifyTaskSnapshotInvalidated, msg);
         msg.sendToTarget();
     }
 
@@ -519,6 +540,15 @@ class TaskChangeNotificationController {
         final Message msg = mHandler.obtainMessage(NOTIFY_TASK_LIST_FROZEN_UNFROZEN_MSG,
                 frozen ? 1 : 0, 0 /* unused */);
         forAllLocalListeners(mNotifyTaskListFrozen, msg);
+        msg.sendToTarget();
+    }
+
+    /** Called when a task is removed from the recent tasks list. */
+    void notifyRecentTaskRemovedForAddTask(int taskId) {
+        final Message msg = mHandler.obtainMessage(
+                NOTIFY_RECENT_TASK_REMOVED_FOR_ADD_TASK_LISTENERS_MSG, taskId,
+                0 /* unused */);
+        forAllLocalListeners(mNotifyRecentTaskRemovedForAddTask, msg);
         msg.sendToTarget();
     }
 

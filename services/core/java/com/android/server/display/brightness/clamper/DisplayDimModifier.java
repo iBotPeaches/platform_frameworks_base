@@ -38,12 +38,12 @@ class DisplayDimModifier extends BrightnessModifier {
     // mScreenBrightnessDimConfig.
     private final float mScreenBrightnessMinimumDimAmount;
 
-    DisplayDimModifier(Context context) {
+    DisplayDimModifier(int displayId, Context context) {
         PowerManager pm = Objects.requireNonNull(context.getSystemService(PowerManager.class));
         Resources resources = context.getResources();
 
         mScreenBrightnessDimConfig = BrightnessUtils.clampAbsoluteBrightness(
-                pm.getBrightnessConstraint(PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_DIM));
+                pm.getBrightnessConstraint(displayId, PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_DIM));
         mScreenBrightnessMinimumDimAmount = resources.getFloat(
                 R.dimen.config_screenBrightnessMinimumDimAmountFloat);
     }
@@ -75,5 +75,15 @@ class DisplayDimModifier extends BrightnessModifier {
         pw.println("  mScreenBrightnessMinimumDimAmount=" + mScreenBrightnessMinimumDimAmount);
         IndentingPrintWriter ipw = new IndentingPrintWriter(pw, "    ");
         super.dump(ipw);
+    }
+
+    @Override
+    public boolean shouldListenToLightSensor() {
+        return false;
+    }
+
+    @Override
+    public void setAmbientLux(float lux) {
+        // unused
     }
 }

@@ -198,7 +198,7 @@ public class HdmiCecMessageValidator {
         addValidationInfo(Constants.MESSAGE_CEC_VERSION,
                 oneByteValidator, ADDR_NOT_UNREGISTERED, ADDR_DIRECT);
         addValidationInfo(Constants.MESSAGE_SET_MENU_LANGUAGE,
-                new AsciiValidator(3), ADDR_NOT_UNREGISTERED, ADDR_BROADCAST);
+                new AsciiValidator(3), ADDR_TV, ADDR_BROADCAST);
 
         ParameterValidator statusRequestValidator = new MinimumOneByteRangeValidator(0x01, 0x03);
         addValidationInfo(Constants.MESSAGE_DECK_CONTROL,
@@ -269,8 +269,7 @@ public class HdmiCecMessageValidator {
         addValidationInfo(Constants.MESSAGE_REQUEST_SHORT_AUDIO_DESCRIPTOR,
                 oneByteValidator, ADDR_NOT_UNREGISTERED, ADDR_DIRECT);
         addValidationInfo(Constants.MESSAGE_SET_SYSTEM_AUDIO_MODE,
-                new MinimumOneByteRangeValidator(0x00, 0x01),
-                ADDR_NOT_UNREGISTERED, ADDR_ALL);
+                new SingleByteRangeValidator(0x00, 0x01), ADDR_AUDIO_SYSTEM, ADDR_ALL);
         addValidationInfo(Constants.MESSAGE_SYSTEM_AUDIO_MODE_STATUS,
                 new SingleByteRangeValidator(0x00, 0x01), ADDR_NOT_UNREGISTERED,
                 ADDR_DIRECT);
@@ -486,6 +485,7 @@ public class HdmiCecMessageValidator {
      * @return true if the hour is valid
      */
     private static boolean isValidHour(int value) {
+        value = bcdToDecimal(value);
         return isWithinRange(value, 0, 23);
     }
 
@@ -497,6 +497,7 @@ public class HdmiCecMessageValidator {
      * @return true if the minute is valid
      */
     private static boolean isValidMinute(int value) {
+        value = bcdToDecimal(value);
         return isWithinRange(value, 0, 59);
     }
 
@@ -508,7 +509,21 @@ public class HdmiCecMessageValidator {
      * @return true if the duration hours is valid
      */
     private static boolean isValidDurationHours(int value) {
+        value = bcdToDecimal(value);
         return isWithinRange(value, 0, 99);
+    }
+
+    /**
+     * Convert BCD value to decimal value.
+     *
+     * @param value BCD value
+     * @return decimal value
+     */
+    private static int bcdToDecimal(int value) {
+        int tens = (value & 0xF0) >> 4;
+        int ones = (value & 0x0F);
+
+        return tens * 10 + ones;
     }
 
     /**
@@ -524,8 +539,7 @@ public class HdmiCecMessageValidator {
         if ((value & 0x80) != 0x00) {
             return false;
         }
-        // Validate than not more than one bit is set
-        return (Integer.bitCount(value) <= 1);
+        return true;
     }
 
     /**
@@ -770,6 +784,7 @@ public class HdmiCecMessageValidator {
      * @return true if the UI Broadcast type is valid
      */
     private static boolean isValidUiBroadcastType(int value) {
+        value = value & 0xFF;
         return ((value == 0x00)
                 || (value == 0x01)
                 || (value == 0x10)

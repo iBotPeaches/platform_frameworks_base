@@ -16,6 +16,8 @@
 
 package com.android.systemui.qs.tiles.dialog;
 
+import static android.telephony.SubscriptionManager.PROFILE_CLASS_PROVISIONING;
+
 import static com.android.settingslib.mobile.MobileMappings.getIconKey;
 import static com.android.settingslib.mobile.MobileMappings.mapIconSets;
 import static com.android.settingslib.wifi.WifiUtils.getHotspotIconResource;
@@ -63,6 +65,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
 
+import com.android.app.viewcapture.ViewCaptureAwareWindowManager;
 import com.android.internal.logging.UiEventLogger;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.KeyguardUpdateMonitorCallback;
@@ -84,6 +87,7 @@ import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.flags.Flags;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.res.R;
+import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.statusbar.connectivity.AccessPointController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.LocationController;
@@ -116,8 +120,6 @@ import javax.inject.Inject;
 public class InternetDialogController implements AccessPointController.AccessPointCallback {
 
     private static final String TAG = "InternetDialogController";
-    private static final String ACTION_NETWORK_PROVIDER_SETTINGS =
-            "android.settings.NETWORK_PROVIDER_SETTINGS";
     private static final String ACTION_WIFI_SCANNING_SETTINGS =
             "android.settings.WIFI_SCANNING_SETTINGS";
     /**
@@ -147,7 +149,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
     private static final TelephonyDisplayInfo DEFAULT_TELEPHONY_DISPLAY_INFO =
             new TelephonyDisplayInfo(TelephonyManager.NETWORK_TYPE_UNKNOWN,
-                    TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NONE, false);
+                    TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NONE, false, false, false);
 
     static final int MAX_WIFI_ENTRY_COUNT = 3;
 
@@ -184,7 +186,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     private GlobalSettings mGlobalSettings;
     private int mDefaultDataSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
     private ConnectivityManager.NetworkCallback mConnectivityManagerNetworkCallback;
-    private WindowManager mWindowManager;
+    private ViewCaptureAwareWindowManager mWindowManager;
     private ToastFactory mToastFactory;
     private SignalDrawable mSignalDrawable;
     private SignalDrawable mSecondarySignalDrawable; // For the secondary mobile data sub in DSDS
@@ -192,8 +194,11 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     private DialogTransitionAnimator mDialogTransitionAnimator;
     private boolean mHasWifiEntries;
     private WifiStateWorker mWifiStateWorker;
-    private boolean mHasActiveSubId;
+    private boolean mHasActiveSubIdOnDds;
+    private boolean mIsMobileDataEnabled = false;
 
+    @VisibleForTesting
+    Map<Integer, ServiceState> mSubIdServiceState = new HashMap<>();
     @VisibleForTesting
     static final float TOAST_PARAMS_HORIZONTAL_WEIGHT = 1.0f;
     @VisibleForTesting
@@ -239,14 +244,14 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     }
 
     @Inject
-    public InternetDialogController(@NonNull Context context, UiEventLogger uiEventLogger,
+    public InternetDialogController(@ShadeDisplayAware Context context, UiEventLogger uiEventLogger,
             ActivityStarter starter, AccessPointController accessPointController,
             SubscriptionManager subscriptionManager, TelephonyManager telephonyManager,
             @Nullable WifiManager wifiManager, ConnectivityManager connectivityManager,
             @Main Handler handler, @Main Executor mainExecutor,
             BroadcastDispatcher broadcastDispatcher, KeyguardUpdateMonitor keyguardUpdateMonitor,
             GlobalSettings globalSettings, KeyguardStateController keyguardStateController,
-            WindowManager windowManager, ToastFactory toastFactory,
+            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager, ToastFactory toastFactory,
             @Background Handler workerHandler,
             CarrierConfigTracker carrierConfigTracker,
             LocationController locationController,
@@ -278,7 +283,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         mAccessPointController = accessPointController;
         mWifiIconInjector = new WifiUtils.InternetIconInjector(mContext);
         mConnectivityManagerNetworkCallback = new DataConnectivityListener();
-        mWindowManager = windowManager;
+        mWindowManager = viewCaptureAwareWindowManager;
         mToastFactory = toastFactory;
         mSignalDrawable = new SignalDrawable(mContext);
         mSecondarySignalDrawable = new SignalDrawable(mContext);
@@ -300,7 +305,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
                 mExecutor);
         // Listen the subscription changes
         mOnSubscriptionsChangedListener = new InternetOnSubscriptionChangedListener();
-        refreshHasActiveSubId();
+        refreshHasActiveSubIdOnDds();
         mSubscriptionManager.addOnSubscriptionsChangedListener(mExecutor,
                 mOnSubscriptionsChangedListener);
         mDefaultDataSubId = getDefaultDataSubscriptionId();
@@ -310,10 +315,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         mConfig = MobileMappings.Config.readConfig(mContext);
         mTelephonyManager = mTelephonyManager.createForSubscriptionId(mDefaultDataSubId);
         mSubIdTelephonyManagerMap.put(mDefaultDataSubId, mTelephonyManager);
-        InternetTelephonyCallback telephonyCallback =
-                new InternetTelephonyCallback(mDefaultDataSubId);
-        mSubIdTelephonyCallbackMap.put(mDefaultDataSubId, telephonyCallback);
-        mTelephonyManager.registerTelephonyCallback(mExecutor, telephonyCallback);
+        registerInternetTelephonyCallback(mTelephonyManager, mDefaultDataSubId);
         // Listen the connectivity changes
         mConnectivityManager.registerDefaultNetworkCallback(mConnectivityManagerNetworkCallback);
         mCanConfigWifi = canConfigWifi;
@@ -345,7 +347,23 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         mCallback = null;
     }
 
-    @VisibleForTesting
+    /**
+     * This is to generate and register the new callback to Telephony for uncached subscription id,
+     * then cache it. Telephony also cached this callback into
+     * {@link com.android.server.TelephonyRegistry}, so if subscription id and callback were cached
+     * already, it shall do nothing to avoid registering redundant callback to Telephony.
+     */
+    private void registerInternetTelephonyCallback(
+            TelephonyManager telephonyManager, int subId) {
+        if (mSubIdTelephonyCallbackMap.containsKey(subId)) {
+            // Avoid to generate and register unnecessary callback to Telephony.
+            return;
+        }
+        InternetTelephonyCallback telephonyCallback = new InternetTelephonyCallback(subId);
+        mSubIdTelephonyCallbackMap.put(subId, telephonyCallback);
+        telephonyManager.registerTelephonyCallback(mExecutor, telephonyCallback);
+    }
+
     boolean isAirplaneModeEnabled() {
         return mGlobalSettings.getInt(Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
     }
@@ -361,7 +379,8 @@ public class InternetDialogController implements AccessPointController.AccessPoi
 
     @VisibleForTesting
     protected Intent getSettingsIntent() {
-        return new Intent(ACTION_NETWORK_PROVIDER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return new Intent(Settings.ACTION_NETWORK_PROVIDER_SETTINGS).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK);
     }
 
     @Nullable
@@ -429,7 +448,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         }
         boolean isActiveOnNonDds = getActiveAutoSwitchNonDdsSubId() != SubscriptionManager
                 .INVALID_SUBSCRIPTION_ID;
-        if (!hasActiveSubId() || (!isVoiceStateInService(mDefaultDataSubId)
+        if (!hasActiveSubIdOnDds() || (!isVoiceStateInService(mDefaultDataSubId)
                 && !isDataStateInService(mDefaultDataSubId) && !isActiveOnNonDds)) {
             if (DEBUG) {
                 Log.d(TAG, "No carrier or service is out of service.");
@@ -437,7 +456,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             return mContext.getText(SUBTITLE_TEXT_ALL_CARRIER_NETWORK_UNAVAILABLE);
         }
 
-        if (mCanConfigWifi && !isMobileDataEnabled()) {
+        if (mCanConfigWifi && !mIsMobileDataEnabled) {
             if (DEBUG) {
                 Log.d(TAG, "Mobile data off");
             }
@@ -535,7 +554,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             numLevels += 1;
         }
         return getSignalStrengthIcon(subId, mContext, level, numLevels, NO_CELL_DATA_TYPE_ICON,
-                !isMobileDataEnabled());
+                !mIsMobileDataEnabled);
     }
 
     Drawable getSignalStrengthIcon(int subId, Context context, int level, int numLevels,
@@ -665,6 +684,12 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             // sets the non-DDS to be not found to hide its visual
             return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
         }
+        int activeDataSubId = SubscriptionManager.getActiveDataSubscriptionId();
+        if (activeDataSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID
+                || mDefaultDataSubId == activeDataSubId) {
+            return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+        }
+
         SubscriptionInfo subInfo = mSubscriptionManager.getActiveSubscriptionInfo(
                 SubscriptionManager.getActiveDataSubscriptionId());
         if (subInfo != null && subInfo.getSubscriptionId() != mDefaultDataSubId
@@ -672,9 +697,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             int subId = subInfo.getSubscriptionId();
             if (mSubIdTelephonyManagerMap.get(subId) == null) {
                 TelephonyManager secondaryTm = mTelephonyManager.createForSubscriptionId(subId);
-                InternetTelephonyCallback telephonyCallback = new InternetTelephonyCallback(subId);
-                secondaryTm.registerTelephonyCallback(mExecutor, telephonyCallback);
-                mSubIdTelephonyCallbackMap.put(subId, telephonyCallback);
+                registerInternetTelephonyCallback(secondaryTm, subId);
                 mSubIdTelephonyManagerMap.put(subId, secondaryTm);
             }
             return subId;
@@ -726,7 +749,6 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         if (!isMobileDataEnabled()) {
             return context.getString(R.string.mobile_data_off_summary);
         }
-
         String summary = networkTypeDescription;
         boolean isForDds = subId == mDefaultDataSubId;
         int activeSubId = getActiveAutoSwitchNonDdsSubId();
@@ -734,12 +756,13 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         // Set network description for the carrier network when connecting to the carrier network
         // under the airplane mode ON.
         if (activeNetworkIsCellular() || isCarrierNetworkActive()) {
-            summary = context.getString(R.string.preference_summary_default_combination,
+            summary = context.getString(
+                    com.android.settingslib.R.string.preference_summary_default_combination,
                     context.getString(
                             isForDds // if nonDds is active, explains Dds status as poor connection
                                     ? (isOnNonDds ? R.string.mobile_data_poor_connection
-                                            : R.string.mobile_data_connection_active)
-                            : R.string.mobile_data_temp_connection_active),
+                                    : R.string.mobile_data_connection_active)
+                                    : R.string.mobile_data_temp_connection_active),
                     networkTypeDescription);
         } else if (!isDataStateInService(subId)) {
             summary = context.getString(R.string.mobile_data_no_connection);
@@ -747,7 +770,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         return summary;
     }
 
-    private void startActivity(Intent intent, View view) {
+    void startActivity(Intent intent, View view) {
         ActivityTransitionAnimator.Controller controller =
                 mDialogTransitionAnimator.createActivityTransitionController(view);
 
@@ -902,33 +925,53 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     /**
      * @return whether there is the carrier item in the slice.
      */
-    boolean hasActiveSubId() {
+    boolean hasActiveSubIdOnDds() {
         if (isAirplaneModeEnabled() || mTelephonyManager == null) {
             return false;
         }
 
-        return mHasActiveSubId;
+        return mHasActiveSubIdOnDds;
     }
 
-    private void refreshHasActiveSubId() {
+    private static boolean isEmbeddedSubscriptionVisible(@NonNull SubscriptionInfo subInfo) {
+        if (subInfo.isEmbedded() && subInfo.getProfileClass() == PROFILE_CLASS_PROVISIONING) {
+            return false;
+        }
+        return true;
+    }
+
+    private void refreshHasActiveSubIdOnDds() {
         if (mSubscriptionManager == null) {
-            mHasActiveSubId = false;
+            mHasActiveSubIdOnDds = false;
             Log.e(TAG, "SubscriptionManager is null, set mHasActiveSubId = false");
             return;
         }
+        int dds = getDefaultDataSubscriptionId();
+        if (dds == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            mHasActiveSubIdOnDds = false;
+            Log.d(TAG, "DDS is INVALID_SUBSCRIPTION_ID");
+            return;
+        }
+        SubscriptionInfo ddsSubInfo = mSubscriptionManager.getActiveSubscriptionInfo(dds);
+        if (ddsSubInfo == null) {
+            mHasActiveSubIdOnDds = false;
+            Log.e(TAG, "Can't get DDS subscriptionInfo");
+            return;
+        } else if (ddsSubInfo.isOnlyNonTerrestrialNetwork()) {
+            mHasActiveSubIdOnDds = false;
+            Log.d(TAG, "This is NTN, so do not show mobile data");
+            return;
+        }
 
-        mHasActiveSubId = mSubscriptionManager.getActiveSubscriptionIdList().length > 0;
-        Log.i(TAG, "mHasActiveSubId:" + mHasActiveSubId);
+        mHasActiveSubIdOnDds = isEmbeddedSubscriptionVisible(ddsSubInfo);
+        Log.i(TAG, "mHasActiveSubId:" + mHasActiveSubIdOnDds);
     }
 
     /**
      * Return {@code true} if mobile data is enabled
      */
     boolean isMobileDataEnabled() {
-        if (mTelephonyManager == null || !mTelephonyManager.isDataEnabled()) {
-            return false;
-        }
-        return true;
+        return mIsMobileDataEnabled;
     }
 
     /**
@@ -981,8 +1024,8 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     }
 
     boolean isDataStateInService(int subId) {
-        TelephonyManager tm = mSubIdTelephonyManagerMap.getOrDefault(subId, mTelephonyManager);
-        final ServiceState serviceState = tm.getServiceState();
+        final ServiceState serviceState = mSubIdServiceState.getOrDefault(subId,
+                new ServiceState());
         NetworkRegistrationInfo regInfo =
                 (serviceState == null) ? null : serviceState.getNetworkRegistrationInfo(
                         NetworkRegistrationInfo.DOMAIN_PS,
@@ -998,8 +1041,8 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             return false;
         }
 
-        TelephonyManager tm = mSubIdTelephonyManagerMap.getOrDefault(subId, mTelephonyManager);
-        final ServiceState serviceState = tm.getServiceState();
+        final ServiceState serviceState = mSubIdServiceState.getOrDefault(subId,
+                new ServiceState());
         return serviceState != null
                 && serviceState.getState() == serviceState.STATE_IN_SERVICE;
     }
@@ -1018,6 +1061,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
 
         final Network activeNetwork = mConnectivityManager.getActiveNetwork();
         if (activeNetwork == null) {
+            Log.d(TAG, "getActiveNetwork is null.");
             return false;
         }
         final NetworkCapabilities networkCapabilities =
@@ -1145,14 +1189,16 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     }
 
     private class InternetTelephonyCallback extends TelephonyCallback implements
+            TelephonyCallback.DataEnabledListener,
             TelephonyCallback.DataConnectionStateListener,
             TelephonyCallback.DisplayInfoListener,
             TelephonyCallback.ServiceStateListener,
             TelephonyCallback.SignalStrengthsListener,
             TelephonyCallback.UserMobileDataStateListener,
-            TelephonyCallback.CarrierNetworkListener{
+            TelephonyCallback.CarrierNetworkListener {
 
         private final int mSubId;
+
         private InternetTelephonyCallback(int subId) {
             mSubId = subId;
         }
@@ -1162,6 +1208,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             if (mCallback != null) {
                 mCallback.onServiceStateChanged(serviceState);
             }
+            mSubIdServiceState.put(mSubId, serviceState);
         }
 
         @Override
@@ -1200,6 +1247,13 @@ public class InternetDialogController implements AccessPointController.AccessPoi
                 mCallback.onCarrierNetworkChange(active);
             }
         }
+
+        @Override
+        public void onDataEnabledChanged(boolean b, int i) {
+            if (mSubId == mDefaultDataSubId) {
+                mIsMobileDataEnabled = b;
+            }
+        }
     }
 
     private class InternetOnSubscriptionChangedListener
@@ -1210,7 +1264,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
 
         @Override
         public void onSubscriptionsChanged() {
-            refreshHasActiveSubId();
+            refreshHasActiveSubIdOnDds();
             updateListener();
         }
     }
@@ -1307,6 +1361,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
                     Log.d(TAG, "ACTION_DEFAULT_DATA_SUBSCRIPTION_CHANGED");
                 }
                 mConfig = MobileMappings.Config.readConfig(context);
+                refreshHasActiveSubIdOnDds();
                 updateListener();
             } else if (WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION.equals(action)) {
                 updateListener();
@@ -1325,6 +1380,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
         if (DEBUG) {
             Log.d(TAG, "DDS: defaultDataSubId:" + defaultDataSubId);
         }
+
         if (SubscriptionManager.isUsableSubscriptionId(defaultDataSubId)) {
             // clean up old defaultDataSubId
             TelephonyCallback oldCallback = mSubIdTelephonyCallbackMap.get(mDefaultDataSubId);
@@ -1340,23 +1396,18 @@ public class InternetDialogController implements AccessPointController.AccessPoi
             // create for new defaultDataSubId
             mTelephonyManager = mTelephonyManager.createForSubscriptionId(defaultDataSubId);
             mSubIdTelephonyManagerMap.put(defaultDataSubId, mTelephonyManager);
-            InternetTelephonyCallback newCallback = new InternetTelephonyCallback(defaultDataSubId);
-            mSubIdTelephonyCallbackMap.put(defaultDataSubId, newCallback);
-            mTelephonyManager.registerTelephonyCallback(mHandler::post, newCallback);
+            registerInternetTelephonyCallback(mTelephonyManager, defaultDataSubId);
             mCallback.onSubscriptionsChanged(defaultDataSubId);
         }
         mDefaultDataSubId = defaultDataSubId;
     }
 
-    boolean mayLaunchShareWifiSettings(WifiEntry wifiEntry) {
+    boolean mayLaunchShareWifiSettings(WifiEntry wifiEntry, View view) {
         Intent intent = getConfiguratorQrCodeGeneratorIntentOrNull(wifiEntry);
         if (intent == null) {
             return false;
         }
-        if (mCallback != null) {
-            mCallback.dismissDialog();
-        }
-        mActivityStarter.startActivity(intent, false /* dismissShade */);
+        startActivity(intent, view);
         return true;
     }
 
@@ -1395,7 +1446,7 @@ public class InternetDialogController implements AccessPointController.AccessPoi
     void makeOverlayToast(int stringId) {
         final Resources res = mContext.getResources();
 
-        final SystemUIToast systemUIToast = mToastFactory.createToast(mContext,
+        final SystemUIToast systemUIToast = mToastFactory.createToast(mContext, mContext,
                 res.getString(stringId), mContext.getPackageName(), UserHandle.myUserId(),
                 res.getConfiguration().orientation);
         if (systemUIToast == null) {
@@ -1450,7 +1501,8 @@ public class InternetDialogController implements AccessPointController.AccessPoi
 
     Intent getConfiguratorQrCodeGeneratorIntentOrNull(WifiEntry wifiEntry) {
         if (!mFeatureFlags.isEnabled(Flags.SHARE_WIFI_QS_BUTTON) || wifiEntry == null
-                || mWifiManager == null || !wifiEntry.canShare()) {
+                || mWifiManager == null || !wifiEntry.canShare()
+                || wifiEntry.getWifiConfiguration() == null) {
             return null;
         }
         Intent intent = new Intent();

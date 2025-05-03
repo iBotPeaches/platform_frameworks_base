@@ -16,31 +16,34 @@
 
 package com.android.systemui.reardisplay;
 
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_INNER_PRIMARY;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_CLOSED;
+import static android.hardware.devicestate.DeviceState.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_OPEN;
+
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotSame;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.hardware.devicestate.DeviceState;
 import android.hardware.devicestate.DeviceStateManager;
-import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.systemui.SysuiTestCase;
-import com.android.systemui.res.R;
 import com.android.systemui.flags.FakeFeatureFlags;
-import com.android.systemui.flags.Flags;
 import com.android.systemui.model.SysUiState;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.CommandQueue;
@@ -55,8 +58,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
+import java.util.Set;
+
 @SmallTest
-@RunWith(AndroidTestingRunner.class)
+@RunWith(AndroidJUnit4.class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
 public class RearDisplayDialogControllerTest extends SysuiTestCase {
 
@@ -71,19 +77,31 @@ public class RearDisplayDialogControllerTest extends SysuiTestCase {
     private SysUiState mSysUiState;
     @Mock
     private Resources mResources;
+    @Mock
+    private DeviceStateManager mDeviceStateManager;
 
     LayoutInflater mLayoutInflater = LayoutInflater.from(mContext);
 
     private final FakeExecutor mFakeExecutor = new FakeExecutor(new FakeSystemClock());
 
-    private static final int CLOSED_BASE_STATE = 0;
-    private static final int OPEN_BASE_STATE = 1;
+    private static final DeviceState CLOSED_BASE_STATE = new DeviceState(
+            new DeviceState.Configuration.Builder(0, "CLOSED").setSystemProperties(
+                    Set.of(PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY))
+                    .setPhysicalProperties(Set.of(
+                            PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_CLOSED))
+                    .build());
+    private static final DeviceState OPEN_BASE_STATE = new DeviceState(
+            new DeviceState.Configuration.Builder(1, "OPEN").setSystemProperties(
+                    Set.of(PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_INNER_PRIMARY))
+                    .setPhysicalProperties(Set.of(
+                            PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_OPEN))
+                    .build());
 
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
 
-        when(mSysUiState.setFlag(anyInt(), anyBoolean())).thenReturn(mSysUiState);
+        when(mSysUiState.setFlag(anyLong(), anyBoolean())).thenReturn(mSysUiState);
         when(mSystemUIDialogFactory.create()).thenReturn(mSystemUIDialog);
         when(mSystemUIDialog.getContext()).thenReturn(mContext);
     }
@@ -94,12 +112,13 @@ public class RearDisplayDialogControllerTest extends SysuiTestCase {
                 mFakeExecutor,
                 mResources,
                 mLayoutInflater,
-                mSystemUIDialogFactory);
+                mSystemUIDialogFactory,
+                mDeviceStateManager);
         controller.setDeviceStateManagerCallback(new TestDeviceStateManagerCallback());
-        controller.setFoldedStates(new int[]{0});
+        controller.setFoldedStates(List.of(0));
         controller.setAnimationRepeatCount(0);
 
-        controller.showRearDisplayDialog(CLOSED_BASE_STATE);
+        controller.showRearDisplayDialog(CLOSED_BASE_STATE.getIdentifier());
         verify(mSystemUIDialog).show();
 
         View container = getDialogViewContainer();
@@ -117,12 +136,13 @@ public class RearDisplayDialogControllerTest extends SysuiTestCase {
                 mFakeExecutor,
                 mResources,
                 mLayoutInflater,
-                mSystemUIDialogFactory);
+                mSystemUIDialogFactory,
+                mDeviceStateManager);
         controller.setDeviceStateManagerCallback(new TestDeviceStateManagerCallback());
-        controller.setFoldedStates(new int[]{0});
+        controller.setFoldedStates(List.of(0));
         controller.setAnimationRepeatCount(0);
 
-        controller.showRearDisplayDialog(CLOSED_BASE_STATE);
+        controller.showRearDisplayDialog(CLOSED_BASE_STATE.getIdentifier());
         verify(mSystemUIDialog).show();
         View container = getDialogViewContainer();
         TextView deviceClosedTitleTextView = container.findViewById(
@@ -146,12 +166,13 @@ public class RearDisplayDialogControllerTest extends SysuiTestCase {
                 mFakeExecutor,
                 mResources,
                 mLayoutInflater,
-                mSystemUIDialogFactory);
+                mSystemUIDialogFactory,
+                mDeviceStateManager);
         controller.setDeviceStateManagerCallback(new TestDeviceStateManagerCallback());
-        controller.setFoldedStates(new int[]{0});
+        controller.setFoldedStates(List.of(0));
         controller.setAnimationRepeatCount(0);
 
-        controller.showRearDisplayDialog(OPEN_BASE_STATE);
+        controller.showRearDisplayDialog(OPEN_BASE_STATE.getIdentifier());
 
         verify(mSystemUIDialog).show();
         View container = getDialogViewContainer();
@@ -176,6 +197,6 @@ public class RearDisplayDialogControllerTest extends SysuiTestCase {
             DeviceStateManager.DeviceStateCallback {
 
         @Override
-        public void onStateChanged(int state) { }
+        public void onDeviceStateChanged(DeviceState state) { }
     }
 }

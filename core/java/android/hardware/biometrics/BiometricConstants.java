@@ -162,6 +162,22 @@ public interface BiometricConstants {
      * @hide
      */
     int BIOMETRIC_ERROR_POWER_PRESSED = 19;
+
+    /**
+     * Identity Check is currently not active.
+     *
+     * This device either doesn't have this feature enabled, or it's not considered in a
+     * high-risk environment that requires extra security measures for accessing sensitive data.
+     */
+    @FlaggedApi(Flags.FLAG_IDENTITY_CHECK_API)
+    int BIOMETRIC_ERROR_IDENTITY_CHECK_NOT_ACTIVE = 20;
+
+    /**
+     * Biometrics is not allowed to verify the user in apps.
+     */
+    @FlaggedApi(Flags.FLAG_IDENTITY_CHECK_API)
+    int BIOMETRIC_ERROR_NOT_ENABLED_FOR_APPS = 21;
+
     /**
      * This constant is only used by SystemUI. It notifies SystemUI that authentication was paused
      * because the authentication attempt was unsuccessful.
@@ -191,6 +207,8 @@ public interface BiometricConstants {
             BIOMETRIC_ERROR_NEGATIVE_BUTTON,
             BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL,
             BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED,
+            BIOMETRIC_ERROR_IDENTITY_CHECK_NOT_ACTIVE,
+            BIOMETRIC_ERROR_NOT_ENABLED_FOR_APPS,
             BIOMETRIC_PAUSED_REJECTED})
     @Retention(RetentionPolicy.SOURCE)
     @interface Errors {}
@@ -306,6 +324,5 @@ public interface BiometricConstants {
      * Returned from {@link BiometricManager#getLastAuthenticationTime(int)} when there has
      * been no successful authentication for the given authenticator since boot.
      */
-    @FlaggedApi(Flags.FLAG_LAST_AUTHENTICATION_TIME)
     long BIOMETRIC_NO_AUTHENTICATION = -1;
 }

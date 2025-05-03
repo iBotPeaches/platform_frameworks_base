@@ -89,6 +89,9 @@ public class InputShellCommand extends ShellCommand {
     private static final int DEFAULT_FLAGS = 0;
     private static final boolean INJECT_ASYNC = true;
     private static final boolean INJECT_SYNC = false;
+    private static final long SECOND_IN_MILLISECONDS = 1000;
+
+    public static final int SWIPE_EVENT_HZ_DEFAULT = 120;
 
     /** Modifier key to meta state */
     private static final Map<Integer, Integer> MODIFIER;
@@ -333,8 +336,8 @@ public class InputShellCommand extends ShellCommand {
             out.println();
             out.println("The commands and default sources are:");
             out.println("      text <string> (Default: keyboard)");
-            out.println("      keyevent [--longpress|--doubletap|--async"
-                    + "|--delay <duration between keycodes in ms>]"
+            out.println("      keyevent [--longpress|--duration <duration to hold key down in ms>]"
+                    + " [--doubletap] [--async] [--delay <duration between keycodes in ms>]"
                     + " <key code number or name> ..."
                     + " (Default: keyboard)");
             out.println("      tap <x> <y> (Default: touchscreen)");
@@ -402,6 +405,7 @@ public class InputShellCommand extends ShellCommand {
         boolean async = false;
         boolean doubleTap = false;
         long delayMs = 0;
+        long durationMs = 0;
 
         String arg = getNextArgRequired();
         do {
@@ -411,8 +415,20 @@ public class InputShellCommand extends ShellCommand {
             doubleTap = (doubleTap || arg.equals("--doubletap"));
             if (arg.equals("--delay")) {
                 delayMs = Long.parseLong(getNextArgRequired());
+            } else if (arg.equals("--duration")) {
+                durationMs = Long.parseLong(getNextArgRequired());
             }
         } while ((arg = getNextArg()) != null);
+
+        if (durationMs > 0 && longPress) {
+            getErrPrintWriter().println(
+                    "--duration and --longpress cannot be used at the same time.");
+            throw new IllegalArgumentException(
+                    "keyevent args should only contain either durationMs or longPress");
+        }
+        if (longPress) {
+            durationMs = ViewConfiguration.getLongPressTimeout();
+        }
 
         boolean firstInput = true;
         do {
@@ -422,16 +438,17 @@ public class InputShellCommand extends ShellCommand {
             firstInput = false;
 
             final int keyCode = KeyEvent.keyCodeFromString(arg);
-            sendKeyEvent(inputSource, keyCode, longPress, displayId, async);
+            sendKeyEvent(inputSource, keyCode, durationMs, displayId, async);
             if (doubleTap) {
                 sleep(ViewConfiguration.getDoubleTapMinTime());
-                sendKeyEvent(inputSource, keyCode, longPress, displayId, async);
+                sendKeyEvent(inputSource, keyCode, durationMs, displayId, async);
             }
         } while ((arg = getNextArg()) != null);
     }
 
     private void sendKeyEvent(
-            int inputSource, int keyCode, boolean longPress, int displayId, boolean async) {
+            int inputSource, int keyCode, long durationMs, int displayId,
+            boolean async) {
         final long now = SystemClock.uptimeMillis();
 
         KeyEvent event = new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0 /* repeatCount */,
@@ -440,14 +457,25 @@ public class InputShellCommand extends ShellCommand {
         event.setDisplayId(displayId);
 
         injectKeyEvent(event, async);
-        if (longPress) {
-            sleep(ViewConfiguration.getLongPressTimeout());
-            // Some long press behavior would check the event time, we set a new event time here.
-            final long nextEventTime = now + ViewConfiguration.getLongPressTimeout();
-            KeyEvent longPressEvent = KeyEvent.changeTimeRepeat(
-                    event, nextEventTime, 1 /* repeatCount */, KeyEvent.FLAG_LONG_PRESS);
-            injectKeyEvent(longPressEvent, async);
+        long firstSleepDurationMs = Math.min(durationMs, ViewConfiguration.getLongPressTimeout());
+        if (firstSleepDurationMs > 0) {
+            sleep(firstSleepDurationMs);
+            // Send FLAG_LONG_PRESS right after `longPressTimeout`, and resume sleep if needed.
+            if (durationMs >= ViewConfiguration.getLongPressTimeout()) {
+                // Some long press behavior would check the event time, we set a new event time
+                // here.
+                final long nextEventTime = now + ViewConfiguration.getLongPressTimeout();
+                KeyEvent longPressEvent = KeyEvent.changeTimeRepeat(event, nextEventTime,
+                        1 /* repeatCount */, KeyEvent.FLAG_LONG_PRESS);
+                injectKeyEvent(longPressEvent, async);
+
+                long secondSleepDurationMs = durationMs - firstSleepDurationMs;
+                if (secondSleepDurationMs > 0) {
+                    sleep(secondSleepDurationMs);
+                }
+            }
         }
+        event = KeyEvent.changeTimeRepeat(event, SystemClock.uptimeMillis(), 0);
         injectKeyEvent(KeyEvent.changeAction(event, KeyEvent.ACTION_UP), async);
     }
 
@@ -495,11 +523,30 @@ public class InputShellCommand extends ShellCommand {
         }
         long now = SystemClock.uptimeMillis();
         final long endTime = down + duration;
+        final float swipeEventPeriodMillis =
+                (float) SECOND_IN_MILLISECONDS / SWIPE_EVENT_HZ_DEFAULT;
+        int injected = 1;
         while (now < endTime) {
-            final long elapsedTime = now - down;
+            // Ensure that we inject at most at the frequency of SWIPE_EVENT_HZ_DEFAULT
+            // by waiting an additional delta between the actual time and expected time.
+            long elapsedTime = now - down;
+            final long errorMillis =
+                    (long) Math.floor(injected * swipeEventPeriodMillis - elapsedTime);
+            if (errorMillis > 0) {
+                // Make sure not to exceed the duration and inject an extra event.
+                if (errorMillis > endTime - now) {
+                    sleep(endTime - now);
+                    break;
+                }
+                sleep(errorMillis);
+            }
+
+            now = SystemClock.uptimeMillis();
+            elapsedTime = now - down;
             final float alpha = (float) elapsedTime / duration;
             injectMotionEvent(inputSource, MotionEvent.ACTION_MOVE, down, now,
                     lerp(x1, x2, alpha), lerp(y1, y2, alpha), 1.0f, displayId);
+            injected++;
             now = SystemClock.uptimeMillis();
         }
         injectMotionEvent(inputSource, MotionEvent.ACTION_UP, down, now, x2, y2, 0.0f,

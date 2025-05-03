@@ -818,8 +818,10 @@ final class AppBatteryTracker extends BaseAppStateTracker<AppBatteryPolicy>
     void dump(PrintWriter pw, String prefix) {
         pw.print(prefix);
         pw.println("APP BATTERY STATE TRACKER:");
-        // Force an update.
-        updateBatteryUsageStatsIfNecessary(mInjector.currentTimeMillis(), true);
+        if (mInjector.getActivityManagerInternal().isBooted()) {
+            // Force an update.
+            updateBatteryUsageStatsIfNecessary(mInjector.currentTimeMillis(), true);
+        }
         // Force a check.
         scheduleBgBatteryUsageStatsCheck();
         // Wait for its completion (as it runs in handler thread for the sake of thread safe)
@@ -878,8 +880,10 @@ final class AppBatteryTracker extends BaseAppStateTracker<AppBatteryPolicy>
 
     @Override
     void dumpAsProto(ProtoOutputStream proto, int uid) {
-        // Force an update.
-        updateBatteryUsageStatsIfNecessary(mInjector.currentTimeMillis(), true);
+        if (mInjector.getActivityManagerInternal().isBooted()) {
+            // Force an update.
+            updateBatteryUsageStatsIfNecessary(mInjector.currentTimeMillis(), true);
+        }
         synchronized (mLock) {
             final SparseArray<ImmutableBatteryUsage> uidConsumers = mUidBatteryUsageInWindow;
             if (uid != android.os.Process.INVALID_UID) {
@@ -2014,7 +2018,7 @@ final class AppBatteryTracker extends BaseAppStateTracker<AppBatteryPolicy>
             if (!mBgCurrentDrainHighThresholdByBgLocation) {
                 return false;
             }
-            if (mTracker.mContext.checkPermission(ACCESS_BACKGROUND_LOCATION,
+            if (mTracker.mInjector.checkPermission(ACCESS_BACKGROUND_LOCATION,
                     Process.INVALID_PID, uid) == PERMISSION_GRANTED) {
                 return true;
             }

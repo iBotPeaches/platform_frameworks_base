@@ -51,7 +51,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 /** This repository vends out data based on demo mode commands */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -136,7 +136,11 @@ constructor(
 
     override val defaultMobileIconGroup = flowOf(TelephonyIcons.THREE_G)
 
+    // TODO(b/339023069): demo command for device-based emergency calls state
+    override val isDeviceEmergencyCallCapable: StateFlow<Boolean> = MutableStateFlow(false)
+
     override val isAnySimSecure: Flow<Boolean> = flowOf(getIsAnySimSecure())
+
     override fun getIsAnySimSecure(): Boolean = false
 
     override val defaultMobileIconMapping = MutableStateFlow(TelephonyIcons.ICON_NAME_TO_ICON)

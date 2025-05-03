@@ -37,6 +37,7 @@
 #include <hwui/Bitmap.h>
 #include <hwui/ImageDecoder.h>
 #include <sys/stat.h>
+#include <utils/StatsUtils.h>
 
 #include "Bitmap.h"
 #include "BitmapFactory.h"
@@ -162,8 +163,8 @@ static jobject native_create(JNIEnv* env, std::unique_ptr<SkStream> stream,
 
 static jobject ImageDecoder_nCreateFd(JNIEnv* env, jobject /*clazz*/,
         jobject fileDescriptor, jlong length, jboolean preferAnimation, jobject source) {
-#ifndef __ANDROID__ // LayoutLib for Windows does not support F_DUPFD_CLOEXEC
-    return throw_exception(env, kSourceException, "Only supported on Android", nullptr, source);
+#ifdef _WIN32  // LayoutLib for Windows does not support F_DUPFD_CLOEXEC
+    return throw_exception(env, kSourceException, "Not supported on Windows", nullptr, source);
 #else
     int descriptor = jniGetFDFromFileDescriptor(env, fileDescriptor);
 
@@ -485,6 +486,7 @@ static jobject ImageDecoder_nDecodeBitmap(JNIEnv* env, jobject /*clazz*/, jlong 
                         hwBitmap->setGainmap(std::move(gm));
                     }
                 }
+                uirenderer::logBitmapDecode(*hwBitmap);
                 return bitmap::createBitmap(env, hwBitmap.release(), bitmapCreateFlags,
                                             ninePatchChunk, ninePatchInsets);
             }
@@ -498,6 +500,8 @@ static jobject ImageDecoder_nDecodeBitmap(JNIEnv* env, jobject /*clazz*/, jlong 
 
         nativeBitmap->setImmutable();
     }
+
+    uirenderer::logBitmapDecode(*nativeBitmap);
     return bitmap::createBitmap(env, nativeBitmap.release(), bitmapCreateFlags, ninePatchChunk,
                                 ninePatchInsets);
 }

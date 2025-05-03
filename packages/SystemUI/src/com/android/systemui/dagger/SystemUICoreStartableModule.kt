@@ -23,16 +23,18 @@ import com.android.systemui.SliceBroadcastRelayHandler
 import com.android.systemui.accessibility.Magnification
 import com.android.systemui.back.domain.interactor.BackActionInteractor
 import com.android.systemui.biometrics.BiometricNotificationService
+import com.android.systemui.bouncer.domain.startable.BouncerStartable
 import com.android.systemui.clipboardoverlay.ClipboardListener
-import com.android.systemui.communal.CommunalSceneStartable
-import com.android.systemui.communal.log.CommunalLoggerStartable
-import com.android.systemui.communal.widgets.CommunalAppWidgetHostStartable
+import com.android.systemui.complication.ComplicationTypesUpdater
+import com.android.systemui.complication.DreamClockTimeComplication
 import com.android.systemui.controls.dagger.StartControlsStartableModule
 import com.android.systemui.dagger.qualifiers.PerUser
 import com.android.systemui.dreams.AssistantAttentionMonitor
 import com.android.systemui.dreams.DreamMonitor
-import com.android.systemui.dreams.homecontrols.HomeControlsDreamStartable
+import com.android.systemui.dreams.DreamOverlayRegistrant
+import com.android.systemui.dreams.homecontrols.system.HomeControlsDreamStartable
 import com.android.systemui.globalactions.GlobalActionsComponent
+import com.android.systemui.haptics.msdl.MSDLCoreStartable
 import com.android.systemui.keyboard.KeyboardUI
 import com.android.systemui.keyboard.PhysicalKeyboardCoreStartable
 import com.android.systemui.keyguard.KeyguardViewConfigurator
@@ -52,8 +54,8 @@ import com.android.systemui.shortcut.ShortcutKeyDispatcher
 import com.android.systemui.statusbar.ImmersiveModeConfirmation
 import com.android.systemui.statusbar.gesture.GesturePointerEventListener
 import com.android.systemui.statusbar.notification.InstantAppNotifier
-import com.android.systemui.statusbar.phone.ScrimController
-import com.android.systemui.statusbar.phone.StatusBarHeadsUpChangeListener
+import com.android.systemui.statusbar.notification.headsup.StatusBarHeadsUpChangeListener
+import com.android.systemui.statusbar.policy.BatteryControllerStartable
 import com.android.systemui.stylus.StylusUsiPowerStartable
 import com.android.systemui.temporarydisplay.chipbar.ChipbarCoordinator
 import com.android.systemui.theme.ThemeOverlayController
@@ -77,12 +79,13 @@ import dagger.multibindings.IntoMap
  * @deprecated
  */
 @Module(
-    includes = [
-        MultiUserUtilsModule::class,
-        StartControlsStartableModule::class,
-        StartBinderLoggerModule::class,
-        WallpaperModule::class,
-    ]
+    includes =
+        [
+            MultiUserUtilsModule::class,
+            StartControlsStartableModule::class,
+            StartBinderLoggerModule::class,
+            WallpaperModule::class,
+        ]
 )
 abstract class SystemUICoreStartableModule {
     /** Inject into BiometricNotificationService */
@@ -93,25 +96,25 @@ abstract class SystemUICoreStartableModule {
         service: BiometricNotificationService
     ): CoreStartable
 
-    /** Inject into ClipboardListener.  */
+    /** Inject into ClipboardListener. */
     @Binds
     @IntoMap
     @ClassKey(ClipboardListener::class)
     abstract fun bindClipboardListener(sysui: ClipboardListener): CoreStartable
 
-    /** Inject into GlobalActionsComponent.  */
+    /** Inject into GlobalActionsComponent. */
     @Binds
     @IntoMap
     @ClassKey(GlobalActionsComponent::class)
     abstract fun bindGlobalActionsComponent(sysui: GlobalActionsComponent): CoreStartable
 
-    /** Inject into InstantAppNotifier.  */
+    /** Inject into InstantAppNotifier. */
     @Binds
     @IntoMap
     @ClassKey(InstantAppNotifier::class)
     abstract fun bindInstantAppNotifier(sysui: InstantAppNotifier): CoreStartable
 
-    /** Inject into KeyboardUI.  */
+    /** Inject into KeyboardUI. */
     @Binds
     @IntoMap
     @ClassKey(KeyboardUI::class)
@@ -122,7 +125,7 @@ abstract class SystemUICoreStartableModule {
     @IntoMap
     @ClassKey(MediaProjectionTaskSwitcherCoreStartable::class)
     abstract fun bindProjectedTaskListener(
-            sysui: MediaProjectionTaskSwitcherCoreStartable
+        sysui: MediaProjectionTaskSwitcherCoreStartable
     ): CoreStartable
 
     /** Inject into KeyguardBiometricLockoutLogger */
@@ -133,38 +136,38 @@ abstract class SystemUICoreStartableModule {
         sysui: KeyguardBiometricLockoutLogger
     ): CoreStartable
 
-    /** Inject into KeyguardViewMediator.  */
+    /** Inject into KeyguardViewMediator. */
     @Binds
     @IntoMap
     @ClassKey(KeyguardViewMediator::class)
     abstract fun bindKeyguardViewMediator(sysui: KeyguardViewMediator): CoreStartable
 
-    /** Inject into LatencyTests.  */
+    /** Inject into LatencyTests. */
     @Binds
     @IntoMap
     @ClassKey(LatencyTester::class)
     abstract fun bindLatencyTester(sysui: LatencyTester): CoreStartable
 
-    /** Inject into DisplaySwitchLatencyTracker.  */
+    /** Inject into DisplaySwitchLatencyTracker. */
     @Binds
     @IntoMap
     @ClassKey(DisplaySwitchLatencyTracker::class)
     abstract fun bindDisplaySwitchLatencyTracker(sysui: DisplaySwitchLatencyTracker): CoreStartable
 
-    /** Inject into NotificationChannels.  */
+    /** Inject into NotificationChannels. */
     @Binds
     @IntoMap
     @ClassKey(NotificationChannels::class)
     @PerUser
     abstract fun bindNotificationChannels(sysui: NotificationChannels): CoreStartable
 
-    /** Inject into ImmersiveModeConfirmation.  */
+    /** Inject into ImmersiveModeConfirmation. */
     @Binds
     @IntoMap
     @ClassKey(ImmersiveModeConfirmation::class)
     abstract fun bindImmersiveModeConfirmation(sysui: ImmersiveModeConfirmation): CoreStartable
 
-    /** Inject into RingtonePlayer.  */
+    /** Inject into RingtonePlayer. */
     @Binds
     @IntoMap
     @ClassKey(RingtonePlayer::class)
@@ -176,50 +179,49 @@ abstract class SystemUICoreStartableModule {
     @ClassKey(GesturePointerEventListener::class)
     abstract fun bindGesturePointerEventListener(sysui: GesturePointerEventListener): CoreStartable
 
-    /** Inject into SessionTracker.  */
+    /** Inject into SessionTracker. */
     @Binds
     @IntoMap
     @ClassKey(SessionTracker::class)
     abstract fun bindSessionTracker(service: SessionTracker): CoreStartable
 
-    /** Inject into ShortcutKeyDispatcher.  */
+    /** Inject into ShortcutKeyDispatcher. */
     @Binds
     @IntoMap
     @ClassKey(ShortcutKeyDispatcher::class)
     abstract fun bindShortcutKeyDispatcher(sysui: ShortcutKeyDispatcher): CoreStartable
 
-    /** Inject into SliceBroadcastRelayHandler.  */
+    /** Inject into SliceBroadcastRelayHandler. */
     @Binds
     @IntoMap
     @ClassKey(SliceBroadcastRelayHandler::class)
     abstract fun bindSliceBroadcastRelayHandler(sysui: SliceBroadcastRelayHandler): CoreStartable
 
-    /** Inject into StorageNotification.  */
+    /** Inject into StorageNotification. */
     @Binds
     @IntoMap
     @ClassKey(StorageNotification::class)
     abstract fun bindStorageNotification(sysui: StorageNotification): CoreStartable
 
-    /** Inject into ThemeOverlayController.  */
+    /** Inject into ThemeOverlayController. */
     @Binds
     @IntoMap
     @ClassKey(ThemeOverlayController::class)
     abstract fun bindThemeOverlayController(sysui: ThemeOverlayController): CoreStartable
 
-
-    /** Inject into MediaOutputSwitcherDialogUI.  */
+    /** Inject into MediaOutputSwitcherDialogUI. */
     @Binds
     @IntoMap
     @ClassKey(MediaOutputSwitcherDialogUI::class)
     abstract fun MediaOutputSwitcherDialogUI(sysui: MediaOutputSwitcherDialogUI): CoreStartable
 
-    /** Inject into Magnification.  */
+    /** Inject into Magnification. */
     @Binds
     @IntoMap
     @ClassKey(Magnification::class)
     abstract fun bindMagnification(sysui: Magnification): CoreStartable
 
-    /** Inject into WMShell.  */
+    /** Inject into WMShell. */
     @Binds
     @IntoMap
     @ClassKey(WMShell::class)
@@ -236,7 +238,7 @@ abstract class SystemUICoreStartableModule {
     @IntoMap
     @ClassKey(MediaTttChipControllerReceiver::class)
     abstract fun bindMediaTttChipControllerReceiver(
-            sysui: MediaTttChipControllerReceiver
+        sysui: MediaTttChipControllerReceiver
     ): CoreStartable
 
     /** Inject into MediaTttCommandLineHelper. */
@@ -251,8 +253,6 @@ abstract class SystemUICoreStartableModule {
     @ClassKey(ChipbarCoordinator::class)
     abstract fun bindChipbarController(sysui: ChipbarCoordinator): CoreStartable
 
-
-
     /** Inject into StylusUsiPowerStartable) */
     @Binds
     @IntoMap
@@ -264,21 +264,21 @@ abstract class SystemUICoreStartableModule {
     @ClassKey(PhysicalKeyboardCoreStartable::class)
     abstract fun bindKeyboardCoreStartable(listener: PhysicalKeyboardCoreStartable): CoreStartable
 
-    /** Inject into MuteQuickAffordanceCoreStartable*/
+    /** Inject into MuteQuickAffordanceCoreStartable */
     @Binds
     @IntoMap
     @ClassKey(MuteQuickAffordanceCoreStartable::class)
     abstract fun bindMuteQuickAffordanceCoreStartable(
-            sysui: MuteQuickAffordanceCoreStartable
+        sysui: MuteQuickAffordanceCoreStartable
     ): CoreStartable
 
-    /**Inject into DreamMonitor */
+    /** Inject into DreamMonitor */
     @Binds
     @IntoMap
     @ClassKey(DreamMonitor::class)
     abstract fun bindDreamMonitor(sysui: DreamMonitor): CoreStartable
 
-    /**Inject into AssistantAttentionMonitor */
+    /** Inject into AssistantAttentionMonitor */
     @Binds
     @IntoMap
     @ClassKey(AssistantAttentionMonitor::class)
@@ -288,11 +288,6 @@ abstract class SystemUICoreStartableModule {
     @IntoMap
     @ClassKey(KeyguardViewConfigurator::class)
     abstract fun bindKeyguardViewConfigurator(impl: KeyguardViewConfigurator): CoreStartable
-
-    @Binds
-    @IntoMap
-    @ClassKey(ScrimController::class)
-    abstract fun bindScrimController(impl: ScrimController): CoreStartable
 
     @Binds
     @IntoMap
@@ -313,28 +308,49 @@ abstract class SystemUICoreStartableModule {
 
     @Binds
     @IntoMap
+    @ClassKey(BouncerStartable::class)
+    abstract fun bindBouncerStartable(impl: BouncerStartable): CoreStartable
+
+    @Binds
+    @IntoMap
     @ClassKey(KeyguardDismissBinder::class)
     abstract fun bindKeyguardDismissBinder(impl: KeyguardDismissBinder): CoreStartable
 
     @Binds
     @IntoMap
-    @ClassKey(CommunalLoggerStartable::class)
-    abstract fun bindCommunalLoggerStartable(impl: CommunalLoggerStartable): CoreStartable
-
-    @Binds
-    @IntoMap
-    @ClassKey(CommunalSceneStartable::class)
-    abstract fun bindCommunalSceneStartable(impl: CommunalSceneStartable): CoreStartable
-
-    @Binds
-    @IntoMap
-    @ClassKey(CommunalAppWidgetHostStartable::class)
-    abstract fun bindCommunalAppWidgetHostStartable(
-        impl: CommunalAppWidgetHostStartable
-    ): CoreStartable
-
-    @Binds
-    @IntoMap
     @ClassKey(HomeControlsDreamStartable::class)
     abstract fun bindHomeControlsDreamStartable(impl: HomeControlsDreamStartable): CoreStartable
+
+    /** Binds {@link BatteryControllerStartable} as a {@link CoreStartable}. */
+    @Binds
+    @IntoMap
+    @ClassKey(BatteryControllerStartable::class)
+    abstract fun bindsBatteryControllerStartable(impl: BatteryControllerStartable): CoreStartable
+
+    @Binds
+    @IntoMap
+    @ClassKey(MSDLCoreStartable::class)
+    abstract fun bindMSDLCoreStartable(impl: MSDLCoreStartable): CoreStartable
+
+    /** Inject into DreamOverlay. */
+    @Binds
+    @IntoMap
+    @ClassKey(DreamOverlayRegistrant::class)
+    abstract fun bindDreamOverlayRegistrant(
+        dreamOverlayRegistrant: DreamOverlayRegistrant
+    ): CoreStartable
+
+    /** Inject into DreamClockTimeComplication.Registrant */
+    @Binds
+    @IntoMap
+    @ClassKey(DreamClockTimeComplication.Registrant::class)
+    abstract fun bindDreamClockTimeComplicationRegistrant(
+        registrant: DreamClockTimeComplication.Registrant
+    ): CoreStartable
+
+    /** Inject into ComplicationTypesUpdater. */
+    @Binds
+    @IntoMap
+    @ClassKey(ComplicationTypesUpdater::class)
+    abstract fun bindComplicationTypesUpdater(updater: ComplicationTypesUpdater): CoreStartable
 }
